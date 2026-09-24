@@ -30,8 +30,7 @@ export default async function ProjectSettings({
           起止：{p.startDate ?? "—"} ~ {p.endDate ?? "—"}
         </p>
         <p className="text-muted-foreground">
-          编辑表单由 Owner A 在{" "}
-          <code className="rounded bg-muted px-1">feature/tasks-status</code> 一并补全。
+          编辑表单由 identity 模块后续补全（<code className="rounded bg-muted px-1">updateProject</code> 已就位）。
         </p>
         <p>
           <Link href={`/t/${p.teamId}/projects`} className="text-primary hover:underline">
