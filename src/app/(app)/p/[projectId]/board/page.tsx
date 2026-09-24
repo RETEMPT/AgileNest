@@ -4,7 +4,7 @@ export default function BoardPage() {
   return (
     <ModulePlaceholder
       title="看板（Owner B）"
-      owner="B · 前端1"
+      owner="B"
       branch="feature/board-views"
       doc="src/modules/board/index.ts → deriveColumns / moveTask"
     />

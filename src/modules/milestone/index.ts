@@ -12,34 +12,32 @@ export type MilestoneDTO = {
   createdAt: Date;
 };
 
-// —— Owner E（feature-calendar-notify）填实 ——
+// —— Owner E（feature/calendar-notify）填实 ——
 
 export async function listMilestones(
-  actorId: string,
-  projectId: string,
+  _actorId: string,
+  _projectId: string,
 ): Promise<MilestoneDTO[]> {
-  void actorId; void projectId;
   throw new NotImplementedError("listMilestones");
 }
 
 export async function createMilestone(
-  actorId: string,
-  projectId: string,
-  input: {
+  _actorId: string,
+  _projectId: string,
+  _input: {
     title: string;
     description?: string;
     kind?: MilestoneKind;
     targetDate?: string;
   },
 ): Promise<MilestoneDTO> {
-  void actorId; void projectId; void input;
   throw new NotImplementedError("createMilestone");
 }
 
 export async function updateMilestone(
-  actorId: string,
-  milestoneId: string,
-  patch: {
+  _actorId: string,
+  _milestoneId: string,
+  _patch: {
     title?: string;
     description?: string | null;
     kind?: MilestoneKind;
@@ -47,14 +45,12 @@ export async function updateMilestone(
     status?: MilestoneStatus;
   },
 ): Promise<MilestoneDTO> {
-  void actorId; void milestoneId; void patch;
   throw new NotImplementedError("updateMilestone");
 }
 
 export async function deleteMilestone(
-  actorId: string,
-  milestoneId: string,
+  _actorId: string,
+  _milestoneId: string,
 ): Promise<void> {
-  void actorId; void milestoneId;
   throw new NotImplementedError("deleteMilestone");
 }

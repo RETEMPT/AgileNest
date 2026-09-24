@@ -40,34 +40,42 @@ export type TransitionInput = {
   assigneeId?: string;
 };
 
-// —— Owner A（feature/tasks-status）填实以下签名 ——
+export type TransitionAction =
+  | "claim"
+  | "unclaim"
+  | "assign"
+  | "submit"
+  | "resubmit"
+  | "accept"
+  | "reject"
+  | "reopen";
+
+// —— Owner A（feature/tasks-status）填实 ——
 
 export async function listProjectTasks(
-  actorId: string,
-  projectId: string,
-  filters?: {
+  _actorId: string,
+  _projectId: string,
+  _filters?: {
     status?: TaskStatus[];
     assigneeId?: string;
     milestoneId?: string;
     parentTaskId?: string | null;
   },
 ): Promise<TaskDTO[]> {
-  void actorId; void projectId; void filters;
   throw new NotImplementedError("listProjectTasks");
 }
 
 export async function getTaskDetail(
-  actorId: string,
-  taskId: string,
+  _actorId: string,
+  _taskId: string,
 ): Promise<TaskDTO & { subtasks: TaskDTO[] }> {
-  void actorId; void taskId;
   throw new NotImplementedError("getTaskDetail");
 }
 
 export async function createTask(
-  actorId: string,
-  projectId: string,
-  input: {
+  _actorId: string,
+  _projectId: string,
+  _input: {
     title: string;
     description?: string;
     assigneeId?: string;
@@ -79,64 +87,49 @@ export async function createTask(
     priority?: TaskPriority;
   },
 ): Promise<TaskDTO> {
-  void actorId; void projectId; void input;
   throw new NotImplementedError("createTask");
 }
 
 export async function updateTask(
-  actorId: string,
-  taskId: string,
-  patch: TaskPatch,
+  _actorId: string,
+  _taskId: string,
+  _patch: TaskPatch,
 ): Promise<TaskDTO> {
-  void actorId; void taskId; void patch;
   throw new NotImplementedError("updateTask");
 }
 
-export async function deleteTask(actorId: string, taskId: string): Promise<void> {
-  void actorId; void taskId;
+export async function deleteTask(_actorId: string, _taskId: string): Promise<void> {
   throw new NotImplementedError("deleteTask");
 }
 
 export async function transitionTask(
-  actorId: string,
-  taskId: string,
-  action:
-    | "claim"
-    | "unclaim"
-    | "assign"
-    | "submit"
-    | "resubmit"
-    | "accept"
-    | "reject"
-    | "reopen",
-  input?: TransitionInput,
+  _actorId: string,
+  _taskId: string,
+  _action: TransitionAction,
+  _input?: TransitionInput,
 ): Promise<TaskDTO> {
-  void actorId; void taskId; void action; void input;
   throw new NotImplementedError("transitionTask");
 }
 
 export async function createSubtask(
-  actorId: string,
-  parentTaskId: string,
-  input: { title: string; description?: string; dueDate?: string },
+  _actorId: string,
+  _parentTaskId: string,
+  _input: { title: string; description?: string; dueDate?: string },
 ): Promise<TaskDTO> {
-  void actorId; void parentTaskId; void input;
   throw new NotImplementedError("createSubtask");
 }
 
 export async function listSubtasks(
-  actorId: string,
-  parentTaskId: string,
+  _actorId: string,
+  _parentTaskId: string,
 ): Promise<TaskDTO[]> {
-  void actorId; void parentTaskId;
   throw new NotImplementedError("listSubtasks");
 }
 
 export async function setDueDate(
-  actorId: string,
-  taskId: string,
-  dueDate: string | null,
+  _actorId: string,
+  _taskId: string,
+  _dueDate: string | null,
 ): Promise<TaskDTO> {
-  void actorId; void taskId; void dueDate;
   throw new NotImplementedError("setDueDate");
 }

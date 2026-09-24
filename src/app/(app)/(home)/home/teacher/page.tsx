@@ -11,7 +11,7 @@ export default function TeacherHome() {
       </header>
       <ModulePlaceholder
         title="教师监督台（Owner C）"
-        owner="C · 前端2"
+        owner="C"
         branch="feature/review-portal"
         doc="src/modules/review/index.ts → listPendingReview / listOverdueRisks"
       />
