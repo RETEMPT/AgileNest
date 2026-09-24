@@ -1,0 +1,12 @@
+# 密钥绝不入镜像层
+.env
+.env.*
+
+# 构建无需、且拖慢上下文
+node_modules
+.next
+.git
+drizzle
+coverage
+npm-debug.log*
+.DS_Store
