@@ -3,10 +3,10 @@ import { ModulePlaceholder } from "@/components/ui/placeholder";
 export default function StatsPage() {
   return (
     <ModulePlaceholder
-      title="统计（Owner D）"
-      owner="D · 测试1"
+      title="工时 · 完成度 · 贡献（Owner D）"
+      owner="D"
       branch="feature/worklog-stats"
-      doc="src/modules/stats/index.ts → completionRatio / taskHours / memberContribution"
+      doc="src/modules/worklog/index.ts → completionRatio / taskHours / memberContribution"
     />
   );
 }

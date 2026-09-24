@@ -4,9 +4,9 @@ export default function ReviewPage() {
   return (
     <ModulePlaceholder
       title="验收台（Owner C）"
-      owner="C · 前端2"
+      owner="C"
       branch="feature/review-portal"
-      doc="src/modules/review/index.ts → listPendingReview / acceptTask / rejectTask"
+      doc="src/modules/review/index.ts → listPendingReview"
     />
   );
 }

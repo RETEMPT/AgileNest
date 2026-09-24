@@ -12,11 +12,11 @@ export type CalendarCell = {
 // —— Owner E（feature/calendar-notify）填实 ——
 
 export async function monthView(
-  actorId: string,
-  projectId: string,
-  year: number,
-  month: number, // 1-12
+  _actorId: string,
+  _projectId: string,
+  _year: number,
+  /** 1-12 */
+  _month: number,
 ): Promise<CalendarCell[]> {
-  void actorId; void projectId; void year; void month;
   throw new NotImplementedError("monthView");
 }

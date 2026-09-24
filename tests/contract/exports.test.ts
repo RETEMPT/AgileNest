@@ -6,7 +6,6 @@ import * as tasks from "@/modules/tasks";
 import * as board from "@/modules/board";
 import * as review from "@/modules/review";
 import * as worklog from "@/modules/worklog";
-import * as stats from "@/modules/stats";
 import * as calendar from "@/modules/calendar";
 import * as milestone from "@/modules/milestone";
 import * as notify from "@/modules/notify";
@@ -103,11 +102,18 @@ describe("业务模块契约导出（stub 期）", () => {
         "listTaskEvents",
       ],
     ],
-    ["worklog", worklog, ["addWorklog", "listWorklogs", "deleteWorklog"]],
     [
-      "stats",
-      stats,
-      ["completionRatio", "projectCompletion", "taskHours", "memberContribution"],
+      "worklog",
+      worklog,
+      [
+        "addWorklog",
+        "listWorklogs",
+        "deleteWorklog",
+        "completionRatio",
+        "projectCompletion",
+        "taskHours",
+        "memberContribution",
+      ],
     ],
     ["calendar", calendar, ["monthView"]],
     [
@@ -152,23 +158,28 @@ describe("五态状态机 TRANSITIONS 表", () => {
   it("八条转移动作齐全", () => {
     const actions = TRANSITIONS.map((t) => t.action).sort();
     expect(actions).toEqual(
-      ["accept", "assign", "claim", "reject", "reopen", "resubmit", "submit", "unclaim"].sort(),
+      [
+        "accept",
+        "assign",
+        "claim",
+        "reject",
+        "reopen",
+        "resubmit",
+        "submit",
+        "unclaim",
+      ].sort(),
     );
   });
 
-  it("claim: unclaimed → in_progress", () => {
-    const r = findTransition("claim", "unclaimed");
-    expect(r?.to).toBe("in_progress");
-    expect(r?.selfOnly).toBe(true);
-  });
-
-  it("submit 需 note；reject 需 note；resubmit 需 note", () => {
+  it("claim: unclaimed → in_progress；submit/reject/resubmit 需 note", () => {
+    expect(findTransition("claim", "unclaimed")?.to).toBe("in_progress");
+    expect(findTransition("claim", "unclaimed")?.selfOnly).toBe(true);
     expect(findTransition("submit", "in_progress")?.noteRequired).toBe(true);
     expect(findTransition("resubmit", "rejected")?.noteRequired).toBe(true);
     expect(findTransition("reject", "submitted")?.noteRequired).toBe(true);
   });
 
-  it("非法边返回 null（如 accepted 上 claim）", () => {
+  it("非法边返回 null", () => {
     expect(findTransition("claim", "accepted")).toBeNull();
     expect(findTransition("accept", "unclaimed")).toBeNull();
   });
@@ -180,7 +191,7 @@ describe("五态状态机 TRANSITIONS 表", () => {
     }
   });
 
-  it("allowedActions：unclaimed 下 student 只能 claim，teacher 不能 claim", () => {
+  it("allowedActions 按角色过滤", () => {
     expect(allowedActions("unclaimed", "student")).toContain("claim");
     expect(allowedActions("unclaimed", "teacher")).not.toContain("claim");
     expect(allowedActions("submitted", "teacher")).toContain("accept");

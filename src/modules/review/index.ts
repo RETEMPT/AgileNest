@@ -19,51 +19,44 @@ export type EventDTO = {
 
 // —— Owner C（feature/review-portal）填实 ——
 
-/** 学生工作台：我的三列 */
-export async function listMyTodo(actorId: string): Promise<TaskDTO[]> {
-  void actorId;
+/** 学生工作台三列 */
+export async function listMyTodo(_actorId: string): Promise<TaskDTO[]> {
   throw new NotImplementedError("listMyTodo");
 }
 
-export async function listMyInProgress(actorId: string): Promise<TaskDTO[]> {
-  void actorId;
+export async function listMyInProgress(_actorId: string): Promise<TaskDTO[]> {
   throw new NotImplementedError("listMyInProgress");
 }
 
-export async function listMyRejected(actorId: string): Promise<TaskDTO[]> {
-  void actorId;
+export async function listMyRejected(_actorId: string): Promise<TaskDTO[]> {
   throw new NotImplementedError("listMyRejected");
 }
 
 export async function listUnclaimedPool(
-  actorId: string,
-  projectId: string,
+  _actorId: string,
+  _projectId: string,
 ): Promise<TaskDTO[]> {
-  void actorId; void projectId;
   throw new NotImplementedError("listUnclaimedPool");
 }
 
 /** 教师监督台 */
 export async function listPendingReview(
-  actorId: string,
-  projectId: string,
+  _actorId: string,
+  _projectId: string,
 ): Promise<ReviewItem[]> {
-  void actorId; void projectId;
   throw new NotImplementedError("listPendingReview");
 }
 
 export async function listOverdueRisks(
-  actorId: string,
-  projectId: string,
+  _actorId: string,
+  _projectId: string,
 ): Promise<TaskDTO[]> {
-  void actorId; void projectId;
   throw new NotImplementedError("listOverdueRisks");
 }
 
 export async function listTaskEvents(
-  actorId: string,
-  taskId: string,
+  _actorId: string,
+  _taskId: string,
 ): Promise<EventDTO[]> {
-  void actorId; void taskId;
   throw new NotImplementedError("listTaskEvents");
 }

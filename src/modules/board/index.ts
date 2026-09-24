@@ -18,34 +18,32 @@ export type BoardFilters = {
 
 // —— Owner B（feature/board-views）填实 ——
 
-export function deriveColumns(
-  tasks: TaskDTO[],
-  groupBy: GroupBy,
-): ColumnDef[] {
-  void tasks; void groupBy;
+export function deriveColumns(_tasks: TaskDTO[], _groupBy: GroupBy): ColumnDef[] {
   throw new NotImplementedError("deriveColumns");
 }
 
-export function applyFilters(tasks: TaskDTO[], f: BoardFilters): TaskDTO[] {
-  void tasks; void f;
+export function applyFilters(_tasks: TaskDTO[], _f: BoardFilters): TaskDTO[] {
   throw new NotImplementedError("applyFilters");
 }
 
-export function parseFilters(params: URLSearchParams): BoardFilters {
-  void params;
+export function parseFilters(_params: URLSearchParams): BoardFilters {
   throw new NotImplementedError("parseFilters");
 }
 
-export function serializeFilters(f: BoardFilters): URLSearchParams {
-  void f;
+export function serializeFilters(_f: BoardFilters): URLSearchParams {
   throw new NotImplementedError("serializeFilters");
 }
 
 export async function moveTask(
-  actorId: string,
-  taskId: string,
-  patch: { status?: string; assigneeId?: string | null; priority?: string; milestoneId?: string | null; sortOrder?: number },
+  _actorId: string,
+  _taskId: string,
+  _patch: {
+    status?: string;
+    assigneeId?: string | null;
+    priority?: string;
+    milestoneId?: string | null;
+    sortOrder?: number;
+  },
 ): Promise<TaskDTO> {
-  void actorId; void taskId; void patch;
   throw new NotImplementedError("moveTask");
 }
