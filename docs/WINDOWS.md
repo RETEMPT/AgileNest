@@ -29,8 +29,11 @@ start.bat
 `setup.bat` 做了什么：起 Postgres → 生成 `.env`（含随机 `AUTH_SECRET`）→ `npm install` → `db:push`（dev+test 库）→ `db:seed`（演示账号）。
 
 种子账号：
-- `admin@agilecampus.local` / `password123`（教师侧）
-- `student@agilecampus.local` / `password123`（学生侧）
+- `admin@agilecampus.local` / `password123`（管理员）
+- `teacher@agilecampus.local` / `password123`（教师 / 验收）
+- `student@agilecampus.local` / `password123`（学生）
+
+种子还带一批示例任务（五态都有），登录后可直接点：工作台 → 项目 → 任务池 / 看板 / 验收台。
 
 ## 测试
 

@@ -17,7 +17,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             >
               A
             </span>
-            <span className="font-display text-lg font-semibold">AgileCampus</span>
+            <span className="font-display text-lg font-semibold">AgileNest</span>
           </Link>
           <nav className="flex items-center gap-1">
             <Link

@@ -15,7 +15,7 @@ function LoginForm() {
 
   return (
     <main className="mx-auto mt-24 w-full max-w-sm space-y-4 rounded-xl border border-border bg-card p-6 shadow-sm">
-      <h1 className="font-display text-2xl font-semibold">登录 AgileCampus</h1>
+      <h1 className="font-display text-2xl font-semibold">登录 AgileNest</h1>
       {registered && <p className="text-sm text-emerald-600">注册成功，请登录。</p>}
       <form action={formAction} className="space-y-3">
         <input

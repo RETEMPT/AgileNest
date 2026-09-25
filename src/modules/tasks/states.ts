@@ -28,7 +28,7 @@ export const ACTION_ROLES: Record<TaskAction, TeamRole[]> = {
   accept: ["admin", "teacher"],
   reject: ["admin", "teacher"],
   reopen: ["admin", "teacher"],
-  update: ["admin", "student"],
+  update: ["admin", "teacher", "student"],
   create: ["admin", "teacher", "student"],
   delete: ["admin", "teacher"],
 };
@@ -135,3 +135,8 @@ export const ACTION_LABELS: Record<TaskAction, string> = {
   create: "创建",
   delete: "删除",
 };
+
+/** admin/teacher 可删任务；student 不可 */
+export function canDeleteTask(role: TeamRole) {
+  return role === "admin" || role === "teacher";
+}

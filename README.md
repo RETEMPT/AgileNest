@@ -1,4 +1,4 @@
-# AgileCampus · 高校轻量化敏捷项目管理平台
+# AgileNest · 高校轻量化敏捷项目管理平台
 
 > 让敏捷从产业走向教育 —— 认领 → 做事 → 提交 → 验收，课设用 5 人可并行的模块化框架。
 
@@ -9,7 +9,7 @@ setup.bat
 start.bat
 ```
 
-打开 <http://localhost:3000/login> · 种子账号 `admin@` / `student@agilecampus.local`（密码 `password123`）。
+打开 <http://localhost:3000/login> · 种子账号 `admin@` / `teacher@` / `student@agilecampus.local`（密码 `password123`）。
 细节：[docs/WINDOWS.md](docs/WINDOWS.md)
 
 ## 任务五态

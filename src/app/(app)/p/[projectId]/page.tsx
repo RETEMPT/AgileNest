@@ -2,7 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/modules/core/session";
 import { getProjectForUser } from "@/modules/core/permissions";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { listProjectTasks } from "@/modules/tasks";
+import { projectCompletion } from "@/modules/worklog";
+import { listMilestones } from "@/modules/milestone";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 export default async function ProjectOverview({
   params,
@@ -15,6 +18,27 @@ export default async function ProjectOverview({
   if (!access) notFound();
   const p = access.project;
 
+  const [tasks, completion, milestones] = await Promise.all([
+    listProjectTasks(user.id, projectId, { parentTaskId: null }),
+    projectCompletion(user.id, projectId),
+    listMilestones(user.id, projectId),
+  ]);
+
+  const byStatus = {
+    unclaimed: tasks.filter((t) => t.status === "unclaimed").length,
+    in_progress: tasks.filter((t) => t.status === "in_progress").length,
+    submitted: tasks.filter((t) => t.status === "submitted").length,
+    accepted: tasks.filter((t) => t.status === "accepted").length,
+    rejected: tasks.filter((t) => t.status === "rejected").length,
+  };
+  const pct = Math.round(completion.ratio * 100);
+
+  const links = [
+    { href: "tasks", label: "任务池", desc: "创建 / 认领 / 指派" },
+    { href: "board", label: "看板", desc: "五列流水线" },
+    { href: access.role === "student" ? "tasks" : "review", label: access.role === "student" ? "任务池" : "验收台", desc: access.role === "student" ? "推进状态" : "通过 / 打回" },
+  ];
+
   return (
     <main className="space-y-6">
       <header>
@@ -23,12 +47,50 @@ export default async function ProjectOverview({
       </header>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        {[
-          { href: "tasks", label: "任务池", desc: "创建 / 认领 / 指派 / 子任务" },
-          { href: "board", label: "看板", desc: "五列拖拽：待认领 → … → 待修改" },
-          { href: "review", label: "验收台", desc: "教师验收通过 / 打回" },
-        ].map((c) => (
-          <Link key={c.href} href={`/p/${projectId}/${c.href}`}>
+        <Card>
+          <CardHeader>
+            <CardTitle>完成度</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="font-display text-3xl font-semibold">{pct}%</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>任务</CardTitle>
+            <CardDescription>
+              待认领 {byStatus.unclaimed} · 进行 {byStatus.in_progress} · 待验收{" "}
+              {byStatus.submitted}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            已完成 {byStatus.accepted} · 待修改 {byStatus.rejected} · 共 {tasks.length}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>里程碑</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm">
+            {milestones.length === 0 ? (
+              <p className="text-muted-foreground">未设置</p>
+            ) : (
+              <ul className="space-y-1">
+                {milestones.slice(0, 4).map((m) => (
+                  <li key={m.id} className="flex justify-between">
+                    <span>{m.title}</span>
+                    <span className="text-muted-foreground">{m.targetDate ?? "—"}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        {links.map((c) => (
+          <Link key={c.href + c.label} href={`/p/${projectId}/${c.href}`}>
             <Card className="transition-shadow hover:shadow-md">
               <CardHeader>
                 <CardTitle>{c.label}</CardTitle>
