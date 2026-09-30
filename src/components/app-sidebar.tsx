@@ -151,39 +151,66 @@ export function AppSidebar({
         } ${mobileOpen ? "translate-x-0 w-64" : "-translate-x-full w-64"}`}
       >
         {/* 1. 品牌与顶头 */}
-        <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-3 sm:px-4">
-          <Link
-            href="/home"
-            className="flex items-center gap-2.5 font-display text-lg font-bold tracking-tight text-foreground truncate"
-            title="AgileNest 首页"
-          >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
-              <LogoIcon size={20} />
+        <div className="flex h-16 shrink-0 items-center border-b border-border px-3 sm:px-4">
+          {/* 桌面端折叠态：居中单体图标按钮，悬浮切换展开箭头，彻底消除重叠 */}
+          {isCollapsed ? (
+            <div className="hidden md:flex w-full items-center justify-center">
+              {onToggleCollapse ? (
+                <button
+                  onClick={onToggleCollapse}
+                  title="展开侧栏 (Ctrl+B)"
+                  className="group relative flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50/70 text-blue-600 hover:bg-blue-100 hover:text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/60 transition shadow-2xs"
+                >
+                  <span className="group-hover:hidden transition-transform">
+                    <LogoIcon size={20} />
+                  </span>
+                  <span className="hidden group-hover:inline-block transition-transform">
+                    <SidebarExpandIcon size={18} />
+                  </span>
+                </button>
+              ) : (
+                <Link
+                  href="/home"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50/70 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400"
+                  title="AgileNest 首页"
+                >
+                  <LogoIcon size={20} />
+                </Link>
+              )}
             </div>
-            <span className={`truncate ${isCollapsed ? "md:hidden" : ""}`}>AgileNest</span>
-          </Link>
+          ) : null}
 
-          <div className="flex items-center gap-1">
-            <span
-              className={`rounded-md border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground ${
-                isCollapsed ? "md:hidden" : ""
-              }`}
+          {/* 展开态（以及移动端）：完整品牌 + 版本号 + 收起按钮 */}
+          <div
+            className={`flex w-full items-center justify-between ${
+              isCollapsed ? "md:hidden" : ""
+            }`}
+          >
+            <Link
+              href="/home"
+              className="flex items-center gap-2.5 font-display text-lg font-bold tracking-tight text-foreground truncate"
+              title="AgileNest 首页"
             >
-              v0.2
-            </span>
-            {onToggleCollapse && (
-              <button
-                onClick={onToggleCollapse}
-                title={isCollapsed ? "展开侧栏 (Ctrl+B)" : "收起侧栏 (Ctrl+B)"}
-                className="hidden md:flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition"
-              >
-                {isCollapsed ? (
-                  <SidebarExpandIcon size={16} />
-                ) : (
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
+                <LogoIcon size={20} />
+              </div>
+              <span className="truncate">AgileNest</span>
+            </Link>
+
+            <div className="flex items-center gap-1.5">
+              <span className="rounded-md border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                v0.2
+              </span>
+              {onToggleCollapse && (
+                <button
+                  onClick={onToggleCollapse}
+                  title="收起侧栏 (Ctrl+B)"
+                  className="hidden md:flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition"
+                >
                   <SidebarCollapseIcon size={16} />
-                )}
-              </button>
-            )}
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
