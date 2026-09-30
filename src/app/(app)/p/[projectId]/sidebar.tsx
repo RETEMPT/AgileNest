@@ -3,19 +3,35 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import {
+  TasksIcon,
+  BoardIcon,
+  TableIcon,
+  CalendarIcon,
+  MilestoneIcon,
+  ReviewIcon,
+  StatsIcon,
+  SettingsIcon,
+  WorkbenchIcon,
+} from "@/components/icons";
 
-type Item = { href: string; label: string; roles?: string[] };
+type Item = {
+  href: string;
+  label: string;
+  icon: typeof TasksIcon;
+  roles?: string[];
+};
 
 const ITEMS: Item[] = [
-  { href: "", label: "概览" },
-  { href: "/tasks", label: "任务池" },
-  { href: "/board", label: "看板" },
-  { href: "/table", label: "表格" },
-  { href: "/calendar", label: "日历" },
-  { href: "/milestones", label: "里程碑" },
-  { href: "/review", label: "验收台", roles: ["admin", "teacher"] },
-  { href: "/stats", label: "统计" },
-  { href: "/settings", label: "设置" },
+  { href: "", label: "概览", icon: WorkbenchIcon },
+  { href: "/tasks", label: "任务池", icon: TasksIcon },
+  { href: "/board", label: "看板", icon: BoardIcon },
+  { href: "/table", label: "表格", icon: TableIcon },
+  { href: "/calendar", label: "日历", icon: CalendarIcon },
+  { href: "/milestones", label: "里程碑", icon: MilestoneIcon },
+  { href: "/review", label: "验收台", icon: ReviewIcon, roles: ["admin", "teacher"] },
+  { href: "/stats", label: "工时统计", icon: StatsIcon },
+  { href: "/settings", label: "设置", icon: SettingsIcon },
 ];
 
 export function ProjectSidebar({
@@ -31,30 +47,45 @@ export function ProjectSidebar({
   const base = `/p/${projectId}`;
 
   return (
-    <aside className="w-44 shrink-0">
-      <div className="sticky top-20 space-y-1">
-        <Link href={base} className="mb-3 block font-display text-sm font-semibold hover:underline">
-          {name}
-        </Link>
+    <div className="space-y-4 border-b border-border pb-3">
+      {/* 顶部标题与角色 */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <Link
+            href={base}
+            className="font-display text-xl font-bold tracking-tight text-foreground hover:underline"
+          >
+            {name}
+          </Link>
+          <span className="rounded-full border border-border bg-muted/50 px-2.5 py-0.5 text-xs text-muted-foreground">
+            {role === "admin" ? "管理员" : role === "teacher" ? "教师 / 验收" : "学生"}
+          </span>
+        </div>
+      </div>
+
+      {/* 视图选项卡与独立系统横向滚动栏 */}
+      <nav className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs scrollbar-none">
         {ITEMS.filter((it) => !it.roles || it.roles.includes(role)).map((it) => {
           const href = base + it.href;
           const active = it.href === "" ? pathname === base : pathname.startsWith(href);
+          const Icon = it.icon;
           return (
             <Link
               key={it.href}
               href={href}
               className={cn(
-                "block rounded-md px-2.5 py-1.5 text-sm transition-colors",
+                "inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 font-medium transition",
                 active
-                  ? "bg-accent font-medium text-accent-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                  ? "bg-foreground text-background shadow-xs"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
               )}
             >
-              {it.label}
+              <Icon size={14} className={active ? "text-background" : "text-blue-600"} />
+              <span>{it.label}</span>
             </Link>
           );
         })}
-      </div>
-    </aside>
+      </nav>
+    </div>
   );
 }

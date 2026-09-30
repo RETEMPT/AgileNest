@@ -33,6 +33,11 @@ export async function createProjectAction(
     return null;
   } catch (e) {
     if (e instanceof AppError) return { error: e.message };
-    throw e;
+    console.error("[createProjectAction]", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("ECONNREFUSED") || msg.includes("5432")) {
+      return { error: "数据库连接中断，请确认数据库服务已启动。" };
+    }
+    return { error: "创建项目失败，请稍后重试。" };
   }
 }

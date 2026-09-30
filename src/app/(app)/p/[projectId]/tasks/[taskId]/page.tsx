@@ -14,6 +14,7 @@ import {
   WorklogForm,
 } from "@/modules/tasks/ui";
 import { canDeleteTask } from "@/modules/tasks/states";
+import { TaskAuditStream } from "@/components/cards/task-audit-stream";
 
 export default async function TaskDetailPage({
   params,
@@ -111,17 +112,19 @@ export default async function TaskDetailPage({
         )}
       </section>
 
-      <section className="space-y-2">
-        <h2 className="font-display text-sm font-semibold">活动流</h2>
-        <ol className="space-y-1 text-sm text-muted-foreground">
-          {events.map((e) => (
-            <li key={e.id}>
-              <span className="text-foreground">{e.actorName ?? "系统"}</span> · {e.action}
-              {e.note ? ` · ${e.note}` : ""} ·{" "}
-              {new Date(e.createdAt).toLocaleString("zh-CN")}
-            </li>
-          ))}
-        </ol>
+      <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
+        <div className="flex items-center justify-between border-b border-border/50 pb-3">
+          <div className="flex items-center gap-2">
+            <h2 className="font-display text-sm font-semibold text-foreground">全流程活动审计流与状态溯源</h2>
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              {events.length} 次流转
+            </span>
+          </div>
+          <span className="text-[11px] text-muted-foreground">
+            不可篡改事件溯源
+          </span>
+        </div>
+        <TaskAuditStream events={events} />
       </section>
     </main>
   );

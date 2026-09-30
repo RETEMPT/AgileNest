@@ -1,59 +1,37 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
 import { requireUser } from "@/modules/core/session";
+import { listMyProjects } from "@/modules/identity";
 import { signOut } from "@/lib/auth";
+import { AppSidebar } from "@/components/app-sidebar";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
+  const rawProjects = await listMyProjects(user.id);
+
+  // 格式化项目列表供侧栏切换与展示
+  const projects = rawProjects.map((p) => ({
+    id: p.id,
+    name: p.name,
+    teamId: p.teamId,
+    teamName: p.teamName,
+    kind: p.kind,
+  }));
+
+  const handleSignOut = async () => {
+    "use server";
+    await signOut({ redirectTo: "/login" });
+  };
 
   return (
-    <div className="min-h-screen">
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/85 px-6 py-3 backdrop-blur">
-        <div className="flex items-center gap-6">
-          <Link href="/home" className="flex items-center gap-2">
-            <span
-              aria-hidden
-              className="grid h-7 w-7 place-items-center rounded-md bg-primary font-display text-sm font-bold text-primary-foreground"
-            >
-              A
-            </span>
-            <span className="font-display text-lg font-semibold">AgileNest</span>
-          </Link>
-          <nav className="flex items-center gap-1">
-            <Link
-              href="/home"
-              className="rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-            >
-              工作台
-            </Link>
-            <Link
-              href="/t"
-              className="rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-            >
-              我的团队
-            </Link>
-            <Link
-              href="/settings"
-              className="rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-            >
-              设置
-            </Link>
-          </nav>
-        </div>
-        <form
-          action={async () => {
-            "use server";
-            await signOut({ redirectTo: "/login" });
-          }}
-          className="flex items-center gap-3"
-        >
-          <span className="hidden text-sm text-muted-foreground sm:inline">{user.name}</span>
-          <button className="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent">
-            退出
-          </button>
-        </form>
-      </header>
-      <div className="mx-auto max-w-6xl p-6">{children}</div>
+    <div className="min-h-screen bg-background">
+      {/* 统一全局协调侧边栏 */}
+      <AppSidebar user={user} projects={projects} onSignOut={handleSignOut} />
+
+      {/* 主界面区域：桌面端左留出 64 (16rem) 边距 */}
+      <div className="flex flex-col md:pl-64 min-h-screen">
+        <main className="flex-1 p-6 md:p-8 max-w-7xl w-full mx-auto">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

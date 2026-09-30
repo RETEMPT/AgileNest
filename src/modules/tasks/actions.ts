@@ -19,8 +19,13 @@ export type FormState = { error: string; ok?: string } | null;
 function fail(e: unknown): FormState {
   if (e instanceof AppError) return { error: e.message };
   console.error("[actions]", e);
+  const msg = e instanceof Error ? e.message : String(e);
+  if (msg.includes("ECONNREFUSED") || msg.includes("5432")) {
+    return { error: "数据库连接中断，请确认本地 Postgres 服务正在运行。" };
+  }
   return { error: "操作失败，请稍后重试" };
 }
+
 
 const createSchema = z.object({
   projectId: z.string().min(1),

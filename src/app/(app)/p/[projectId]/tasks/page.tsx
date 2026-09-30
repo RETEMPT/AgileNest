@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/modules/core/session";
 import { getProjectForUser } from "@/modules/core/permissions";
 import { listProjectTasks } from "@/modules/tasks";
-import { CreateTaskForm, TaskCard } from "@/modules/tasks/ui";
+import { CreateTaskForm } from "@/modules/tasks/ui";
+import { WorkstreamCard } from "@/components/cards";
 
 export default async function TasksPage({
   params,
@@ -33,7 +34,13 @@ export default async function TasksPage({
             </p>
           )}
           {tasks.map((t) => (
-            <TaskCard key={t.id} task={t} role={access.role} actorId={user.id} />
+            <WorkstreamCard
+              key={t.id}
+              task={t}
+              role={access.role}
+              actorId={user.id}
+              variant="minimal"
+            />
           ))}
         </div>
         <CreateTaskForm projectId={projectId} />

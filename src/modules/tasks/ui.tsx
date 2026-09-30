@@ -17,9 +17,9 @@ import type { TeamRole } from "@/db/schema";
 import { StatusPill, PriorityPill } from "@/components/ui/badge";
 
 const btn =
-  "rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50";
+  "rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50 transition active:scale-95";
 const btnPrimary =
-  "rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-brand-hover disabled:opacity-50";
+  "rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-brand-hover disabled:opacity-50 transition active:scale-95";
 
 function ErrorLine({ state }: { state: FormState }) {
   if (!state?.error) return null;
@@ -139,8 +139,14 @@ export function TaskActions({
         />
       )}
       {actions.map((a) => (
-        <button key={a} name="action" value={a} disabled={pending} className={a === "accept" || a === "claim" ? btnPrimary : btn}>
-          {ACTION_LABELS[a]}
+        <button
+          key={a}
+          name="action"
+          value={a}
+          disabled={pending}
+          className={a === "accept" || a === "claim" ? btnPrimary : btn}
+        >
+          {pending ? "处理中…" : ACTION_LABELS[a]}
         </button>
       ))}
       <ErrorLine state={state} />
@@ -152,36 +158,122 @@ export function TaskCard({
   task,
   role,
   actorId,
+  showProjectBadge = false,
+  projectName,
 }: {
-  task: TaskDTO;
+  task: TaskDTO & { projectName?: string };
   role: TeamRole;
   actorId: string;
+  showProjectBadge?: boolean;
+  projectName?: string;
 }) {
+  const shortId = task.id ? `#${task.id.slice(0, 6)}` : "";
+  const effectiveProjectName = projectName || task.projectName;
+  const today = new Date().toISOString().slice(0, 10);
+  const isOverdue =
+    task.dueDate && task.dueDate < today && task.status !== "accepted";
+  const isDueToday = task.dueDate && task.dueDate === today;
+
   return (
-    <div className="rounded-xl border border-border bg-card p-4 space-y-2">
-      <div className="flex items-start justify-between gap-2">
-        <Link
-          href={`/p/${task.projectId}/tasks/${task.id}`}
-          className="font-medium hover:underline"
-        >
-          {task.title}
-        </Link>
-        <div className="flex shrink-0 gap-1.5">
+    <div className="group rounded-2xl border border-border bg-card p-4.5 shadow-xs transition hover:border-border/90 hover:shadow-sm space-y-3">
+      {/* 顶部身份与状态条 (Linear/Harness Style) */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-2.5">
+        <div className="flex items-center gap-2">
+          {shortId && (
+            <span className="font-mono text-[11px] font-medium text-muted-foreground">
+              {shortId}
+            </span>
+          )}
+          {showProjectBadge && effectiveProjectName && (
+            <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {effectiveProjectName}
+            </span>
+          )}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className="flex h-4.5 w-4.5 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-foreground">
+              {task.assigneeName ? task.assigneeName.slice(0, 1).toUpperCase() : "?"}
+            </div>
+            <span className="text-[11px]">{task.assigneeName ?? "未认领"}</span>
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1.5">
           <StatusPill status={task.status} />
           <PriorityPill priority={task.priority} />
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">
-        {task.assigneeName ? `负责：${task.assigneeName}` : "未认领"}
-        {task.dueDate ? ` · 截止 ${task.dueDate}` : ""}
-      </p>
-      {task.description && (
-        <p className="line-clamp-2 text-sm text-muted-foreground">{task.description}</p>
+
+      {/* 任务标题与描述 */}
+      <div className="space-y-1">
+        <Link
+          href={`/p/${task.projectId}/tasks/${task.id}`}
+          className="font-medium text-sm text-foreground hover:text-blue-600 transition tracking-tight line-clamp-1"
+        >
+          {task.title}
+        </Link>
+        {task.description && (
+          <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+            {task.description}
+          </p>
+        )}
+      </div>
+
+      {/* 状态语境看板 */}
+      {task.status === "submitted" && (
+        <div className="rounded-xl border border-amber-200/70 bg-amber-50/50 p-2.5 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">
+          <span className="font-semibold block mb-0.5">📝 待验收完成说明：</span>
+          <p className="text-[11px] leading-relaxed">
+            {task.completionNote || "提交人未附带补充说明"}
+          </p>
+        </div>
       )}
-      <TaskActions task={task} role={role} actorId={actorId} />
+
+      {task.status === "rejected" && (
+        <div className="rounded-xl border border-red-200/70 bg-red-50/50 p-2.5 text-xs text-red-900 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300">
+          <span className="font-semibold block mb-0.5">⚠️ 教师打回修改意见：</span>
+          <p className="text-[11px] leading-relaxed">
+            {task.rejectReason || "请与指导教师沟通后修改重交"}
+          </p>
+        </div>
+      )}
+
+      {/* 辅助时间与详情通道 */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-2 text-[11px] text-muted-foreground">
+        <div>
+          {task.dueDate ? (
+            <span
+              className={`inline-flex items-center gap-1 ${
+                isOverdue
+                  ? "font-semibold text-red-600"
+                  : isDueToday
+                  ? "font-semibold text-amber-600"
+                  : "text-muted-foreground"
+              }`}
+            >
+              📅 {isOverdue ? `已逾期 (${task.dueDate})` : isDueToday ? "今日截止" : task.dueDate}
+            </span>
+          ) : (
+            <span>无截止日期</span>
+          )}
+        </div>
+        <Link
+          href={`/p/${task.projectId}/tasks/${task.id}`}
+          className="text-[11px] text-muted-foreground hover:text-foreground hover:underline"
+        >
+          详情与工时 →
+        </Link>
+      </div>
+
+      {/* 原位流转动作栏 */}
+      <div className="border-t border-border/60 pt-2.5">
+        <TaskActions task={task} role={role} actorId={actorId} />
+      </div>
     </div>
   );
 }
+
+export const WorkstreamCard = TaskCard;
+
 
 export function DeleteTaskButton({
   taskId,
@@ -199,7 +291,7 @@ export function DeleteTaskButton({
       <input type="hidden" name="taskId" value={taskId} />
       <input type="hidden" name="projectId" value={projectId} />
       <button disabled={pending} className={`${btn} text-destructive`}>
-        删除任务
+        {pending ? "删除中…" : "删除任务"}
       </button>
     </form>
   );
@@ -244,7 +336,7 @@ export function WorklogForm({
           className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
         />
         <button disabled={pending} className={btnPrimary}>
-          记工时
+          {pending ? "记录中…" : "记工时"}
         </button>
       </div>
       <ErrorLine state={state} />
@@ -262,7 +354,7 @@ export function DueDateForm({
   projectId: string;
   dueDate: string | null;
 }) {
-  const [state, formAction] = useActionState<FormState, FormData>(
+  const [state, formAction, pending] = useActionState<FormState, FormData>(
     setDueDateAction,
     null,
   );
@@ -276,7 +368,9 @@ export function DueDateForm({
         defaultValue={dueDate ?? ""}
         className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
       />
-      <button className={btn}>改截止</button>
+      <button disabled={pending} className={btn}>
+        {pending ? "修改中…" : "改截止"}
+      </button>
       <ErrorLine state={state} />
     </form>
   );
@@ -315,7 +409,7 @@ export function MilestoneForm({ projectId }: { projectId: string }) {
           className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
         />
         <button disabled={pending} className={btnPrimary}>
-          创建
+          {pending ? "创建中…" : "创建"}
         </button>
       </div>
       <ErrorLine state={state} />

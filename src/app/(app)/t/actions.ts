@@ -11,6 +11,16 @@ export type FormState = { error: string } | null;
 const createSchema = z.object({ name: z.string().min(1, "请填写团队名称") });
 const joinSchema = z.object({ inviteCode: z.string().min(1, "请填写邀请码") });
 
+function handleActionError(e: unknown, fallback: string): FormState {
+  if (e instanceof AppError) return { error: e.message };
+  console.error("[team action]", e);
+  const msg = e instanceof Error ? e.message : String(e);
+  if (msg.includes("ECONNREFUSED") || msg.includes("5432")) {
+    return { error: "数据库连接失败，请确认数据库服务已启动。" };
+  }
+  return { error: fallback };
+}
+
 export async function createTeamAction(
   _prev: FormState,
   formData: FormData,
@@ -21,8 +31,7 @@ export async function createTeamAction(
   try {
     await createTeam(user.id, parsed.data.name);
   } catch (e) {
-    if (e instanceof AppError) return { error: e.message };
-    throw e;
+    return handleActionError(e, "创建团队失败，请稍后重试。");
   }
   revalidatePath("/t");
   return null;
@@ -38,8 +47,7 @@ export async function joinTeamAction(
   try {
     await joinTeam(user.id, parsed.data.inviteCode.trim());
   } catch (e) {
-    if (e instanceof AppError) return { error: e.message };
-    throw e;
+    return handleActionError(e, "加入团队失败，请稍后重试。");
   }
   revalidatePath("/t");
   return null;

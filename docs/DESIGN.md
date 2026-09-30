@@ -53,11 +53,11 @@ unclaimed ──claim──→ in_progress ──submit──→ submitted ─�
 
 | 来源 | 拿什么 |
 |---|---|
-| Notion | 项目图标侧栏 · 多视图 · 详情抽屉（子任务 + 属性 + 活动流） |
-| Linear | 五态 pill · 行内快捷动作 |
-| GitHub Projects | 视图切换 + URL 同步筛选 |
-| shadcn/ui + Radix | 组件底座 |
-| dub.co / cal.com | `modules/<m>/{schema,service,actions,api,ui,index}` |
+| Interfere | 双栏工作流抽屉（左栏属性矩阵 Inspector + 右栏活动代码与交付物流） · Apple/Linear 弹簧阻尼曲线 |
+| Linear | 五态微胶囊 pill · 原位行内快捷动作条 · 键盘优先 · 高密度信息排版 |
+| Notion / GitHub Projects | 统一数据源多视图透视（看板、表格、日历） · 视图切换与 URL 同步筛选 |
+| Resend | 极简纯黑白高反差排版 · 细灰边框 · 不可篡改事件审计时间轴 |
+| shadcn/ui + Radix | 现代可控无头组件原语 |
 
 ## 权限矩阵
 
@@ -71,6 +71,8 @@ unclaimed ──claim──→ in_progress ──submit──→ submitted ─�
 
 实现口径：`requireTaskWrite` = admin+student · `requireReviewer` = admin+teacher。
 
-## 视觉
+## 视觉与动效
 
-`src/app/globals.css`：品牌 `#294a78` · 点缀 `#bf6a34` · 暖纸背景 `#f3f1ea` · 五态 `--status-*`。
+- `src/app/globals.css`：黑白极简双色（Monochrome Duotone）· 纯黑白高反差底座（`#fbfbfb` / `#09090b`）· 极细 `#e4e4e7` 边框 · 雅致宝蓝微高亮与手绘线性 SVG 图标（`#2563eb`）。
+- 动效系统：`cubic-bezier(0.16, 1, 0.3, 1)` 物理级阻尼曲线，长列表采用 `content-visibility: auto` GPU 视口外延迟绘制。
+

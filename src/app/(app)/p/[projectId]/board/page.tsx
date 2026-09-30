@@ -3,7 +3,7 @@ import { requireUser } from "@/modules/core/session";
 import { getProjectForUser } from "@/modules/core/permissions";
 import { listProjectTasks } from "@/modules/tasks";
 import { deriveColumns } from "@/modules/board";
-import { TaskCard } from "@/modules/tasks/ui";
+import { WorkstreamCard } from "@/components/cards";
 
 export default async function BoardPage({
   params,
@@ -39,7 +39,13 @@ export default async function BoardPage({
               </p>
             )}
             {col.tasks.map((t) => (
-              <TaskCard key={t.id} task={t} role={access.role} actorId={user.id} />
+              <WorkstreamCard
+                key={t.id}
+                task={t}
+                role={access.role}
+                actorId={user.id}
+                variant="minimal"
+              />
             ))}
           </section>
         ))}

@@ -13,6 +13,10 @@ const NOTICE: Record<string, { text: string; ok: boolean }> = {
   state_error: { text: "绑定校验失败，请重试。", ok: false },
   conflict: { text: "该飞书账号已绑定其他用户。", ok: false },
   error: { text: "绑定失败，请稍后重试。", ok: false },
+  feishu_not_configured: {
+    text: "飞书开放平台应用未配置：请先在 .env 中填写 FEISHU_APP_ID 和 FEISHU_APP_SECRET。",
+    ok: false,
+  },
 };
 
 export function FeishuCard({ boundName, boundAtLabel, notice }: Props) {
@@ -48,7 +52,7 @@ export function FeishuCard({ boundName, boundAtLabel, notice }: Props) {
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a
             href="/api/auth/feishu/login"
-            className="inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-brand-hover"
+            className="inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
             绑定飞书
           </a>

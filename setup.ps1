@@ -18,7 +18,18 @@ if ($InitEnvOnly) {
   exit 0
 }
 
-if (Get-Command docker -ErrorAction SilentlyContinue) {
+$pgCtl = Join-Path $PSScriptRoot ".tools\pgsql\pgsql\bin\pg_ctl.exe"
+$pgData = Join-Path $PSScriptRoot ".tools\pgdata"
+$pgLog = Join-Path $PSScriptRoot ".tools\pg.log"
+
+if (Test-Path $pgCtl) {
+  Write-Host "[1/5] 检测到内置 Postgres，启动中..."
+  & $pgCtl status -D $pgData | Out-Null
+  if ($LASTEXITCODE -ne 0) {
+    & $pgCtl start -D $pgData -l $pgLog
+    Start-Sleep -Seconds 3
+  }
+} elseif (Get-Command docker -ErrorAction SilentlyContinue) {
   Write-Host "[1/5] 启动 Postgres ..."
   docker compose up -d
   Start-Sleep -Seconds 5

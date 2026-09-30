@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/modules/core/session";
 import { getProjectForUser } from "@/modules/core/permissions";
 import { listPendingReview, listOverdueRisks } from "@/modules/review";
-import { TaskCard } from "@/modules/tasks/ui";
+import { WorkstreamCard } from "@/components/cards";
 
 export default async function ReviewPage({
   params,
@@ -52,16 +52,12 @@ export default async function ReviewPage({
           </p>
         )}
         {pending.map((t) => (
-          <div key={t.id} className="space-y-2 rounded-xl border border-border bg-card p-4">
-            <Link href={`/p/${projectId}/tasks/${t.id}`} className="font-medium hover:underline">
-              {t.title}
-            </Link>
-            <p className="text-xs text-muted-foreground">
-              提交人 {t.submitterName ?? "—"}
-              {t.completionNote ? ` · ${t.completionNote}` : ""}
-            </p>
-            <TaskCard task={t} role={access.role} actorId={user.id} />
-          </div>
+          <WorkstreamCard
+            key={t.id}
+            task={t}
+            role={access.role}
+            actorId={user.id}
+          />
         ))}
       </section>
 
@@ -73,7 +69,13 @@ export default async function ReviewPage({
           </p>
         )}
         {overdue.map((t) => (
-          <TaskCard key={t.id} task={t} role={access.role} actorId={user.id} />
+          <WorkstreamCard
+            key={t.id}
+            task={t}
+            role={access.role}
+            actorId={user.id}
+            variant="minimal"
+          />
         ))}
       </section>
     </main>
