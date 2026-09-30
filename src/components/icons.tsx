@@ -203,3 +203,26 @@ export function MenuIcon(props: IconProps) {
     </BaseSvg>
   );
 }
+
+/** 侧栏收起图标 */
+export function SidebarCollapseIcon(props: IconProps) {
+  return (
+    <BaseSvg {...props}>
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M9 3v18" />
+      <path d="m14 9-3 3 3 3" />
+    </BaseSvg>
+  );
+}
+
+/** 侧栏展开图标 */
+export function SidebarExpandIcon(props: IconProps) {
+  return (
+    <BaseSvg {...props}>
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M9 3v18" />
+      <path d="m13 15 3-3-3-3" />
+    </BaseSvg>
+  );
+}
+

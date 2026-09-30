@@ -1,7 +1,7 @@
 import { requireUser } from "@/modules/core/session";
 import { listMyProjects } from "@/modules/identity";
 import { signOut } from "@/lib/auth";
-import { AppSidebar } from "@/components/app-sidebar";
+import { AppShell } from "@/components/app-shell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
@@ -22,16 +22,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* 统一全局协调侧边栏 */}
-      <AppSidebar user={user} projects={projects} onSignOut={handleSignOut} />
-
-      {/* 主界面区域：桌面端左留出 64 (16rem) 边距 */}
-      <div className="flex flex-col md:pl-64 min-h-screen">
-        <main className="flex-1 p-6 md:p-8 max-w-7xl w-full mx-auto">
-          {children}
-        </main>
-      </div>
-    </div>
+    <AppShell user={user} projects={projects} onSignOut={handleSignOut}>
+      {children}
+    </AppShell>
   );
 }
