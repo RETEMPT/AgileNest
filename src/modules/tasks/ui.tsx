@@ -1,7 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useId, useRef, useState } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
+import { ArrowRight, RotateCcw, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   addWorklogAction,
   createMilestoneAction,
@@ -9,10 +13,17 @@ import {
   deleteTaskAction,
   setDueDateAction,
   transitionAction,
+  loadTaskAssigneesAction,
   type FormState,
 } from "@/modules/tasks/actions";
-import type { TaskDTO, TransitionAction } from "@/modules/tasks";
-import { STATUS_LABELS, ACTION_LABELS, canDeleteTask } from "@/modules/tasks/states";
+import type { TaskDTO } from "./service";
+import {
+  STATUS_LABELS,
+  STATUS_DESCRIPTIONS,
+  availableTransitions,
+  canDeleteTask,
+  type TransitionRule,
+} from "./states";
 import type { TeamRole } from "@/db/schema";
 import { StatusPill, PriorityPill } from "@/components/ui/badge";
 
@@ -26,36 +37,88 @@ function ErrorLine({ state }: { state: FormState }) {
   return <p className="text-xs text-destructive">{state.error}</p>;
 }
 
-export function CreateTaskForm({ projectId }: { projectId: string }) {
+export function CreateTaskForm({
+  projectId,
+  onCreated,
+}: {
+  projectId: string;
+  onCreated?: () => void;
+}) {
+  const id = useId();
+  const [fields, setFields] = useState({
+    title: "",
+    description: "",
+    dueDate: "",
+    priority: "medium",
+  });
   const [state, formAction, pending] = useActionState<FormState, FormData>(
-    createTaskAction,
+    async (prev, data) => {
+      const result = await createTaskAction(prev, data);
+      if (result?.ok) {
+        setFields({
+          title: "",
+          description: "",
+          dueDate: "",
+          priority: "medium",
+        });
+        onCreated?.();
+      }
+      return result;
+    },
     null,
   );
   return (
-    <form action={formAction} className="space-y-3 rounded-xl border border-border bg-card p-4">
+    <form
+      action={formAction}
+      onReset={(event) => event.preventDefault()}
+      className="space-y-3 rounded-xl border border-border bg-card p-4"
+    >
       <h2 className="font-display text-sm font-semibold">新建任务</h2>
       <input type="hidden" name="projectId" value={projectId} />
-      <input
+      <label htmlFor={`${id}-title`} className="block text-xs font-medium">
+        任务标题
+      </label>
+      <Input
+        id={`${id}-title`}
         name="title"
+        value={fields.title}
+        onChange={(event) =>
+          setFields({ ...fields, title: event.target.value })
+        }
+        maxLength={200}
         placeholder="任务标题"
         required
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
       />
       <textarea
+        aria-label="任务描述"
         name="description"
+        value={fields.description}
+        onChange={(event) =>
+          setFields({ ...fields, description: event.target.value })
+        }
         placeholder="描述（可选）"
         rows={2}
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
       />
       <div className="flex flex-wrap gap-2">
         <input
+          aria-label="任务截止日期"
           type="date"
           name="dueDate"
+          value={fields.dueDate}
+          onChange={(event) =>
+            setFields({ ...fields, dueDate: event.target.value })
+          }
           className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
         />
         <select
+          aria-label="任务优先级"
           name="priority"
-          defaultValue="medium"
+          value={fields.priority}
+          onChange={(event) =>
+            setFields({ ...fields, priority: event.target.value })
+          }
           className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
         >
           <option value="low">低优先</option>
@@ -72,85 +135,352 @@ export function CreateTaskForm({ projectId }: { projectId: string }) {
   );
 }
 
-const ACTIONS_BY_ROLE: Record<
-  string,
-  Partial<Record<TaskDTO["status"], TransitionAction[]>>
-> = {
-  student: {
-    unclaimed: ["claim"],
-    in_progress: ["submit", "unclaim"],
-    rejected: ["resubmit", "unclaim"],
-  },
-  teacher: {
-    in_progress: ["assign", "unclaim"],
-    submitted: ["accept", "reject"],
-    accepted: ["reopen"],
-  },
-  admin: {
-    unclaimed: ["claim", "assign"],
-    in_progress: ["submit", "assign", "unclaim"],
-    submitted: ["accept", "reject"],
-    rejected: ["resubmit", "assign", "unclaim"],
-    accepted: ["reopen"],
-  },
-};
+export type AssigneeOption = { id: string; name: string; role: TeamRole };
 
-const NEED_NOTE: TransitionAction[] = ["submit", "resubmit", "reject"];
+export function TaskWorkflow({ status }: { status?: TaskDTO["status"] }) {
+  const main: TaskDTO["status"][] = [
+    "unclaimed",
+    "in_progress",
+    "submitted",
+    "accepted",
+  ];
+  return (
+    <section
+      aria-label="任务流转路径"
+      className="rounded-xl border border-border bg-card p-4"
+    >
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold">从认领到验收</h2>
+        <span className="text-xs text-muted-foreground">
+          学生推进 · 教师验收
+        </span>
+      </div>
+      <ol className="grid gap-2 sm:grid-cols-4">
+        {main.map((step, index) => (
+          <li
+            key={step}
+            aria-current={step === status ? "step" : undefined}
+            className={`relative rounded-lg border p-3 ${step === status ? "border-brand bg-brand-soft ring-1 ring-brand" : "border-border bg-background"}`}
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <StatusPill status={step} />
+              {index < 3 && (
+                <ArrowRight
+                  aria-hidden="true"
+                  className="h-4 w-4 text-muted-foreground"
+                />
+              )}
+            </div>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {STATUS_DESCRIPTIONS[step]}
+            </p>
+          </li>
+        ))}
+      </ol>
+      <div
+        aria-current={status === "rejected" ? "step" : undefined}
+        className={`mt-2 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-xs ${status === "rejected" ? "border-red-300 bg-red-50" : "border-dashed border-border"}`}
+      >
+        <RotateCcw aria-hidden="true" className="h-3.5 w-3.5 text-red-600" />
+        <StatusPill status="rejected" />
+        <span className="text-muted-foreground">
+          验收时打回 → 按意见修改 → 重新提交到待验收
+        </span>
+      </div>
+    </section>
+  );
+}
+
+export function TransitionDialog({
+  task,
+  rule,
+  members,
+  onClose,
+  onSuccess,
+}: {
+  task: TaskDTO;
+  rule: TransitionRule;
+  members: AssigneeOption[];
+  onClose: () => void;
+  onSuccess?: () => void;
+}) {
+  const id = useId();
+  const [assigneeId, setAssigneeId] = useState("");
+  const [note, setNote] = useState("");
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const parentDialog = useRef<HTMLElement | null>(null);
+  const [state, formAction, pending] = useActionState<FormState, FormData>(
+    async (prev, data) => {
+      const result = await transitionAction(prev, data);
+      if (result?.ok) {
+        onSuccess?.();
+        onClose();
+      }
+      return result;
+    },
+    null,
+  );
+  return (
+    <Dialog.Root
+      open
+      onOpenChange={(open) => {
+        if (!open && !pending) onClose();
+      }}
+    >
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/35" />
+        <Dialog.Content
+          onOpenAutoFocus={() => {
+            returnFocus.current =
+              document.activeElement instanceof HTMLElement
+                ? document.activeElement
+                : null;
+            parentDialog.current =
+              returnFocus.current?.closest<HTMLElement>('[role="dialog"]') ??
+              null;
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            if (returnFocus.current?.isConnected) returnFocus.current.focus();
+            else parentDialog.current?.focus();
+          }}
+          onEscapeKeyDown={(event) => {
+            if (pending) event.preventDefault();
+          }}
+          onPointerDownOutside={(event) => {
+            if (pending) event.preventDefault();
+          }}
+          className="fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-xl"
+        >
+          <Dialog.Title className="pr-8 text-lg font-semibold">
+            {rule.label}任务
+          </Dialog.Title>
+          <Dialog.Description className="mt-1 text-sm text-muted-foreground">
+            {task.title}
+          </Dialog.Description>
+          <Dialog.Close asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={pending}
+              aria-label="关闭"
+              className="absolute right-3 top-3"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </Dialog.Close>
+          <div className="my-5 flex items-center gap-3 rounded-lg bg-muted p-3">
+            <StatusPill status={task.status} />
+            <ArrowRight className="h-4 w-4" />
+            <StatusPill status={rule.to} />
+          </div>
+          {task.status === "rejected" && task.rejectReason && (
+            <p className="mb-4 whitespace-pre-wrap rounded-lg bg-red-50 p-3 text-sm text-red-800">
+              修改意见：{task.rejectReason}
+            </p>
+          )}
+          {task.status === "submitted" && task.completionNote && (
+            <p className="mb-4 whitespace-pre-wrap rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+              完成说明：{task.completionNote}
+            </p>
+          )}
+          <form
+            action={formAction}
+            onReset={(event) => event.preventDefault()}
+            className="space-y-4"
+          >
+            <input type="hidden" name="taskId" value={task.id} />
+            <input type="hidden" name="action" value={rule.action} />
+            {rule.setsAssignee && (
+              <div className="space-y-2">
+                <label
+                  htmlFor={`${id}-assignee`}
+                  className="text-sm font-medium"
+                >
+                  选择团队成员
+                </label>
+                <select
+                  id={`${id}-assignee`}
+                  name="assigneeId"
+                  required
+                  value={assigneeId}
+                  onChange={(event) => setAssigneeId(event.target.value)}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="" disabled>
+                    请选择负责人
+                  </option>
+                  {members
+                    .filter((member) => member.role !== "teacher")
+                    .map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.name} ·{" "}
+                        {member.role === "student" ? "学生" : "管理员"}
+                      </option>
+                    ))}
+                </select>
+                {members.length === 0 && (
+                  <p role="alert" className="text-xs text-destructive">
+                    未能加载团队成员，请关闭后重试。
+                  </p>
+                )}
+              </div>
+            )}
+            {rule.noteRequired && (
+              <div className="space-y-2">
+                <label htmlFor={`${id}-note`} className="text-sm font-medium">
+                  {rule.action === "reject" ? "修改意见" : "完成说明"}{" "}
+                  <span className="text-destructive">*</span>
+                </label>
+                <textarea
+                  id={`${id}-note`}
+                  name="note"
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  required
+                  maxLength={5000}
+                  rows={4}
+                  placeholder={
+                    rule.action === "reject"
+                      ? "具体指出需要修改的内容，让同学知道下一步怎么做"
+                      : "说明完成内容、验证结果，可附成果链接"
+                  }
+                  className="w-full rounded-md border border-input bg-background p-3 text-sm"
+                  autoFocus
+                />
+              </div>
+            )}
+            <div role="alert">
+              <ErrorLine state={state} />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={pending}
+                onClick={onClose}
+              >
+                取消
+              </Button>
+              <Button
+                disabled={
+                  pending || (rule.setsAssignee && members.length === 0)
+                }
+              >
+                {pending ? "处理中…" : `确认${rule.label}`}
+              </Button>
+            </div>
+          </form>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
 
 export function TaskActions({
   task,
   role,
   actorId,
+  members = [],
 }: {
   task: TaskDTO;
   role: TeamRole;
   actorId: string;
+  members?: AssigneeOption[];
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(
     transitionAction,
     null,
   );
-  let actions = ACTIONS_BY_ROLE[role]?.[task.status] ?? [];
-  if (
-    (task.status === "in_progress" || task.status === "rejected") &&
-    task.assigneeId !== actorId &&
-    role === "student"
-  ) {
-    actions = actions.filter((a) => a !== "submit" && a !== "resubmit");
+  const [selected, setSelected] = useState<TransitionRule | null>(null);
+  const [options, setOptions] = useState(members);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const actions = availableTransitions(task, role, actorId);
+  if (actions.length === 0)
+    return (
+      <p className="text-xs text-muted-foreground">
+        {task.status === "submitted"
+          ? "等待教师验收"
+          : task.status === "accepted"
+            ? "任务已验收完成"
+            : "由负责人推进任务"}
+      </p>
+    );
+
+  async function openDialog(rule: TransitionRule) {
+    setLoadError("");
+    if (rule.setsAssignee && options.length === 0) {
+      setLoading(true);
+      const result = await loadTaskAssigneesAction(task.id);
+      setLoading(false);
+      if (result.error) {
+        setLoadError(result.error);
+        return;
+      }
+      setOptions(result.members);
+    }
+    setSelected(rule);
   }
-  if (actions.length === 0) return null;
 
   return (
-    <form action={formAction} className="flex flex-wrap items-center gap-2">
-      <input type="hidden" name="taskId" value={task.id} />
-      <input type="hidden" name="projectId" value={task.projectId} />
-      {NEED_NOTE.some((a) => actions.includes(a)) && (
-        <input
-          name="note"
-          placeholder="说明 / 验收意见"
-          className="h-8 w-48 rounded-md border border-input bg-background px-2 text-xs"
+    <div className="space-y-2">
+      <form action={formAction} className="flex flex-wrap items-center gap-2">
+        <input type="hidden" name="taskId" value={task.id} />
+        {actions.map((rule) => (
+          <Button
+            key={rule.action}
+            type={
+              rule.noteRequired ||
+              rule.setsAssignee ||
+              rule.action === "reopen" ||
+              rule.action === "unclaim"
+                ? "button"
+                : "submit"
+            }
+            name="action"
+            value={rule.action}
+            size="sm"
+            variant={
+              rule.action === "accept" ||
+              rule.action === "claim" ||
+              (rule.noteRequired && rule.action !== "reject")
+                ? "default"
+                : "outline"
+            }
+            disabled={pending || loading}
+            onClick={
+              rule.noteRequired ||
+              rule.setsAssignee ||
+              rule.action === "reopen" ||
+              rule.action === "unclaim"
+                ? () => void openDialog(rule)
+                : undefined
+            }
+          >
+            {pending || loading ? "处理中…" : rule.label}
+          </Button>
+        ))}
+      </form>
+      <div aria-live="polite">
+        <ErrorLine state={state} />
+        {state?.ok && <p className="text-xs text-emerald-700">{state.ok}</p>}
+        {loadError && (
+          <p role="alert" className="text-xs text-destructive">
+            {loadError}
+          </p>
+        )}
+      </div>
+      {selected && (
+        <TransitionDialog
+          task={task}
+          rule={selected}
+          members={options}
+          onClose={() => setSelected(null)}
         />
       )}
-      {actions.includes("assign") && (
-        <input
-          name="assigneeId"
-          placeholder="指派给（用户 ID）"
-          className="h-8 w-40 rounded-md border border-input bg-background px-2 text-xs"
-        />
-      )}
-      {actions.map((a) => (
-        <button
-          key={a}
-          name="action"
-          value={a}
-          disabled={pending}
-          className={a === "accept" || a === "claim" ? btnPrimary : btn}
-        >
-          {pending ? "处理中…" : ACTION_LABELS[a]}
-        </button>
-      ))}
-      <ErrorLine state={state} />
-    </form>
+    </div>
   );
 }
 
@@ -191,7 +521,9 @@ export function TaskCard({
           )}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <div className="flex h-4.5 w-4.5 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-foreground">
-              {task.assigneeName ? task.assigneeName.slice(0, 1).toUpperCase() : "?"}
+              {task.assigneeName
+                ? task.assigneeName.slice(0, 1).toUpperCase()
+                : "?"}
             </div>
             <span className="text-[11px]">{task.assigneeName ?? "未认领"}</span>
           </div>
@@ -221,7 +553,9 @@ export function TaskCard({
       {/* 状态语境看板 */}
       {task.status === "submitted" && (
         <div className="rounded-xl border border-amber-200/70 bg-amber-50/50 p-2.5 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">
-          <span className="font-semibold block mb-0.5">📝 待验收完成说明：</span>
+          <span className="font-semibold block mb-0.5">
+            📝 待验收完成说明：
+          </span>
           <p className="text-[11px] leading-relaxed">
             {task.completionNote || "提交人未附带补充说明"}
           </p>
@@ -230,7 +564,9 @@ export function TaskCard({
 
       {task.status === "rejected" && (
         <div className="rounded-xl border border-red-200/70 bg-red-50/50 p-2.5 text-xs text-red-900 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300">
-          <span className="font-semibold block mb-0.5">⚠️ 教师打回修改意见：</span>
+          <span className="font-semibold block mb-0.5">
+            ⚠️ 教师打回修改意见：
+          </span>
           <p className="text-[11px] leading-relaxed">
             {task.rejectReason || "请与指导教师沟通后修改重交"}
           </p>
@@ -246,11 +582,16 @@ export function TaskCard({
                 isOverdue
                   ? "font-semibold text-red-600"
                   : isDueToday
-                  ? "font-semibold text-amber-600"
-                  : "text-muted-foreground"
+                    ? "font-semibold text-amber-600"
+                    : "text-muted-foreground"
               }`}
             >
-              📅 {isOverdue ? `已逾期 (${task.dueDate})` : isDueToday ? "今日截止" : task.dueDate}
+              📅{" "}
+              {isOverdue
+                ? `已逾期 (${task.dueDate})`
+                : isDueToday
+                  ? "今日截止"
+                  : task.dueDate}
             </span>
           ) : (
             <span>无截止日期</span>
@@ -273,7 +614,6 @@ export function TaskCard({
 }
 
 export const WorkstreamCard = TaskCard;
-
 
 export function DeleteTaskButton({
   taskId,
@@ -382,7 +722,10 @@ export function MilestoneForm({ projectId }: { projectId: string }) {
     null,
   );
   return (
-    <form action={formAction} className="space-y-2 rounded-xl border border-border bg-card p-4">
+    <form
+      action={formAction}
+      className="space-y-2 rounded-xl border border-border bg-card p-4"
+    >
       <h2 className="font-display text-sm font-semibold">新建里程碑</h2>
       <input type="hidden" name="projectId" value={projectId} />
       <input

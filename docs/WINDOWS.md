@@ -64,7 +64,7 @@ npm run db:push:test
 
 1. 建库：`CREATE DATABASE agilecampus;` 与 `CREATE DATABASE agilecampus_test;`
 2. `.env` / `.env.test` 里改 `DATABASE_URL` 为你的连接串
-3. 跳过 `setup.bat` 里的 docker 步骤，直接 `npm install && npm run db:push && npm run db:push:test`
+3. 跳过 `setup.bat` 里的 docker 步骤，依次运行 `npm install`、`npm run db:push`、`npm run db:push:test`。
 
 ## 定时提醒（可选）
 

@@ -1,18 +1,13 @@
 @import "tailwindcss";
 
-/* ============================================================
-   AgileNest 设计系统 · 黑白双色极简质感 (Monochrome Duotone)
-   纯黑白高反差底座 · 雅致宝蓝图标/微高亮点缀
-   ============================================================ */
-
 :root {
-  --background: #fbfbfb;
+  --background: #f5f7fb;
   --foreground: #09090b;
   --card: #ffffff;
   --card-foreground: #09090b;
   --popover: #ffffff;
   --popover-foreground: #09090b;
-  --primary: #09090b;
+  --primary: #294a78;
   --primary-foreground: #ffffff;
   --secondary: #f4f4f5;
   --secondary-foreground: #18181b;
@@ -24,16 +19,16 @@
   --destructive-foreground: #ffffff;
   --border: #e4e4e7;
   --input: #e4e4e7;
-  --ring: #2563eb;
+  --ring: #294a78;
   --radius: 0.625rem;
 
-  /* 雅致蓝 · 专用于图标与高亮点缀 */
-  --brand: #2563eb;
-  --brand-hover: #1d4ed8;
-  --brand-soft: #eff6ff;
-  --brand-ring: #bfdbfe;
-  --icon-blue: #2563eb;
-  --icon-blue-soft: #eff6ff;
+  --brand: #294a78;
+  --brand-hover: #203d65;
+  --brand-soft: #edf2f9;
+  --brand-ring: #b8c9df;
+  --brand-accent: #bf6a34;
+  --icon-blue: #294a78;
+  --icon-blue-soft: #edf2f9;
 
   /* 五态状态色 */
   --status-unclaimed: #71717a;
@@ -76,6 +71,7 @@
   --color-brand: var(--brand);
   --color-brand-hover: var(--brand-hover);
   --color-brand-soft: var(--brand-soft);
+  --color-brand-accent: var(--brand-accent);
   --color-icon-blue: var(--icon-blue);
   --color-icon-blue-soft: var(--icon-blue-soft);
 
@@ -138,4 +134,8 @@ body {
   contain-intrinsic-size: 0 100px;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .drawer-spring { transition: none; }
+  .animate-pulse { animation: none; }
+}
 

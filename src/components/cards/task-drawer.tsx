@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { TaskDTO } from "@/modules/tasks";
 import type { TeamRole } from "@/db/schema";
 import { StatusPill, PriorityPill } from "@/components/ui/badge";
-import { TaskActions } from "@/modules/tasks/ui";
+import { TaskActions, TaskWorkflow } from "@/modules/tasks/ui";
 import { TaskAuditStream, type AuditEvent } from "./task-audit-stream";
 
 type TaskDrawerProps = {
@@ -89,7 +89,7 @@ export function TaskDrawer({ task, role, actorId, isOpen, onClose }: TaskDrawerP
     return () => {
       active = false;
     };
-  }, [isOpen, task?.id]);
+  }, [isOpen, task?.id, task?.status, task?.updatedAt]);
 
   if (!shouldRender || !task) return null;
 
@@ -277,11 +277,12 @@ export function TaskDrawer({ task, role, actorId, isOpen, onClose }: TaskDrawerP
 
             {/* ====== 右栏：活动审计流与交付物/代码流 (Activity & Deliverables Feed) ====== */}
             <main className="p-6 overflow-y-auto custom-scrollbar space-y-6 bg-card flex flex-col">
+              <TaskWorkflow status={task.status} />
               {/* 顶栏标题与同步指示 */}
               <div className="flex items-center justify-between pb-3 border-b border-border/60">
                 <div className="flex items-center gap-2">
                   <h3 className="font-display text-sm font-semibold text-foreground">
-                    全流程活动审计流与交付物
+                    任务活动与成果
                   </h3>
                   <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                     {events.length} 次流转
@@ -293,7 +294,7 @@ export function TaskDrawer({ task, role, actorId, isOpen, onClose }: TaskDrawerP
                   </span>
                 ) : (
                   <span className="text-[11px] text-muted-foreground">
-                    实时不可篡改存证
+                    操作人与流转说明
                   </span>
                 )}
               </div>

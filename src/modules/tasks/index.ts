@@ -7,5 +7,9 @@ export {
   TRANSITIONS,
   findTransition,
   allowedActions,
+  availableTransitions,
+  STATUS_DESCRIPTIONS,
+  canDeleteTask,
+  type TransitionContext,
   type TransitionRule,
 } from "./states";

@@ -1,5 +1,16 @@
-import { and, asc, eq, getTableColumns, gte, inArray, isNotNull, isNull, lte, or } from "drizzle-orm";
-import { db } from "@/db";
+import {
+  and,
+  asc,
+  eq,
+  getTableColumns,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  or,
+} from "drizzle-orm";
+import { db, type DbTx } from "@/db";
 import {
   taskAcceptanceEvents,
   tasks,
@@ -23,7 +34,7 @@ import {
   notifyRejected,
   notifySubmitted,
 } from "@/modules/notify";
-import { ACTION_ROLES, findTransition } from "./states";
+import { ACTION_ROLES, availableTransitions, findTransition } from "./states";
 
 export type TaskDTO = {
   id: string;
@@ -74,7 +85,9 @@ export type TransitionAction =
   | "reject"
   | "reopen";
 
-export type TaskRow = typeof tasks.$inferSelect & { assigneeName: string | null };
+export type TaskRow = typeof tasks.$inferSelect & {
+  assigneeName: string | null;
+};
 
 const taskSelect = {
   ...getTableColumns(tasks),
@@ -105,8 +118,11 @@ export function toDTO(row: TaskRow): TaskDTO {
   };
 }
 
-async function loadTaskRow(taskId: string): Promise<TaskRow> {
-  const [row] = await db
+async function loadTaskRow(
+  taskId: string,
+  connection: DbTx = db,
+): Promise<TaskRow> {
+  const [row] = await connection
     .select(taskSelect)
     .from(tasks)
     .leftJoin(users, eq(tasks.assigneeId, users.id))
@@ -115,9 +131,13 @@ async function loadTaskRow(taskId: string): Promise<TaskRow> {
   return row;
 }
 
-async function assertRole(actorId: string, projectId: string, action: TaskAction) {
+async function assertRole(
+  actorId: string,
+  projectId: string,
+  action: TaskAction,
+) {
   const access = await requireProjectForUser(actorId, projectId);
-  if (!ACTION_ROLES[action].includes(access.role)) throw new ForbiddenError();
+  if (!ACTION_ROLES[action]?.includes(access.role)) throw new ForbiddenError();
   return access;
 }
 
@@ -161,11 +181,14 @@ export async function listProjectTasks(
 ): Promise<TaskDTO[]> {
   await requireProjectForUser(actorId, projectId);
   const conds = [eq(tasks.projectId, projectId)];
-  if (filters?.status?.length) conds.push(inArray(tasks.status, filters.status));
+  if (filters?.status?.length)
+    conds.push(inArray(tasks.status, filters.status));
   if (filters?.assigneeId) conds.push(eq(tasks.assigneeId, filters.assigneeId));
-  if (filters?.milestoneId) conds.push(eq(tasks.milestoneId, filters.milestoneId));
+  if (filters?.milestoneId)
+    conds.push(eq(tasks.milestoneId, filters.milestoneId));
   if (filters?.parentTaskId === null) conds.push(isNull(tasks.parentTaskId));
-  else if (filters?.parentTaskId) conds.push(eq(tasks.parentTaskId, filters.parentTaskId));
+  else if (filters?.parentTaskId)
+    conds.push(eq(tasks.parentTaskId, filters.parentTaskId));
 
   const rows = await db
     .select(taskSelect)
@@ -210,8 +233,12 @@ export async function createTask(
   assertISODate(input.dueDate, "截止日期");
 
   if (input.assigneeId) {
+    if (access.role === "student" && input.assigneeId !== actorId)
+      throw new ForbiddenError(
+        "学生只能认领自己的任务，指派由教师或管理员完成",
+      );
     const [member] = await db
-      .select({ userId: teamMembers.userId })
+      .select({ userId: teamMembers.userId, role: teamMembers.role })
       .from(teamMembers)
       .where(
         and(
@@ -220,6 +247,8 @@ export async function createTask(
         ),
       );
     if (!member) throw new AppError("指派对象不在团队中");
+    if (member.role === "teacher")
+      throw new AppError("请选择学生或管理员作为任务负责人");
   }
 
   const [row] = await db
@@ -263,9 +292,15 @@ export async function updateTask(
     .update(tasks)
     .set({
       ...(patch.title !== undefined && { title: patch.title.trim() }),
-      ...(patch.description !== undefined && { description: patch.description }),
-      ...(patch.milestoneId !== undefined && { milestoneId: patch.milestoneId }),
-      ...(patch.parentTaskId !== undefined && { parentTaskId: patch.parentTaskId }),
+      ...(patch.description !== undefined && {
+        description: patch.description,
+      }),
+      ...(patch.milestoneId !== undefined && {
+        milestoneId: patch.milestoneId,
+      }),
+      ...(patch.parentTaskId !== undefined && {
+        parentTaskId: patch.parentTaskId,
+      }),
       ...(patch.startDate !== undefined && { startDate: patch.startDate }),
       ...(patch.dueDate !== undefined && { dueDate: patch.dueDate }),
       ...(patch.estimatedMinutes !== undefined && {
@@ -282,7 +317,10 @@ export async function updateTask(
   return toDTO({ ...updated, assigneeName: row.assigneeName });
 }
 
-export async function deleteTask(actorId: string, taskId: string): Promise<void> {
+export async function deleteTask(
+  actorId: string,
+  taskId: string,
+): Promise<void> {
   const row = await loadTaskRow(taskId);
   await assertRole(actorId, row.projectId, "delete");
   await recordEvent(taskId, actorId, "delete");
@@ -295,93 +333,104 @@ export async function transitionTask(
   action: TransitionAction,
   input?: TransitionInput,
 ): Promise<TaskDTO> {
-  const row = await loadTaskRow(taskId);
-  const access = await assertRole(actorId, row.projectId, action);
-  const rule = findTransition(action, row.status);
-  if (!rule) throw new ConflictError();
-
+  const initial = await loadTaskRow(taskId);
+  const access = await assertRole(actorId, initial.projectId, action);
   const note = input?.note?.trim() || null;
-  if (rule.noteRequired && !note) throw new AppError("请填写说明");
-
-  if (action === "submit" || action === "resubmit") {
-    if (!row.assigneeId) throw new ForbiddenError("任务尚未认领");
-    if (row.assigneeId !== actorId && access.role === "student") {
-      throw new ForbiddenError("只有认领人可以提交");
+  const result = await db.transaction(async (tx) => {
+    await tx
+      .select({ id: tasks.id })
+      .from(tasks)
+      .where(eq(tasks.id, taskId))
+      .for("update");
+    const row = await loadTaskRow(taskId, tx);
+    const rule = findTransition(action, row.status);
+    if (!rule) throw new ConflictError("当前状态无法执行该操作，请刷新后重试");
+    if (!availableTransitions(row, access.role, actorId).includes(rule)) {
+      throw new ForbiddenError("只能操作自己认领的任务");
     }
-  }
-  if (action === "unclaim" && access.role === "student" && row.assigneeId !== actorId) {
-    throw new ForbiddenError("只能退回自己的任务");
-  }
 
-  let nextAssignee = row.assigneeId;
-  if (action === "claim") nextAssignee = actorId;
-  else if (action === "unclaim") nextAssignee = null;
-  else if (action === "assign") {
-    const target = input?.assigneeId;
-    if (!target) throw new AppError("请选择指派对象");
-    const [member] = await db
-      .select({ id: teamMembers.userId })
-      .from(teamMembers)
-      .where(
-        and(
-          eq(teamMembers.teamId, access.project.teamId),
-          eq(teamMembers.userId, target),
-        ),
-      );
-    if (!member) throw new AppError("指派对象不在团队中");
-    nextAssignee = target;
-  }
+    if (rule.noteRequired && !note) throw new AppError("请填写说明");
 
-  const now = new Date();
-  await db
-    .update(tasks)
-    .set({
-      status: rule.to,
-      assigneeId: nextAssignee,
-      completionNote:
-        action === "submit" || action === "resubmit" ? note : row.completionNote,
-      rejectReason: action === "reject" ? note : row.rejectReason,
-      claimedAt:
-        action === "claim" || action === "assign"
-          ? now
-          : action === "unclaim"
-            ? null
-            : row.claimedAt,
-      submittedAt:
-        action === "submit" || action === "resubmit"
-          ? now
-          : action === "unclaim"
-            ? null
-            : row.submittedAt,
-      acceptedAt:
-        action === "accept"
-          ? now
-          : action === "reopen" || action === "unclaim"
-            ? null
-            : row.acceptedAt,
-      acceptedById:
-        action === "accept"
-          ? actorId
-          : action === "reopen" || action === "unclaim"
-            ? null
-            : row.acceptedById,
-      rejectedAt:
-        action === "reject"
-          ? now
-          : action === "resubmit" || action === "unclaim" || action === "reopen"
-            ? null
-            : row.rejectedAt,
-      rejectedById:
-        action === "reject"
-          ? actorId
-          : action === "resubmit" || action === "unclaim" || action === "reopen"
-            ? null
-            : row.rejectedById,
-      updatedAt: now,
-    })
-    .where(eq(tasks.id, taskId));
+    let nextAssignee = row.assigneeId;
+    if (action === "claim") nextAssignee = actorId;
+    else if (action === "unclaim") nextAssignee = null;
+    else if (action === "assign") {
+      const target = input?.assigneeId;
+      if (!target) throw new AppError("请选择指派对象");
+      const [member] = await tx
+        .select({ id: teamMembers.userId, role: teamMembers.role })
+        .from(teamMembers)
+        .where(
+          and(
+            eq(teamMembers.teamId, access.project.teamId),
+            eq(teamMembers.userId, target),
+          ),
+        );
+      if (!member) throw new AppError("指派对象不在团队中");
+      if (member.role === "teacher")
+        throw new AppError("请选择学生或管理员作为任务负责人");
+      nextAssignee = target;
+    }
 
-  await recordEvent(taskId, actorId, action, note);
+    const now = new Date();
+    await tx
+      .update(tasks)
+      .set({
+        status: rule.to,
+        assigneeId: nextAssignee,
+        completionNote:
+          action === "submit" || action === "resubmit"
+            ? note
+            : row.completionNote,
+        rejectReason: action === "reject" ? note : row.rejectReason,
+        claimedAt:
+          action === "claim" || action === "assign"
+            ? now
+            : action === "unclaim"
+              ? null
+              : row.claimedAt,
+        submittedAt:
+          action === "submit" || action === "resubmit"
+            ? now
+            : action === "unclaim"
+              ? null
+              : row.submittedAt,
+        acceptedAt:
+          action === "accept"
+            ? now
+            : action === "reopen" || action === "unclaim"
+              ? null
+              : row.acceptedAt,
+        acceptedById:
+          action === "accept"
+            ? actorId
+            : action === "reopen" || action === "unclaim"
+              ? null
+              : row.acceptedById,
+        rejectedAt:
+          action === "reject"
+            ? now
+            : action === "resubmit" ||
+                action === "unclaim" ||
+                action === "reopen"
+              ? null
+              : row.rejectedAt,
+        rejectedById:
+          action === "reject"
+            ? actorId
+            : action === "resubmit" ||
+                action === "unclaim" ||
+                action === "reopen"
+              ? null
+              : row.rejectedById,
+        updatedAt: now,
+      })
+      .where(eq(tasks.id, taskId));
+    await tx
+      .insert(taskAcceptanceEvents)
+      .values({ taskId, actorId, action, note });
+    return toDTO(await loadTaskRow(taskId, tx));
+  });
 
   if (action === "claim" || action === "assign") {
     await fireNotify(() => notifyAssigned(taskId));
@@ -393,7 +442,7 @@ export async function transitionTask(
     await fireNotify(() => notifyRejected(taskId, note ?? ""));
   }
 
-  return toDTO(await loadTaskRow(taskId));
+  return result;
 }
 
 export async function createSubtask(

@@ -117,9 +117,11 @@ src/modules/<你的模块>/
 ```
 
 **核心规则：**
-- `service.ts` 函数签名第一行永远是 `requireUser()` 或 ACL 检查
+- actions/API 使用 session；service 接收 actorId 并在读取项目或团队数据时先检查 ACL
 - 状态变更走 `transitionTask()`，绝不直接 `UPDATE tasks SET status=...`
 - 路由 `page.tsx` 只做壳：调 `ui.tsx` 的组件，不写业务
+- 页面组合放在模块 `views.tsx`；客户端规则从登记的 `client.ts` 导入，业务仍走模块根契约
+- 状态按钮与看板目标复用 `availableTransitions()`，不得复制角色×状态表
 
 ### 4.3 写测试
 
@@ -171,7 +173,8 @@ git push origin feature/<分支名>
 
 ```powershell
 # ① 从 develop 切分支
-git checkout develop && git pull
+git checkout develop
+git pull
 git checkout -b fix/<简短描述>
 
 # ② 定位问题 → 写失败测试（先失败再修）
@@ -187,7 +190,7 @@ git checkout -b fix/<简短描述>
 ### 快速测试（纯函数，无需数据库）
 
 ```powershell
-npx vitest run tests/contract/exports.test.ts tests/contract/core
+npx vitest run tests/contract/exports.test.ts tests/contract/core tests/contract/identity/password.test.ts tests/contract/tasks/states.test.ts tests/contract/board/board.test.ts
 ```
 
 ### 完整测试（需要 Postgres）
@@ -250,6 +253,9 @@ PR 打开 → CI（npm test + build）自动跑
 - [ ] 契约测试 ≥ 6 条
 - [ ] 没有引入新依赖（或在 PR 中说明理由）
 - [ ] 改了 `index.ts` 签名 → `docs/TEAM.md` 已同步
+- [ ] UI 状态操作与服务端同源，指派使用成员姓名
+- [ ] 取消/失败不移动任务，看板/表格切换保留 URL 条件
+- [ ] 依照 [UX.md](UX.md) 验证团队→项目→任务→验收、角色差异与窄屏
 
 ---
 
@@ -298,7 +304,7 @@ git tag v0.4.0-full       # 全部模块集成后
 | 新增一个 service 函数 | 写 service → ACL → actions → ui → 测试 |
 | 加字段到现有表 | 改模块 schema.ts → generate → 手动 SQL → 同步测试库 |
 | 改公开接口签名 | 改 index.ts → 更新 docs/TEAM.md 对应契约节 |
-| 修 core 的 bug | `git checkout -b fix/core-xxx`，PR 里说明为什么动 core |
+| 修 core 的 bug | foundation 使用 `feature/core-patch/<slug>`，PR 里说明理由 |
 | 加新依赖 | 先在 PR 里声明理由，等 foundation Owner 确认 |
 | 本地库起不来 | 跑 `setup.bat`，或检查 5432 端口，或用 `.tools/pgsql` 便携 Postgres |
 | 想改登录逻辑 | **不要改**，逻辑原样保留（AGENTS.md §3） |

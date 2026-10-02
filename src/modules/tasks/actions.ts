@@ -2,15 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireUser } from "@/modules/core/session";
-import { AppError } from "@/modules/core/errors";
+import { requireUser, AppError, getProjectForUser } from "@/modules/core";
 import {
   createTask,
   deleteTask,
   transitionTask,
   updateTask,
+  getTaskDetail,
 } from "@/modules/tasks";
-import type { TransitionAction } from "@/modules/tasks";
+import { listTeamMembers } from "@/modules/identity";
 import { addWorklog } from "@/modules/worklog";
 import { createMilestone } from "@/modules/milestone";
 
@@ -26,10 +26,9 @@ function fail(e: unknown): FormState {
   return { error: "操作失败，请稍后重试" };
 }
 
-
 const createSchema = z.object({
   projectId: z.string().min(1),
-  title: z.string().min(1, "请填写标题"),
+  title: z.string().trim().min(1, "请填写标题").max(200, "标题最多 200 字"),
   description: z.string().optional(),
   dueDate: z.string().optional(),
   priority: z.enum(["low", "medium", "high"]).optional(),
@@ -52,17 +51,29 @@ export async function createTaskAction(
   } catch (e) {
     return fail(e);
   }
-  revalidatePath(`/p/${parsed.data.projectId}/tasks`);
-  revalidatePath(`/p/${parsed.data.projectId}/board`);
+  revalidatePath(`/p/${parsed.data.projectId}`, "layout");
+  revalidatePath("/home", "layout");
+  revalidatePath("/t");
   return { error: "", ok: "已创建" };
 }
 
 const transitionSchema = z.object({
-  taskId: z.string().min(1),
-  projectId: z.string().min(1),
-  action: z.string().min(1),
-  note: z.string().optional(),
-  assigneeId: z.string().optional(),
+  taskId: z.uuid("任务无效"),
+  action: z.enum(
+    [
+      "claim",
+      "unclaim",
+      "assign",
+      "submit",
+      "resubmit",
+      "accept",
+      "reject",
+      "reopen",
+    ],
+    { error: "无效的状态操作" },
+  ),
+  note: z.string().trim().max(5000, "说明最多 5000 字").optional(),
+  assigneeId: z.uuid("请选择团队成员").optional(),
 });
 
 export async function transitionAction(
@@ -72,23 +83,40 @@ export async function transitionAction(
   const user = await requireUser();
   const parsed = transitionSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
+  let projectId: string;
   try {
-    await transitionTask(
+    const task = await transitionTask(
       user.id,
       parsed.data.taskId,
-      parsed.data.action as TransitionAction,
+      parsed.data.action,
       { note: parsed.data.note, assigneeId: parsed.data.assigneeId },
     );
+    projectId = task.projectId;
   } catch (e) {
     return fail(e);
   }
-  revalidatePath(`/p/${parsed.data.projectId}/tasks`);
-  revalidatePath(`/p/${parsed.data.projectId}/board`);
-  revalidatePath(`/p/${parsed.data.projectId}/review`);
-  revalidatePath(`/p/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
+  revalidatePath(`/p/${projectId}`, "layout");
+  revalidatePath(`/t`);
   revalidatePath(`/home/student`);
   revalidatePath(`/home/teacher`);
   return { error: "", ok: "已更新" };
+}
+
+export async function loadTaskAssigneesAction(taskId: string) {
+  const user = await requireUser();
+  try {
+    const task = await getTaskDetail(user.id, z.uuid().parse(taskId));
+    const access = await getProjectForUser(user.id, task.projectId);
+    if (!access || access.role === "student")
+      throw new AppError("没有指派权限", 403);
+    const members = await listTeamMembers(user.id, access.project.teamId);
+    return {
+      members: members.map(({ id, name, role }) => ({ id, name, role })),
+      error: "",
+    };
+  } catch (error) {
+    return { members: [], error: fail(error)?.error ?? "加载成员失败" };
+  }
 }
 
 export async function deleteTaskAction(
@@ -141,7 +169,9 @@ export async function addWorklogAction(
 const milestoneSchema = z.object({
   projectId: z.string().min(1),
   title: z.string().min(1, "请填写标题"),
-  kind: z.enum(["open_topic", "midterm", "final", "defense", "custom"]).optional(),
+  kind: z
+    .enum(["open_topic", "midterm", "final", "defense", "custom"])
+    .optional(),
   targetDate: z.string().optional(),
 });
 

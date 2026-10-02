@@ -11,6 +11,8 @@
 
 ## 1. 目录边界（最重要）
 
+默认按单模块 Owner 开发。用户明确要求跨模块的完整体验链路时，可在同一集成分支内按模块分别落实，并在变更说明列出范围与对应 Owner；仍通过公开契约协作，不做顺手重构。本次体验迭代范围为 identity、tasks、board 及直接服务这些入口的共享 UI，core 和登录文件保持锁定。
+
 | 路径 | 谁可以改 | 规则 |
 |---|---|---|
 | `src/modules/<m>/**` | 仅该模块 Owner | **禁止跨模块改文件** |
@@ -36,7 +38,8 @@
 ## 2. 架构不变量
 
 1. **模块化单体**：`src/modules/<m>/{schema,service,actions,api,ui,index}.ts`
-   - 跨模块只准 `import ... from "@/modules/<m>"`（`index.ts` 契约），**不准深链**内部文件。
+   - 业务跨模块只准 `import ... from "@/modules/<m>"`（`index.ts` 契约），**不准深链**内部文件。
+   - 明确的 UI 公开入口例外：`@/modules/<m>/client`（浏览器安全的纯函数/类型）、`/ui`（客户端组件）、`/views`（服务端页面组合）。这些入口须登记在 `docs/TEAM.md`，不得把 DB/session/service 运行时代码带入 `client.ts`，内部 `service/actions/schema/model` 仍禁止深链。
    - `service.ts` 纯业务 + ACL；`actions.ts` / `api.ts` 薄壳（session → service → revalidate）。
 2. **状态机唯一真相**：`src/modules/tasks/states.ts` 的 `TRANSITIONS`。
    - 一切状态变更必须走 `transitionTask()`，**禁止**直接 `update tasks.status`。
@@ -47,6 +50,9 @@
 5. **日期**：一律 `YYYY-MM-DD` 字符串（用 `@/modules/core/dates`）；工时用 `minutes: number`。
 6. **校验**：边界输入用 Zod v4；DB 信任内部调用。
 7. **UI**：复用 `src/components/ui/*`；状态用 `<StatusPill>`；设计 tokens 在 `globals.css`（品牌 `#294a78`，点缀 `#bf6a34`）。
+8. **交互同源**：按钮、拖拽目标和服务端权限都使用 `availableTransitions()`；不得复制角色×状态按钮表。提交/重交需完成说明，打回需修改意见，指派选择团队成员，禁止让用户输入数据库 ID。
+9. **一致性**：`transitionTask()` 在事务中锁住任务后查转移表，状态与事件一同提交；并发认领不能覆盖负责人。失败或取消时卡片保留原列，成功后刷新相关视图。
+10. **产品链路**：团队空间 → 成员与角色 → 项目/课题 → 任务 → 验收。实验室在本期是团队空间内的 `lab` 类型项目；不新增实验数据、文件库和设备管理。
 
 ## 3. 禁止事项
 
@@ -70,6 +76,7 @@ npm run build     # Windows 上零改动通过
 - 新增/改动模块行为 → 契约测试覆盖 happy path + 越权 + 非法状态转移。
 - 改了 `index.ts` 导出 → 同步 [docs/TEAM.md](docs/TEAM.md) 对应契约节。
 - 只包含本模块相关文件；不顺手重构别人的目录。
+- 体验改动按 [docs/UX.md](docs/UX.md) 检查空状态、姓名指派、取消/失败、角色权限、键盘操作与窄屏；看板/表格切换保留 URL 筛选。
 
 ## 5. 测试约定
 

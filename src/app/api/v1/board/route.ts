@@ -1,22 +1,33 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { applyFilters, deriveColumns, moveTask, parseFilters } from "@/modules/board";
+import {
+  applyFilters,
+  deriveColumns,
+  moveTask,
+  movePatchSchema,
+  parseFilters,
+} from "@/modules/board";
 import { listProjectTasks } from "@/modules/tasks";
-import { AppError } from "@/modules/core/errors";
 import { jsonError, requireApiUser } from "@/lib/api";
 
 export async function GET(req: Request) {
   try {
     const user = await requireApiUser();
     const url = new URL(req.url);
-    const projectId = url.searchParams.get("projectId");
-    const groupBy = (url.searchParams.get("groupBy") ?? "status") as
-      | "status"
-      | "assignee"
-      | "priority"
-      | "milestone";
-    if (!projectId) throw new AppError("缺少 projectId");
-    const all = await listProjectTasks(user.id, projectId, { parentTaskId: null });
+    const { projectId, groupBy } = z
+      .object({
+        projectId: z.uuid("请选择有效项目"),
+        groupBy: z
+          .enum(["status", "assignee", "priority", "milestone"])
+          .default("status"),
+      })
+      .parse({
+        projectId: url.searchParams.get("projectId"),
+        groupBy: url.searchParams.get("groupBy") ?? undefined,
+      });
+    const all = await listProjectTasks(user.id, projectId, {
+      parentTaskId: null,
+    });
     const filtered = applyFilters(all, parseFilters(url.searchParams));
     return NextResponse.json({ columns: deriveColumns(filtered, groupBy) });
   } catch (e) {
@@ -24,14 +35,7 @@ export async function GET(req: Request) {
   }
 }
 
-const moveSchema = z.object({
-  taskId: z.string().min(1),
-  status: z.string().optional(),
-  assigneeId: z.string().nullable().optional(),
-  priority: z.string().optional(),
-  milestoneId: z.string().nullable().optional(),
-  sortOrder: z.number().optional(),
-});
+const moveSchema = movePatchSchema.extend({ taskId: z.uuid() });
 
 export async function POST(req: Request) {
   try {

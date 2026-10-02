@@ -1,176 +1,66 @@
-import type { TaskDTO, TaskPatch, TransitionAction } from "@/modules/tasks";
+import { z } from "zod";
 import {
   getTaskDetail,
   transitionTask,
   updateTask,
+  type TaskPatch,
 } from "@/modules/tasks";
-import { TASK_STATUSES, STATUS_LABELS, findTransition, ACTION_ROLES } from "@/modules/tasks/states";
-import type { TaskPriority, TaskStatus } from "@/db/schema";
-import { ConflictError } from "@/modules/core/errors";
-import { getProjectForUser } from "@/modules/core/permissions";
+import { TASK_STATUSES } from "@/modules/tasks/client";
+import { requireProjectForUser, AppError, ConflictError } from "@/modules/core";
+import { getMoveTransition } from "./model";
 
-export type GroupBy = "status" | "assignee" | "priority" | "milestone";
+export * from "./model";
 
-export type ColumnDef = {
-  id: string;
-  title: string;
-  tasks: TaskDTO[];
-};
+export const movePatchSchema = z.object({
+  status: z.enum(TASK_STATUSES).optional(),
+  assigneeId: z.uuid().nullable().optional(),
+  priority: z.enum(["low", "medium", "high"]).optional(),
+  milestoneId: z.uuid().nullable().optional(),
+  sortOrder: z.number().finite().optional(),
+  note: z.string().trim().max(5000).optional(),
+});
 
-export type BoardFilters = {
-  status?: string[];
-  assigneeId?: string;
-  priority?: string[];
-  milestoneId?: string;
-};
+export type MovePatch = z.infer<typeof movePatchSchema>;
 
-const PRIORITY_ORDER: TaskPriority[] = ["high", "medium", "low"];
-const PRIORITY_LABELS: Record<TaskPriority, string> = {
-  high: "高",
-  medium: "中",
-  low: "低",
-};
-
-export function applyFilters(tasks: TaskDTO[], f: BoardFilters): TaskDTO[] {
-  return tasks.filter((t) => {
-    if (f.status?.length && !f.status.includes(t.status)) return false;
-    if (f.assigneeId && t.assigneeId !== f.assigneeId) return false;
-    if (f.priority?.length && !f.priority.includes(t.priority)) return false;
-    if (f.milestoneId && t.milestoneId !== f.milestoneId) return false;
-    return true;
-  });
-}
-
-export function parseFilters(params: URLSearchParams): BoardFilters {
-  const status = params.getAll("status").filter(Boolean);
-  const priority = params.getAll("priority").filter(Boolean);
-  const assigneeId = params.get("assigneeId") || undefined;
-  const milestoneId = params.get("milestoneId") || undefined;
-  return {
-    ...(status.length && { status }),
-    ...(priority.length && { priority }),
-    ...(assigneeId && { assigneeId }),
-    ...(milestoneId && { milestoneId }),
-  };
-}
-
-export function serializeFilters(f: BoardFilters): URLSearchParams {
-  const p = new URLSearchParams();
-  for (const s of f.status ?? []) p.append("status", s);
-  for (const s of f.priority ?? []) p.append("priority", s);
-  if (f.assigneeId) p.set("assigneeId", f.assigneeId);
-  if (f.milestoneId) p.set("milestoneId", f.milestoneId);
-  return p;
-}
-
-export function deriveColumns(tasks: TaskDTO[], groupBy: GroupBy): ColumnDef[] {
-  if (groupBy === "status") {
-    return TASK_STATUSES.map((s) => ({
-      id: s,
-      title: STATUS_LABELS[s],
-      tasks: tasks.filter((t) => t.status === s),
-    }));
-  }
-  if (groupBy === "priority") {
-    return PRIORITY_ORDER.map((p) => ({
-      id: p,
-      title: PRIORITY_LABELS[p],
-      tasks: tasks.filter((t) => t.priority === p),
-    }));
-  }
-  if (groupBy === "assignee") {
-    const names = new Map<string, string>();
-    for (const t of tasks) {
-      if (t.assigneeId) names.set(t.assigneeId, t.assigneeName ?? t.assigneeId);
-    }
-    const cols: ColumnDef[] = [...names.entries()].map(([id, title]) => ({
-      id,
-      title,
-      tasks: tasks.filter((t) => t.assigneeId === id),
-    }));
-    const unassigned = tasks.filter((t) => !t.assigneeId);
-    if (unassigned.length > 0 || cols.length === 0) {
-      cols.push({ id: "", title: "未指派", tasks: unassigned });
-    }
-    return cols;
-  }
-  // milestone
-  const titles = new Map<string, string>();
-  for (const t of tasks) {
-    if (t.milestoneId) titles.set(t.milestoneId, t.milestoneId);
-  }
-  const cols: ColumnDef[] = [...titles.entries()].map(([id]) => ({
-    id,
-    title: id,
-    tasks: tasks.filter((t) => t.milestoneId === id),
-  }));
-  const none = tasks.filter((t) => !t.milestoneId);
-  cols.push({ id: "", title: "无里程碑", tasks: none });
-  return cols;
-}
-
-function pickAction(
-  from: TaskStatus,
-  to: TaskStatus,
-  role: "admin" | "teacher" | "student",
-): TransitionAction {
-  const candidates = (["claim", "unclaim", "assign", "submit", "resubmit", "accept", "reject", "reopen"] as TransitionAction[]).filter(
-    (a) => {
-      const r = findTransition(a, from);
-      return r?.to === to && ACTION_ROLES[a].includes(role);
-    },
-  );
-  if (candidates.length === 0) {
-    throw new ConflictError("看板拖拽不支持该状态变更");
-  }
-  // 更「顺手」的优先：认领/提交/验收优先于指派/重开
-  const prefer: TransitionAction[] = ["claim", "submit", "resubmit", "accept", "reject", "unclaim", "reopen", "assign"];
-  for (const a of prefer) {
-    if (candidates.includes(a)) return a;
-  }
-  return candidates[0];
-}
-
-/** 看板拖拽：只改状态/排序/属性，状态变更走 transitionTask。 */
 export async function moveTask(
   actorId: string,
   taskId: string,
-  patch: {
-    status?: string;
-    assigneeId?: string | null;
-    priority?: string;
-    milestoneId?: string | null;
-    sortOrder?: number;
-  },
-): Promise<TaskDTO> {
-  const detail = await getTaskDetail(actorId, taskId);
-  const attrPatch: TaskPatch = {};
-  if (patch.sortOrder !== undefined) attrPatch.sortOrder = patch.sortOrder;
-  if (patch.priority !== undefined) attrPatch.priority = patch.priority as TaskPriority;
-  if (patch.milestoneId !== undefined) attrPatch.milestoneId = patch.milestoneId;
-
-  if (patch.assigneeId !== undefined && patch.assigneeId !== detail.assigneeId) {
-    if (patch.assigneeId === null) {
-      if (detail.status === "in_progress" || detail.status === "rejected") {
-        return transitionTask(actorId, taskId, "unclaim");
-      }
-    } else if (
-      detail.status === "unclaimed" ||
-      detail.status === "in_progress" ||
-      detail.status === "rejected"
-    ) {
-      return transitionTask(actorId, taskId, "assign", { assigneeId: patch.assigneeId });
-    }
+  input: MovePatch,
+) {
+  const task = await getTaskDetail(actorId, taskId);
+  const access = await requireProjectForUser(actorId, task.projectId);
+  const parsed = movePatchSchema.safeParse(input);
+  if (!parsed.success) throw new AppError("看板移动参数无效");
+  const patch = parsed.data;
+  const attrs: TaskPatch = {};
+  if (patch.sortOrder !== undefined) attrs.sortOrder = patch.sortOrder;
+  if (patch.priority !== undefined) attrs.priority = patch.priority;
+  if (patch.milestoneId !== undefined) attrs.milestoneId = patch.milestoneId;
+  const changesStatus =
+    patch.status !== undefined && patch.status !== task.status;
+  const changesAssignee =
+    patch.assigneeId !== undefined && patch.assigneeId !== task.assigneeId;
+  if (
+    (changesStatus && changesAssignee) ||
+    ((changesStatus || changesAssignee) && Object.keys(attrs).length > 0)
+  ) {
+    throw new AppError("请分别调整状态、负责人和任务属性");
   }
-
-  const nextStatus = patch.status as TaskStatus | undefined;
-  if (nextStatus && nextStatus !== detail.status) {
-    const access = await getProjectForUser(actorId, detail.projectId);
-    const role = access?.role ?? "student";
-    const action = pickAction(detail.status, nextStatus, role);
-    return transitionTask(actorId, taskId, action);
+  if (changesAssignee) {
+    if (patch.assigneeId === null)
+      return transitionTask(actorId, taskId, "unclaim");
+    return transitionTask(actorId, taskId, "assign", {
+      assigneeId: patch.assigneeId ?? undefined,
+    });
   }
-
-  if (Object.keys(attrPatch).length === 0) return detail;
-  return updateTask(actorId, taskId, attrPatch);
+  if (changesStatus && patch.status) {
+    const rule = getMoveTransition(task, patch.status, access.role, actorId);
+    if (!rule)
+      throw new ConflictError(
+        "当前状态或权限不允许移到该列，请使用任务操作查看可用路径",
+      );
+    return transitionTask(actorId, taskId, rule.action, { note: patch.note });
+  }
+  if (Object.keys(attrs).length === 0) return task;
+  return updateTask(actorId, taskId, attrs);
 }
