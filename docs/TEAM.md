@@ -2,6 +2,8 @@
 
 一份文档说清「谁做什么、接口长什么样、怎么不撞车」。
 
+本次身份权限补丁由 foundation 在 `feature/core-patch/member-capabilities` 实施：`getTeamMembership` 追加 `positions`，`getProjectForUser` 追加 `positions/capabilities`，既有字段与调用保持兼容。`identity/client` 是公开纯函数入口，导出学术身份、职务元数据、兼容角色映射及 `capabilitiesFor(positions, projectKind)`；不加载数据库或 session。实验室与竞赛队长可管理该类项目、指派任务；验收由指导老师/管理员负责。身份仅供展示和团队确认，不影响权限。
+
 ---
 
 ## 1. 模块地图
