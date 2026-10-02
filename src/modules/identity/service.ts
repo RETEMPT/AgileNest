@@ -6,6 +6,9 @@ import {
   teamMembers,
   teams,
   users,
+  academicProfiles,
+  academicConfirmations,
+  memberPositions,
   type TeamRole,
 } from "@/db/schema";
 import {
@@ -17,7 +20,20 @@ import {
   getTeamMembership,
   requireTeamRole,
 } from "@/modules/core";
-import { projectInputSchema, teamNameSchema } from "./schema";
+import {
+  academicProfileSchema,
+  positionsSchema,
+  projectInputSchema,
+  projectUpdateSchema,
+  teamNameSchema,
+} from "./schema";
+import {
+  capabilitiesFor,
+  positionsFromRole,
+  roleFromPositions,
+  type AcademicIdentity,
+  type TeamPosition,
+} from "./client";
 
 // —— identity：团队 / 成员 / 项目（登录之外的基础域）——
 
@@ -79,16 +95,42 @@ export async function listMyTeams(userId: string) {
 
 export async function listTeamMembers(actorId: string, teamId: string) {
   await requireTeamRole(actorId, teamId, ["admin", "teacher", "student"]);
-  return db
+  const rows = await db
     .select({
       id: users.id,
       name: users.name,
       email: users.email,
       role: teamMembers.role,
+      positions: memberPositions.positions,
+      profile: {
+        identity: academicProfiles.identity,
+        institution: academicProfiles.institution,
+        department: academicProfiles.department,
+        researchFocus: academicProfiles.researchFocus,
+        version: academicProfiles.version,
+      },
+      confirmedVersion: academicConfirmations.profileVersion,
+      confirmedAt: academicConfirmations.confirmedAt,
     })
     .from(teamMembers)
     .innerJoin(users, eq(teamMembers.userId, users.id))
+    .leftJoin(memberPositions, eq(memberPositions.membershipId, teamMembers.id))
+    .leftJoin(academicProfiles, eq(academicProfiles.userId, users.id))
+    .leftJoin(
+      academicConfirmations,
+      eq(academicConfirmations.membershipId, teamMembers.id),
+    )
     .where(eq(teamMembers.teamId, teamId));
+  return rows.map((row) => {
+    const positions = row.positions ?? positionsFromRole(row.role);
+    return {
+      ...row,
+      positions,
+      canExecute: capabilitiesFor(positions).execute,
+      identityConfirmed:
+        !!row.profile && row.profile.version === row.confirmedVersion,
+    };
+  });
 }
 
 export async function updateMemberRole(
@@ -97,7 +139,24 @@ export async function updateMemberRole(
   targetUserId: string,
   role: TeamRole,
 ) {
+  return updateMemberPositions(
+    actorId,
+    teamId,
+    targetUserId,
+    positionsFromRole(role),
+  );
+}
+
+export async function updateMemberPositions(
+  actorId: string,
+  teamId: string,
+  targetUserId: string,
+  positions: TeamPosition[],
+) {
   await requireTeamRole(actorId, teamId, ["admin"]);
+  const parsed = positionsSchema.safeParse(positions);
+  if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
+  const role = roleFromPositions(parsed.data);
   return db.transaction(async (tx) => {
     await tx
       .select({ id: teams.id })
@@ -124,6 +183,21 @@ export async function updateMemberRole(
       .set({ role })
       .where(eq(teamMembers.id, target.id))
       .returning();
+    await tx
+      .insert(memberPositions)
+      .values({
+        membershipId: target.id,
+        positions: parsed.data,
+        updatedById: actorId,
+      })
+      .onConflictDoUpdate({
+        target: memberPositions.membershipId,
+        set: {
+          positions: parsed.data,
+          updatedById: actorId,
+          updatedAt: new Date(),
+        },
+      });
     return updated;
   });
 }
@@ -139,9 +213,15 @@ export async function createProject(
     endDate?: string;
   },
 ) {
-  await requireTeamRole(actorId, teamId, ["admin"]);
+  const membership = await requireTeamRole(actorId, teamId, [
+    "admin",
+    "teacher",
+    "student",
+  ]);
   const parsed = projectInputSchema.safeParse(input);
   if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
+  if (!capabilitiesFor(membership.positions, parsed.data.kind).manageProject)
+    throw new ForbiddenError("没有权限：只有管理员或该场景的队长可以创建项目");
   const [project] = await db
     .insert(projects)
     .values({
@@ -174,7 +254,24 @@ export async function updateProject(
   },
 ) {
   const access = await getProjectForUser(actorId, projectId);
-  if (!access || access.role !== "admin") throw new ForbiddenError();
+  if (
+    !access ||
+    !access.capabilities.manageProject ||
+    !capabilitiesFor(
+      access.positions,
+      patch.kind === undefined ? access.project.kind : patch.kind,
+    ).manageProject
+  )
+    throw new ForbiddenError();
+  const parsed = projectUpdateSchema.safeParse(patch);
+  if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
+  patch = parsed.data;
+  const start =
+    patch.startDate === undefined ? access.project.startDate : patch.startDate;
+  const end =
+    patch.endDate === undefined ? access.project.endDate : patch.endDate;
+  if (start && end && start > end)
+    throw new AppError("结束日期不能早于开始日期");
 
   const [updated] = await db
     .update(projects)
@@ -220,12 +317,13 @@ export async function listMyProjects(actorId: string) {
 }
 
 export async function listTeamSpaces(actorId: string) {
-  return db
+  const rows = await db
     .select({
       id: teams.id,
       name: teams.name,
       inviteCode: teams.inviteCode,
       role: teamMembers.role,
+      positions: memberPositions.positions,
       memberCount:
         sql<number>`(select count(*) from ${teamMembers} m where m.team_id = ${teams.id})`.mapWith(
           Number,
@@ -237,8 +335,102 @@ export async function listTeamSpaces(actorId: string) {
     })
     .from(teamMembers)
     .innerJoin(teams, eq(teamMembers.teamId, teams.id))
+    .leftJoin(memberPositions, eq(memberPositions.membershipId, teamMembers.id))
     .where(eq(teamMembers.userId, actorId))
     .orderBy(desc(teamMembers.createdAt));
+  return rows.map((row) => ({
+    ...row,
+    positions: row.positions ?? positionsFromRole(row.role),
+  }));
 }
 
 export { getTeamMembership, getProjectForUser, requireTeamRole };
+
+export async function getAcademicProfile(actorId: string) {
+  const [profile] = await db
+    .select()
+    .from(academicProfiles)
+    .where(eq(academicProfiles.userId, actorId));
+  return profile ?? null;
+}
+
+export async function saveAcademicProfile(
+  actorId: string,
+  input: {
+    identity: AcademicIdentity;
+    institution?: string;
+    department?: string;
+    researchFocus?: string;
+  },
+) {
+  const parsed = academicProfileSchema.safeParse(input);
+  if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
+  const [profile] = await db
+    .insert(academicProfiles)
+    .values({ userId: actorId, ...parsed.data })
+    .onConflictDoUpdate({
+      target: academicProfiles.userId,
+      set: {
+        ...parsed.data,
+        version: sql`${academicProfiles.version} + 1`,
+        updatedAt: new Date(),
+      },
+      setWhere: sql`${academicProfiles.identity} <> ${parsed.data.identity} or ${academicProfiles.institution} <> ${parsed.data.institution} or ${academicProfiles.department} <> ${parsed.data.department} or ${academicProfiles.researchFocus} <> ${parsed.data.researchFocus}`,
+    })
+    .returning();
+  return profile ?? (await getAcademicProfile(actorId));
+}
+
+export async function confirmAcademicIdentity(
+  actorId: string,
+  teamId: string,
+  targetUserId: string,
+  version: number,
+) {
+  await requireTeamRole(actorId, teamId, ["admin"]);
+  if (actorId === targetUserId)
+    throw new ForbiddenError("自己的身份需由另一位团队管理员确认");
+  return db.transaction(async (tx) => {
+    // 与职务修改共用团队锁，防止已被撤销的管理员继续确认。
+    await tx
+      .select({ id: teams.id })
+      .from(teams)
+      .where(eq(teams.id, teamId))
+      .for("update");
+    const memberships = await tx
+      .select()
+      .from(teamMembers)
+      .where(eq(teamMembers.teamId, teamId));
+    if (
+      memberships.find((member) => member.userId === actorId)?.role !== "admin"
+    )
+      throw new ForbiddenError();
+    const target = memberships.find((member) => member.userId === targetUserId);
+    if (!target) throw new AppError("该成员不在团队中");
+    const [profile] = await tx
+      .select()
+      .from(academicProfiles)
+      .where(eq(academicProfiles.userId, targetUserId))
+      .for("update");
+    if (!profile) throw new AppError("请先让成员填写学术身份");
+    if (profile.version !== version)
+      throw new ConflictError("成员资料已更新，请刷新后核对新资料");
+    const [confirmation] = await tx
+      .insert(academicConfirmations)
+      .values({
+        membershipId: target.id,
+        profileVersion: version,
+        confirmedById: actorId,
+      })
+      .onConflictDoUpdate({
+        target: academicConfirmations.membershipId,
+        set: {
+          profileVersion: version,
+          confirmedById: actorId,
+          confirmedAt: new Date(),
+        },
+      })
+      .returning();
+    return confirmation;
+  });
+}

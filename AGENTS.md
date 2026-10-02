@@ -45,7 +45,7 @@
    - 一切状态变更必须走 `transitionTask()`，**禁止**直接 `update tasks.status`。
    - 非法转移抛 `ConflictError`（409）。
 3. **ACL 先行**：每个 service 函数入口先调
-   `requireProjectForUser` / `requireTaskWrite`（admin+student）/ `requireReviewer`（admin+teacher）/ `requireTeamRole`。
+   `requireProjectForUser` / `requireTaskWrite`（具有执行职务）/ `requireReviewer`（管理员/指导老师）/ `requireTeamRole`。任务能力由 `identity/client.capabilitiesFor` 按职务并集和项目场景计算，身份不得参与授权。
 4. **错误**：只抛 `AppError` / `ForbiddenError` / `NotFoundError` / `ConflictError`；message 可直接展示给用户（中文）。
 5. **日期**：一律 `YYYY-MM-DD` 字符串（用 `@/modules/core/dates`）；工时用 `minutes: number`。
 6. **校验**：边界输入用 Zod v4；DB 信任内部调用。
@@ -101,3 +101,11 @@ npm run clean      # 清 .next / coverage
 ```
 
 细节见 [docs/WINDOWS.md](docs/WINDOWS.md) · 链路与状态机见 [docs/DESIGN.md](docs/DESIGN.md)。
+
+## 7. 身份与职务补充约束
+
+- 学术身份由本人填写、另一位团队管理员按当前资料版本确认；修改资料使旧确认失效，确认不得跨团队复用。
+- 职务管理必须验证操作者、目标归属并保留至少一名管理员。兼容三态 role 由职务派生，不赋予学术身份任何权限。
+- 队长仅管理实验室/竞赛项目与指派；验收保持管理员/指导老师权限。按钮、拖动和服务端共享能力及转移规则。
+- schema 只追加，已有库升级运行 `node scripts/migrate-identity.mjs`，不得通过清空历史数据消除约束差异。
+- 调整身份/职务/状态行为时同步 [docs/IDENTITY.md](docs/IDENTITY.md) 与契约测试；PR 来源与取舍记录在 [docs/PR-RESEARCH.md](docs/PR-RESEARCH.md)。

@@ -250,10 +250,22 @@ export const notifications = pgTable(
 );
 
 // identity：学术信息与团队职务独立，保留既有登录与角色字段。
-export const academicIdentityEnum = pgEnum("academic_identity", ["undergraduate", "master", "doctoral", "teacher"]);
-export const teamPositionEnum = pgEnum("team_position", ["admin", "advisor", "leader", "member"]);
+export const academicIdentityEnum = pgEnum("academic_identity", [
+  "undergraduate",
+  "master",
+  "doctoral",
+  "teacher",
+]);
+export const teamPositionEnum = pgEnum("team_position", [
+  "admin",
+  "advisor",
+  "leader",
+  "member",
+]);
 export const academicProfiles = pgTable("academic_profiles", {
-  userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
   identity: academicIdentityEnum("identity").notNull(),
   institution: text("institution").notNull().default(""),
   department: text("department").notNull().default(""),
@@ -262,14 +274,22 @@ export const academicProfiles = pgTable("academic_profiles", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 export const memberPositions = pgTable("member_positions", {
-  membershipId: uuid("membership_id").primaryKey().references(() => teamMembers.id, { onDelete: "cascade" }),
+  membershipId: uuid("membership_id")
+    .primaryKey()
+    .references(() => teamMembers.id, { onDelete: "cascade" }),
   positions: teamPositionEnum("positions").array().notNull(),
-  updatedById: uuid("updated_by_id").references(() => users.id, { onDelete: "set null" }),
+  updatedById: uuid("updated_by_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 export const academicConfirmations = pgTable("academic_confirmations", {
-  membershipId: uuid("membership_id").primaryKey().references(() => teamMembers.id, { onDelete: "cascade" }),
+  membershipId: uuid("membership_id")
+    .primaryKey()
+    .references(() => teamMembers.id, { onDelete: "cascade" }),
   profileVersion: integer("profile_version").notNull(),
-  confirmedById: uuid("confirmed_by_id").references(() => users.id, { onDelete: "set null" }),
+  confirmedById: uuid("confirmed_by_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
   confirmedAt: timestamp("confirmed_at").notNull().defaultNow(),
 });

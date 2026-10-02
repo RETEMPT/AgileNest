@@ -16,12 +16,11 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { ProjectKind, TeamRole } from "@/db/schema";
+import type { ProjectKind } from "@/db/schema";
 import {
   createTeamAction,
   joinTeamAction,
   createProjectAction,
-  updateRoleAction,
   type IdentityFormState,
 } from "./actions";
 
@@ -265,12 +264,16 @@ export function TeamEntryActions({ large = false }: { large?: boolean }) {
 export function ProjectForm({
   teamId,
   defaultKind = "course",
+  allowedKinds = ["course", "lab", "contest"],
 }: {
   teamId: string;
   defaultKind?: ProjectKind;
+  allowedKinds?: ProjectKind[];
 }) {
   const [state, action, pending] = useActionState(createProjectAction, null);
-  const [kind, setKind] = useState<ProjectKind>(defaultKind);
+  const [kind, setKind] = useState<ProjectKind>(
+    allowedKinds.includes(defaultKind) ? defaultKind : allowedKinds[0],
+  );
   const [fields, setFields] = useState({
     name: "",
     description: "",
@@ -288,26 +291,30 @@ export function ProjectForm({
       <fieldset>
         <legend className="mb-2 text-sm font-medium">项目类型</legend>
         <div className="grid gap-2 sm:grid-cols-3">
-          {SPACE_KINDS.map((item) => (
-            <label
-              key={item.id}
-              className={`cursor-pointer rounded-xl border p-4 ${kind === item.id ? "border-brand bg-brand-soft ring-1 ring-brand" : "border-border"}`}
-            >
-              <input
-                type="radio"
-                name="kind"
-                value={item.id}
-                checked={kind === item.id}
-                onChange={() => setKind(item.id)}
-                className="peer sr-only"
-              />
-              <item.icon className="mb-2 h-5 w-5 text-brand peer-focus-visible:ring-2" />
-              <span className="block text-sm font-semibold">{item.title}</span>
-              <span className="mt-1 block text-xs text-muted-foreground">
-                {item.description}
-              </span>
-            </label>
-          ))}
+          {SPACE_KINDS.filter((item) => allowedKinds.includes(item.id)).map(
+            (item) => (
+              <label
+                key={item.id}
+                className={`cursor-pointer rounded-xl border p-4 ${kind === item.id ? "border-brand bg-brand-soft ring-1 ring-brand" : "border-border"}`}
+              >
+                <input
+                  type="radio"
+                  name="kind"
+                  value={item.id}
+                  checked={kind === item.id}
+                  onChange={() => setKind(item.id)}
+                  className="peer sr-only"
+                />
+                <item.icon className="mb-2 h-5 w-5 text-brand peer-focus-visible:ring-2" />
+                <span className="block text-sm font-semibold">
+                  {item.title}
+                </span>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  {item.description}
+                </span>
+              </label>
+            ),
+          )}
         </div>
       </fieldset>
       <div className="space-y-2">
@@ -380,7 +387,7 @@ export function ProjectForm({
         </div>
       </div>
       <p className="rounded-lg bg-muted p-3 text-xs text-muted-foreground">
-        创建后进入五态看板。团队成员共享项目权限，教师负责指派与验收。
+        创建后进入五态看板。指导老师负责验收，实验室和竞赛队长可协调指派。
       </p>
       <Feedback state={state} />
       <Button disabled={pending} className="w-full">
@@ -394,9 +401,11 @@ export function ProjectForm({
 export function CreateProjectButton({
   teamId,
   defaultKind,
+  allowedKinds,
 }: {
   teamId: string;
   defaultKind?: ProjectKind;
+  allowedKinds?: ProjectKind[];
 }) {
   return (
     <FormDialog
@@ -409,7 +418,11 @@ export function CreateProjectButton({
         </Button>
       }
     >
-      <ProjectForm teamId={teamId} defaultKind={defaultKind} />
+      <ProjectForm
+        teamId={teamId}
+        defaultKind={defaultKind}
+        allowedKinds={allowedKinds}
+      />
     </FormDialog>
   );
 }
@@ -451,42 +464,5 @@ export function InviteCode({ code }: { code: string }) {
         {error}
       </p>
     </div>
-  );
-}
-
-export function MemberRoleForm({
-  teamId,
-  member,
-}: {
-  teamId: string;
-  member: { id: string; name: string; role: TeamRole };
-}) {
-  const [state, action, pending] = useActionState(updateRoleAction, null);
-  const id = useId();
-  return (
-    <form action={action} className="space-y-2 border-t border-border pt-4">
-      <input type="hidden" name="teamId" value={teamId} />
-      <input type="hidden" name="userId" value={member.id} />
-      <label htmlFor={id} className="sr-only">
-        {member.name}的团队角色
-      </label>
-      <div className="flex gap-2">
-        <select
-          id={id}
-          name="role"
-          defaultValue={member.role}
-          disabled={pending}
-          className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm"
-        >
-          <option value="student">学生 · 认领与提交</option>
-          <option value="teacher">教师 · 指派与验收</option>
-          <option value="admin">管理员 · 空间管理</option>
-        </select>
-        <Button disabled={pending} variant="outline" size="sm">
-          {pending ? "保存中" : "保存"}
-        </Button>
-      </div>
-      <Feedback state={state} />
-    </form>
   );
 }

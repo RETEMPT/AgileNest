@@ -1,6 +1,7 @@
 // 五态状态机 —— 唯一合法转移表。service 只查表执行，调优改这一张表即可。
 import type { TaskAction, TaskStatus } from "@/db/schema";
 import type { TeamRole } from "@/db/schema";
+import type { TaskPermissions } from "@/modules/identity/client";
 
 export const TASK_STATUSES: TaskStatus[] = [
   "unclaimed",
@@ -130,6 +131,7 @@ export function allowedActions(
 export type TransitionContext = {
   status: TaskStatus;
   assigneeId: string | null;
+  permissions?: TaskPermissions;
 };
 
 export function availableTransitions(
@@ -140,7 +142,9 @@ export function availableTransitions(
   return TRANSITIONS.filter((rule) => {
     if (
       !rule.from.includes(task.status) ||
-      !ACTION_ROLES[rule.action].includes(role)
+      !(task.permissions
+        ? task.permissions.actions.includes(rule.action)
+        : ACTION_ROLES[rule.action].includes(role))
     )
       return false;
     if (
@@ -148,8 +152,12 @@ export function availableTransitions(
       !task.assigneeId
     )
       return false;
-    if (role === "student" && rule.selfOnly && rule.action !== "claim") {
-      return task.assigneeId === actorId;
+    if (rule.selfOnly && rule.action !== "claim") {
+      const forOthers =
+        rule.action === "unclaim"
+          ? (task.permissions?.unclaimForOthers ?? role !== "student")
+          : (task.permissions?.submitForOthers ?? role === "admin");
+      if (!forOthers) return task.assigneeId === actorId;
     }
     return true;
   });

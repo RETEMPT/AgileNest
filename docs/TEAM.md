@@ -35,7 +35,7 @@ ui.tsx       可选：公开客户端组件
 views.tsx    可选：公开服务端页面组合
 ```
 
-数据表归属：`users/teams/team_members/projects` → identity · `tasks` → tasks · `milestones` → milestone · `worklogs` → worklog · `task_acceptance_events` → review · `notifications` → notify。
+数据表归属：`users/teams/team_members/projects/academic_profiles/member_positions/academic_confirmations` → identity · `tasks` → tasks · `milestones` → milestone · `worklogs` → worklog · `task_acceptance_events` → review · `notifications` → notify。
 `src/db/schema.ts` 是 barrel，本期集中放一份，**只追加不重排**。
 
 ---
@@ -108,6 +108,10 @@ listMyTeams(userId)
 listTeamSpaces(actorId)                   // 当前用户的空间，含 memberCount / projectCount（active）
 listTeamMembers(actorId, teamId)          // 必须先检查团队访问权限
 updateMemberRole(actorId, teamId, targetUserId, role)
+updateMemberPositions(actorId, teamId, targetUserId, positions: TeamPosition[])
+getAcademicProfile(actorId)
+saveAcademicProfile(actorId, { identity, institution?, department?, researchFocus? })
+confirmAcademicIdentity(actorId, teamId, targetUserId, profileVersion)
 createProject(actorId, teamId, input)
 listTeamProjects(actorId, teamId)
 updateProject(actorId, projectId, patch)
@@ -115,7 +119,7 @@ listMyProjects(actorId)
 // re-export: getTeamMembership / getProjectForUser / requireTeamRole
 ```
 
-`createTeam`/`createProject` 校验并去除名称首尾空白；项目日期校验真实日历日期及开始≤结束。`updateMemberRole` 在事务中锁定团队，拒绝降级最后一位管理员。公开 UI：`identity/ui` 提供场景选择、创建/加入、成员角色与邀请码组件；`identity/views` 提供团队、成员、项目和项目概览页面。团队场景是引导选择，数据库实体仍为团队，课程/实验室/竞赛类型存于项目。
+`createTeam`/`createProject` 校验并去除名称首尾空白；项目日期校验真实日历日期及开始≤结束。`updateMemberRole` 在事务中锁定团队，拒绝降级最后一位管理员。公开 UI：`identity/ui` 提供场景选择、创建/加入、成员职务与邀请码组件；`identity/views` 提供团队、成员、项目、个人设置、项目设置和项目概览页面。团队场景是引导选择，数据库实体仍为团队，课程/实验室/竞赛类型存于项目。
 
 ### `@/modules/tasks`（A）
 
@@ -132,11 +136,11 @@ createSubtask(actorId, parentTaskId, input)
 listSubtasks(actorId, parentTaskId)
 setDueDate(actorId, taskId, dueDate)
 
-availableTransitions(task: { status, assigneeId }, role, actorId): TransitionRule[]
+availableTransitions(task: { status, assigneeId, permissions? }, role, actorId): TransitionRule[]
 STATUS_DESCRIPTIONS / canDeleteTask(role)
 ```
 
-状态机唯一真相是模块内部 `states.ts` 的 `TRANSITIONS`，外部通过 `@/modules/tasks` 或浏览器安全的 `@/modules/tasks/client` 使用。`availableTransitions` 同时处理状态、角色和学生负责人权限，`claim` 由当前用户认领，管理员保留代提交权限。`transitionTask` 在行锁事务中同时写状态与活动事件，通知在提交后发送。公开 UI：`tasks/ui` 的 `TaskWorkflow`、`TaskActions`、`TransitionDialog`、`CreateTaskForm`；`tasks/views` 的任务池与详情组合。详情页必须检查 URL 的 projectId 与任务归属一致。
+状态机唯一真相是模块内部 `states.ts` 的 `TRANSITIONS`，外部通过 `@/modules/tasks` 或浏览器安全的 `@/modules/tasks/client` 使用。`TaskDTO.permissions?: TaskPermissions` 是当前操作者的权限引导快照，任务服务返回时按职务与场景计算；`availableTransitions` 同时处理状态、能力和负责人限制。纯函数旧调用未提供快照时保留三态角色兼容；服务端总是重新计算当前能力。`toDTO(row)` 签名保持不变，旧工作台 DTO 由共享 TaskActions 在显示前补齐权限。`claim` 由当前用户认领，管理员保留代提交权限。`transitionTask` 在行锁事务中同时写状态与活动事件，通知在提交后发送。公开 UI：`tasks/ui` 的 `TaskWorkflow`、`TaskActions`、`TransitionDialog`、`CreateTaskForm`；`tasks/views` 的任务池与详情组合。详情页必须检查 URL 的 projectId 与任务归属一致。
 
 ### `@/modules/board`（B）
 
@@ -205,3 +209,5 @@ listMyNotifications(actorId, opts?) / markRead(actorId, id)
 - [ ] 未改不属于自己的目录
 
 Commit 用 Conventional Commits：`feat(tasks): 五态状态机` · `fix(board): 非法拖拽回滚` · `test(review): 越权矩阵`
+
+身份补充：`listTeamMembers` 追加 `positions/profile/confirmedVersion/confirmedAt/identityConfirmed/canExecute`；`listTeamSpaces` 追加 `positions`。`updateMemberRole` 兼容旧调用，同时同步唯一对应职务；新 UI 使用 `updateMemberPositions`。成员设置变更应刷新团队、项目、工作台入口。身份确认、职务并集和迁移细节见 [IDENTITY.md](IDENTITY.md)。身份、职务和项目编辑客户端组件在 `academic-ui` 内部，由公开 `views` 组合，不作为新的跨模块深链入口。

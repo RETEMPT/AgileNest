@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useId, useRef, useState } from "react";
+import { useActionState, useEffect, useId, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { ArrowRight, RotateCcw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import {
   setDueDateAction,
   transitionAction,
   loadTaskAssigneesAction,
+  loadTaskPermissionsAction,
   type FormState,
 } from "@/modules/tasks/actions";
 import type { TaskDTO } from "./service";
@@ -26,6 +27,11 @@ import {
 } from "./states";
 import type { TeamRole } from "@/db/schema";
 import { StatusPill, PriorityPill } from "@/components/ui/badge";
+import {
+  POSITION_META,
+  type TeamPosition,
+  type TaskPermissions,
+} from "@/modules/identity/client";
 
 const btn =
   "rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50 transition active:scale-95";
@@ -135,7 +141,13 @@ export function CreateTaskForm({
   );
 }
 
-export type AssigneeOption = { id: string; name: string; role: TeamRole };
+export type AssigneeOption = {
+  id: string;
+  name: string;
+  role: TeamRole;
+  positions?: TeamPosition[];
+  canExecute?: boolean;
+};
 
 export function TaskWorkflow({ status }: { status?: TaskDTO["status"] }) {
   const main: TaskDTO["status"][] = [
@@ -312,11 +324,17 @@ export function TransitionDialog({
                     请选择负责人
                   </option>
                   {members
-                    .filter((member) => member.role !== "teacher")
+                    .filter(
+                      (member) =>
+                        member.canExecute ?? member.role !== "teacher",
+                    )
                     .map((member) => (
                       <option key={member.id} value={member.id}>
                         {member.name} ·{" "}
-                        {member.role === "student" ? "学生" : "管理员"}
+                        {member.positions
+                          ?.map((position) => POSITION_META[position].label)
+                          .join("、") ??
+                          (member.role === "student" ? "队员" : "管理员")}
                       </option>
                     ))}
                 </select>
@@ -394,10 +412,49 @@ export function TaskActions({
     null,
   );
   const [selected, setSelected] = useState<TransitionRule | null>(null);
-  const [options, setOptions] = useState(members);
+  const [loadedOptions, setOptions] = useState(members);
+  const options = members.length ? members : loadedOptions;
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
-  const actions = availableTransitions(task, role, actorId);
+  const [resolved, setResolved] = useState<{
+    task: TaskDTO;
+    permissions?: TaskPermissions;
+    error: string;
+  } | null>(null);
+  // 旧工作台 DTO 没有权限快照，进入操作区时从统一入口补齐。
+  useEffect(() => {
+    if (task.permissions) return;
+    let active = true;
+    void loadTaskPermissionsAction(task.id)
+      .then((result) => {
+        if (active) setResolved({ task, ...result });
+      })
+      .catch(() => {
+        if (active) setResolved({ task, error: "暂时无法加载操作" });
+      });
+    return () => {
+      active = false;
+    };
+  }, [task, actorId, role]);
+  const permissions =
+    task.permissions ??
+    (resolved?.task === task ? resolved.permissions : undefined);
+  if (!permissions)
+    return (
+      <p className="text-xs text-muted-foreground" role="status">
+        {resolved?.task === task && resolved.error ? (
+          <Link
+            className="text-brand underline"
+            href={`/p/${task.projectId}/tasks/${task.id}`}
+          >
+            查看任务详情与可用操作
+          </Link>
+        ) : (
+          "正在加载可用操作…"
+        )}
+      </p>
+    );
+  const actions = availableTransitions({ ...task, permissions }, role, actorId);
   if (actions.length === 0)
     return (
       <p className="text-xs text-muted-foreground">

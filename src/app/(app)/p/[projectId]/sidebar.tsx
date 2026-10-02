@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { POSITION_META, type TeamPosition } from "@/modules/identity/client";
 import {
   TasksIcon,
   BoardIcon,
@@ -19,7 +21,7 @@ type Item = {
   href: string;
   label: string;
   icon: typeof TasksIcon;
-  roles?: string[];
+  reviewOnly?: boolean;
 };
 
 const ITEMS: Item[] = [
@@ -29,18 +31,20 @@ const ITEMS: Item[] = [
   { href: "/table", label: "表格", icon: TableIcon },
   { href: "/calendar", label: "日历", icon: CalendarIcon },
   { href: "/milestones", label: "里程碑", icon: MilestoneIcon },
-  { href: "/review", label: "验收台", icon: ReviewIcon, roles: ["admin", "teacher"] },
+  { href: "/review", label: "验收台", icon: ReviewIcon, reviewOnly: true },
   { href: "/stats", label: "工时统计", icon: StatsIcon },
   { href: "/settings", label: "设置", icon: SettingsIcon },
 ];
 
 export function ProjectSidebar({
   projectId,
-  role,
+  positions,
+  canReview,
   name,
 }: {
   projectId: string;
-  role: string;
+  positions: TeamPosition[];
+  canReview: boolean;
   name: string;
 }) {
   const pathname = usePathname();
@@ -50,24 +54,27 @@ export function ProjectSidebar({
     <div className="space-y-4 border-b border-border pb-3">
       {/* 顶部标题与角色 */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <Link
             href={base}
             className="font-display text-xl font-bold tracking-tight text-foreground hover:underline"
           >
             {name}
           </Link>
-          <span className="rounded-full border border-border bg-muted/50 px-2.5 py-0.5 text-xs text-muted-foreground">
-            {role === "admin" ? "管理员" : role === "teacher" ? "教师 / 验收" : "学生"}
-          </span>
+          {positions.map((position) => (
+            <Badge key={position} variant="secondary">
+              {POSITION_META[position].label}
+            </Badge>
+          ))}
         </div>
       </div>
 
       {/* 视图选项卡与独立系统横向滚动栏 */}
       <nav className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs scrollbar-none">
-        {ITEMS.filter((it) => !it.roles || it.roles.includes(role)).map((it) => {
+        {ITEMS.filter((it) => !it.reviewOnly || canReview).map((it) => {
           const href = base + it.href;
-          const active = it.href === "" ? pathname === base : pathname.startsWith(href);
+          const active =
+            it.href === "" ? pathname === base : pathname.startsWith(href);
           const Icon = it.icon;
           return (
             <Link
@@ -80,7 +87,10 @@ export function ProjectSidebar({
                   : "text-muted-foreground hover:bg-accent hover:text-foreground",
               )}
             >
-              <Icon size={14} className={active ? "text-background" : "text-blue-600"} />
+              <Icon
+                size={14}
+                className={active ? "text-background" : "text-blue-600"}
+              />
               <span>{it.label}</span>
             </Link>
           );

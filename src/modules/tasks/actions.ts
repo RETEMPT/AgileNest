@@ -107,15 +107,34 @@ export async function loadTaskAssigneesAction(taskId: string) {
   try {
     const task = await getTaskDetail(user.id, z.uuid().parse(taskId));
     const access = await getProjectForUser(user.id, task.projectId);
-    if (!access || access.role === "student")
+    if (!access || !access.capabilities.task.actions.includes("assign"))
       throw new AppError("没有指派权限", 403);
     const members = await listTeamMembers(user.id, access.project.teamId);
     return {
-      members: members.map(({ id, name, role }) => ({ id, name, role })),
+      members: members.map(({ id, name, role, positions, canExecute }) => ({
+        id,
+        name,
+        role,
+        positions,
+        canExecute,
+      })),
       error: "",
     };
   } catch (error) {
     return { members: [], error: fail(error)?.error ?? "加载成员失败" };
+  }
+}
+
+export async function loadTaskPermissionsAction(taskId: string) {
+  const user = await requireUser();
+  try {
+    const task = await getTaskDetail(user.id, z.uuid().parse(taskId));
+    return { permissions: task.permissions, error: "" };
+  } catch (error) {
+    return {
+      permissions: undefined,
+      error: fail(error)?.error ?? "加载操作失败",
+    };
   }
 }
 

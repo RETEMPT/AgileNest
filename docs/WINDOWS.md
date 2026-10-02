@@ -86,3 +86,14 @@ schtasks /create /tn "AgileCampusReminders" /sc daily /st 09:00 ^
 | `db:push` 报连不上 | 确认 `docker compose ps` 里 `db` 是 healthy |
 | 换行符报警 | 已有 `.gitattributes`（`* text=auto eol=lf`）；`git add --renormalize .` 一次 |
 | `next dev` 首次编译慢 | 正常；Turbopack 缓存在 `.next/`，`npm run clean` 可清 |
+
+## 已有数据库升级身份与职务
+
+本次新增表使用追加迁移，开发库与独立测试库分别执行，保留现有表、约束和数据：
+
+```powershell
+node scripts/migrate-identity.mjs
+node scripts/migrate-identity.mjs --test
+```
+
+随后运行 `npm test` 和 `npm run build`。新库仍按原有初始化流程执行 `db:push`。迁移按事务执行且可重复运行，细节见 [IDENTITY.md](IDENTITY.md)。

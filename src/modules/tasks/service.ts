@@ -15,6 +15,7 @@ import {
   taskAcceptanceEvents,
   tasks,
   teamMembers,
+  memberPositions,
   users,
   type TaskAction,
   type TaskPriority,
@@ -25,16 +26,21 @@ import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
-} from "@/modules/core/errors";
-import { isValidISODate } from "@/modules/core/dates";
-import { requireProjectForUser } from "@/modules/core/permissions";
+  isValidISODate,
+  requireProjectForUser,
+} from "@/modules/core";
 import {
   notifyAccepted,
   notifyAssigned,
   notifyRejected,
   notifySubmitted,
 } from "@/modules/notify";
-import { ACTION_ROLES, availableTransitions, findTransition } from "./states";
+import { availableTransitions, findTransition } from "./states";
+import {
+  capabilitiesFor,
+  positionsFromRole,
+  type TaskPermissions,
+} from "@/modules/identity/client";
 
 export type TaskDTO = {
   id: string;
@@ -56,6 +62,7 @@ export type TaskDTO = {
   sortOrder: number;
   createdAt: Date;
   updatedAt: Date;
+  permissions?: TaskPermissions;
 };
 
 export type TaskPatch = {
@@ -118,6 +125,10 @@ export function toDTO(row: TaskRow): TaskDTO {
   };
 }
 
+function toActorDTO(row: TaskRow, permissions: TaskPermissions): TaskDTO {
+  return { ...toDTO(row), permissions };
+}
+
 async function loadTaskRow(
   taskId: string,
   connection: DbTx = db,
@@ -137,7 +148,8 @@ async function assertRole(
   action: TaskAction,
 ) {
   const access = await requireProjectForUser(actorId, projectId);
-  if (!ACTION_ROLES[action]?.includes(access.role)) throw new ForbiddenError();
+  if (!access.capabilities.task.actions.includes(action))
+    throw new ForbiddenError();
   return access;
 }
 
@@ -179,7 +191,7 @@ export async function listProjectTasks(
     parentTaskId?: string | null;
   },
 ): Promise<TaskDTO[]> {
-  await requireProjectForUser(actorId, projectId);
+  const access = await requireProjectForUser(actorId, projectId);
   const conds = [eq(tasks.projectId, projectId)];
   if (filters?.status?.length)
     conds.push(inArray(tasks.status, filters.status));
@@ -196,7 +208,7 @@ export async function listProjectTasks(
     .leftJoin(users, eq(tasks.assigneeId, users.id))
     .where(and(...conds))
     .orderBy(asc(tasks.sortOrder), asc(tasks.createdAt));
-  return rows.map(toDTO);
+  return rows.map((row) => toActorDTO(row, access.capabilities.task));
 }
 
 export async function getTaskDetail(
@@ -204,11 +216,11 @@ export async function getTaskDetail(
   taskId: string,
 ): Promise<TaskDTO & { subtasks: TaskDTO[] }> {
   const row = await loadTaskRow(taskId);
-  await requireProjectForUser(actorId, row.projectId);
+  const access = await requireProjectForUser(actorId, row.projectId);
   const subtasks = await listProjectTasks(actorId, row.projectId, {
     parentTaskId: taskId,
   });
-  return { ...toDTO(row), subtasks };
+  return { ...toActorDTO(row, access.capabilities.task), subtasks };
 }
 
 export async function createTask(
@@ -233,13 +245,22 @@ export async function createTask(
   assertISODate(input.dueDate, "截止日期");
 
   if (input.assigneeId) {
-    if (access.role === "student" && input.assigneeId !== actorId)
-      throw new ForbiddenError(
-        "学生只能认领自己的任务，指派由教师或管理员完成",
-      );
+    if (
+      !access.capabilities.task.actions.includes("assign") &&
+      input.assigneeId !== actorId
+    )
+      throw new ForbiddenError("只能认领自己的任务，请联系有指派权限的成员");
     const [member] = await db
-      .select({ userId: teamMembers.userId, role: teamMembers.role })
+      .select({
+        userId: teamMembers.userId,
+        role: teamMembers.role,
+        positions: memberPositions.positions,
+      })
       .from(teamMembers)
+      .leftJoin(
+        memberPositions,
+        eq(memberPositions.membershipId, teamMembers.id),
+      )
       .where(
         and(
           eq(teamMembers.teamId, access.project.teamId),
@@ -247,8 +268,13 @@ export async function createTask(
         ),
       );
     if (!member) throw new AppError("指派对象不在团队中");
-    if (member.role === "teacher")
-      throw new AppError("请选择学生或管理员作为任务负责人");
+    if (
+      !capabilitiesFor(
+        member.positions ?? positionsFromRole(member.role),
+        access.project.kind,
+      ).execute
+    )
+      throw new AppError("请选择有队员、队长或管理员职务的成员作为负责人");
   }
 
   const [row] = await db
@@ -275,7 +301,7 @@ export async function createTask(
     await recordEvent(row.id, actorId, "assign", input.assigneeId);
     await fireNotify(() => notifyAssigned(row.id));
   }
-  return toDTO({ ...row, assigneeName: null });
+  return toActorDTO({ ...row, assigneeName: null }, access.capabilities.task);
 }
 
 export async function updateTask(
@@ -284,7 +310,7 @@ export async function updateTask(
   patch: TaskPatch,
 ): Promise<TaskDTO> {
   const row = await loadTaskRow(taskId);
-  await assertRole(actorId, row.projectId, "update");
+  const access = await assertRole(actorId, row.projectId, "update");
   assertISODate(patch.startDate, "开始日期");
   assertISODate(patch.dueDate, "截止日期");
 
@@ -314,7 +340,10 @@ export async function updateTask(
     .returning();
 
   await recordEvent(taskId, actorId, "update");
-  return toDTO({ ...updated, assigneeName: row.assigneeName });
+  return toActorDTO(
+    { ...updated, assigneeName: row.assigneeName },
+    access.capabilities.task,
+  );
 }
 
 export async function deleteTask(
@@ -345,7 +374,13 @@ export async function transitionTask(
     const row = await loadTaskRow(taskId, tx);
     const rule = findTransition(action, row.status);
     if (!rule) throw new ConflictError("当前状态无法执行该操作，请刷新后重试");
-    if (!availableTransitions(row, access.role, actorId).includes(rule)) {
+    if (
+      !availableTransitions(
+        { ...row, permissions: access.capabilities.task },
+        access.role,
+        actorId,
+      ).includes(rule)
+    ) {
       throw new ForbiddenError("只能操作自己认领的任务");
     }
 
@@ -358,8 +393,16 @@ export async function transitionTask(
       const target = input?.assigneeId;
       if (!target) throw new AppError("请选择指派对象");
       const [member] = await tx
-        .select({ id: teamMembers.userId, role: teamMembers.role })
+        .select({
+          id: teamMembers.userId,
+          role: teamMembers.role,
+          positions: memberPositions.positions,
+        })
         .from(teamMembers)
+        .leftJoin(
+          memberPositions,
+          eq(memberPositions.membershipId, teamMembers.id),
+        )
         .where(
           and(
             eq(teamMembers.teamId, access.project.teamId),
@@ -367,8 +410,13 @@ export async function transitionTask(
           ),
         );
       if (!member) throw new AppError("指派对象不在团队中");
-      if (member.role === "teacher")
-        throw new AppError("请选择学生或管理员作为任务负责人");
+      if (
+        !capabilitiesFor(
+          member.positions ?? positionsFromRole(member.role),
+          access.project.kind,
+        ).execute
+      )
+        throw new AppError("请选择有队员、队长或管理员职务的成员作为负责人");
       nextAssignee = target;
     }
 
@@ -429,7 +477,7 @@ export async function transitionTask(
     await tx
       .insert(taskAcceptanceEvents)
       .values({ taskId, actorId, action, note });
-    return toDTO(await loadTaskRow(taskId, tx));
+    return toActorDTO(await loadTaskRow(taskId, tx), access.capabilities.task);
   });
 
   if (action === "claim" || action === "assign") {

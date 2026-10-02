@@ -266,7 +266,7 @@ export function TaskDrawer({ task, role, actorId, isOpen, onClose }: TaskDrawerP
                     状态推进操作
                   </span>
                   <span className="text-[10px] text-muted-foreground">
-                    {role === "teacher" ? "教师权限" : role === "admin" ? "管理员" : "学生权限"}
+                    按当前团队职务显示
                   </span>
                 </div>
                 <div className="rounded-xl border border-border/80 bg-background/80 p-3 shadow-2xs">

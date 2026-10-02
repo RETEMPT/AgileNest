@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { capabilitiesFor, positionsFromRole, roleFromPositions } from "@/modules/identity/client";
+import {
+  capabilitiesFor,
+  positionsFromRole,
+  roleFromPositions,
+} from "@/modules/identity/client";
 
 describe("团队职务权限并集", () => {
   it("旧角色保持原有职务", () => {
@@ -14,8 +18,12 @@ describe("团队职务权限并集", () => {
   });
   it("队长仅协调实验室与竞赛", () => {
     expect(capabilitiesFor(["leader"], "lab").manageProject).toBe(true);
-    expect(capabilitiesFor(["leader"], "contest").task.actions).toContain("assign");
-    expect(capabilitiesFor(["leader"], "course").task.actions).not.toContain("assign");
+    expect(capabilitiesFor(["leader"], "contest").task.actions).toContain(
+      "assign",
+    );
+    expect(capabilitiesFor(["leader"], "course").task.actions).not.toContain(
+      "assign",
+    );
   });
   it("队长没有验收和成员管理权限", () => {
     const access = capabilitiesFor(["leader", "member"], "lab");
@@ -24,7 +32,9 @@ describe("团队职务权限并集", () => {
     expect(access.task.actions).not.toContain("accept");
   });
   it("管理员拥有完整权限", () => {
-    expect(capabilitiesFor(["admin"], "course").task.submitForOthers).toBe(true);
+    expect(capabilitiesFor(["admin"], "course").task.submitForOthers).toBe(
+      true,
+    );
     expect(capabilitiesFor(["admin"]).manageMembers).toBe(true);
   });
   it("兼容角色由职务推导", () => {

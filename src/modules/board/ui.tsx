@@ -31,6 +31,7 @@ import {
   TASK_STATUSES,
   STATUS_DESCRIPTIONS,
   STATUS_LABELS,
+  availableTransitions,
   type TaskDTO,
   type TransitionRule,
 } from "@/modules/tasks/client";
@@ -569,7 +570,12 @@ export function ProjectWorkspace(props: WorkspaceProps) {
                           <TaskTile
                             key={task.id}
                             task={task}
-                            draggable={groupBy === "status" && !pending}
+                            draggable={
+                              groupBy === "status" &&
+                              !pending &&
+                              availableTransitions(task, role, actorId).length >
+                                0
+                            }
                             onOpen={() => setOpenedId(task.id)}
                           />
                         ))}

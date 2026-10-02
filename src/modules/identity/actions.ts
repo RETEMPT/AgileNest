@@ -9,10 +9,121 @@ import {
   createTeam,
   joinTeam,
   updateMemberRole,
+  saveAcademicProfile,
+  updateMemberPositions,
+  confirmAcademicIdentity,
+  updateProject,
 } from "./service";
-import { projectInputSchema, teamNameSchema } from "./schema";
+import {
+  academicProfileSchema,
+  positionsSchema,
+  projectInputSchema,
+  projectUpdateSchema,
+  teamNameSchema,
+} from "./schema";
 
 export type IdentityFormState = { error: string; ok?: string } | null;
+
+export async function updateProjectAction(
+  _prev: IdentityFormState,
+  data: FormData,
+): Promise<IdentityFormState> {
+  const user = await requireUser();
+  const projectId = z.uuid().safeParse(data.get("projectId"));
+  const parsed = projectUpdateSchema.safeParse({
+    name: data.get("name"),
+    description: data.get("description"),
+    startDate: data.get("startDate") || null,
+    endDate: data.get("endDate") || null,
+    status: data.get("status"),
+  });
+  if (!projectId.success || !parsed.success)
+    return {
+      error: !parsed.success ? parsed.error.issues[0].message : "项目无效",
+    };
+  try {
+    await updateProject(user.id, projectId.data, parsed.data);
+  } catch (error) {
+    return { error: toFormError(error, "保存项目失败") };
+  }
+  revalidatePath(`/p/${projectId.data}`, "layout");
+  revalidatePath("/t", "layout");
+  revalidatePath("/home", "layout");
+  return { error: "", ok: "项目设置已保存" };
+}
+
+export async function saveAcademicProfileAction(
+  _prev: IdentityFormState,
+  data: FormData,
+): Promise<IdentityFormState> {
+  const user = await requireUser();
+  const parsed = academicProfileSchema.safeParse(Object.fromEntries(data));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  try {
+    await saveAcademicProfile(user.id, parsed.data);
+  } catch (error) {
+    return { error: toFormError(error, "保存身份信息失败") };
+  }
+  revalidatePath("/settings");
+  revalidatePath("/t", "layout");
+  return { error: "", ok: "身份信息已保存，请联系所在团队管理员确认" };
+}
+
+export async function updatePositionsAction(
+  _prev: IdentityFormState,
+  data: FormData,
+): Promise<IdentityFormState> {
+  const user = await requireUser();
+  const parsed = z
+    .object({ teamId: z.uuid(), userId: z.uuid(), positions: positionsSchema })
+    .safeParse({
+      teamId: data.get("teamId"),
+      userId: data.get("userId"),
+      positions: data.getAll("positions"),
+    });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  try {
+    await updateMemberPositions(
+      user.id,
+      parsed.data.teamId,
+      parsed.data.userId,
+      parsed.data.positions,
+    );
+  } catch (error) {
+    return { error: toFormError(error, "保存职务失败") };
+  }
+  revalidatePath("/t", "layout");
+  revalidatePath("/p", "layout");
+  revalidatePath("/home", "layout");
+  return { error: "", ok: "团队职务已更新" };
+}
+
+export async function confirmAcademicIdentityAction(
+  _prev: IdentityFormState,
+  data: FormData,
+): Promise<IdentityFormState> {
+  const user = await requireUser();
+  const parsed = z
+    .object({
+      teamId: z.uuid(),
+      userId: z.uuid(),
+      version: z.coerce.number().int().positive(),
+    })
+    .safeParse(Object.fromEntries(data));
+  if (!parsed.success) return { error: "成员或资料版本无效，请刷新重试" };
+  try {
+    await confirmAcademicIdentity(
+      user.id,
+      parsed.data.teamId,
+      parsed.data.userId,
+      parsed.data.version,
+    );
+  } catch (error) {
+    return { error: toFormError(error, "确认身份失败") };
+  }
+  revalidatePath(`/t/${parsed.data.teamId}/members`);
+  return { error: "", ok: "已确认该成员当前的身份资料" };
+}
 
 export async function createTeamAction(
   _prev: IdentityFormState,

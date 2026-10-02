@@ -321,3 +321,7 @@ git tag v0.4.0-full       # 全部模块集成后
 | [docs/TEAM.md](TEAM.md) | 模块分工 + 契约 |
 | [docs/DESIGN.md](DESIGN.md) | 链路设计 + 状态机 |
 | [docs/WINDOWS.md](WINDOWS.md) | 环境配置 |
+
+## 本轮身份权限交付
+
+学术身份、可叠加职务和场景权限按 [IDENTITY.md](IDENTITY.md) 与 [PR-RESEARCH.md](PR-RESEARCH.md) 落地。core ACL 补丁先在 `feature/core-patch/member-capabilities` 提交并通过兼容测试，再合入 `codex/workspace-workflow`。集成分支保留当前工作区已有业务与侧栏提交，统一推送并创建面向 `main` 的 PR，不替其他 Owner 合并开放 PR。已有库升级先执行追加迁移，再执行完整测试与 Windows 构建。

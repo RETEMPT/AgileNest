@@ -103,7 +103,7 @@ describe("状态机交互与并发契约", () => {
       transitionTask(fx.teacher.id, task.id, "assign", {
         assigneeId: fx.teacher.id,
       }),
-    ).rejects.toThrow("请选择学生或管理员作为任务负责人");
+    ).rejects.toThrow("请选择有队员、队长或管理员职务的成员作为负责人");
   });
   it("打回意见必填，重交后可验收与重新打开", async () => {
     const task = await createTask(fx.admin.id, fx.project.id, {

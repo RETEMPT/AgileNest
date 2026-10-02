@@ -79,3 +79,7 @@ npx vitest run tests/contract/exports.test.ts tests/contract/core tests/contract
 - [功能路线图](docs/ROADMAP.md)
 
 产品参考：[飞书任务管理](https://www.feishu.cn/content/40gyakm8)、[Plane 工作项](https://docs.plane.so/work-items/overview)、[OpenProject 工作流](https://www.openproject.org/docs/system-admin-guide/manage-work-packages/work-package-types/workflows/)。本期继续保留高校师生验收语义；AI、Agent API、甘特、Sprint、作品集和模板库只列路线图。
+
+## 学术身份与叠加职务
+
+已实现本科生、硕士生、博士生、老师身份信息与按团队确认；管理员、指导老师、队长、队员可叠加，权限按职务和项目场景决定。资料更新需要重新确认，队长协调实验室/竞赛，不独立验收。规则见 [身份与权限](docs/IDENTITY.md)，来源与取舍见 [PR 调研](docs/PR-RESEARCH.md)。

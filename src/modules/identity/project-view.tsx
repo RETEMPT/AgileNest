@@ -12,6 +12,9 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { TaskWorkflow } from "@/modules/tasks/ui";
+import { POSITION_META } from "./client";
+import { ProjectSettingsForm } from "./academic-ui";
+import { Badge } from "@/components/ui/badge";
 
 export async function ProjectOverviewView({
   params,
@@ -47,13 +50,13 @@ export async function ProjectOverviewView({
     },
     { href: "tasks", label: "任务池", desc: "创建任务、认领与指派" },
     {
-      href:
-        access.role === "student" ? "table?assigneeId=" + user.id : "review",
-      label: access.role === "student" ? "我的任务" : "验收台",
-      desc:
-        access.role === "student"
-          ? "集中查看自己的任务与截止日期"
-          : "查看成果，通过或提出修改意见",
+      href: !access.capabilities.review
+        ? "table?assigneeId=" + user.id
+        : "review",
+      label: !access.capabilities.review ? "我的任务" : "验收台",
+      desc: !access.capabilities.review
+        ? "集中查看自己的任务与截止日期"
+        : "查看成果，通过或提出修改意见",
     },
   ];
 
@@ -131,6 +134,83 @@ export async function ProjectOverviewView({
       </div>
 
       <TaskWorkflow />
+    </main>
+  );
+}
+
+export async function ProjectSettingsView({
+  params,
+}: {
+  params: Promise<{ projectId: string }>;
+}) {
+  const { projectId } = await params;
+  const user = await requireUser();
+  const access = await getProjectForUser(user.id, projectId);
+  if (!access) notFound();
+  const project = access.project;
+  const labels = { course: "课程协作", lab: "实验室课题", contest: "竞赛战队" };
+  return (
+    <main className="max-w-3xl space-y-6">
+      <header>
+        <Link
+          href={`/t/${project.teamId}/projects`}
+          className="text-xs text-muted-foreground hover:text-brand"
+        >
+          ← 团队项目
+        </Link>
+        <h1 className="mt-3 text-3xl font-semibold">项目设置</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {project.name} · {project.kind ? labels[project.kind] : "团队项目"}
+        </p>
+      </header>
+      <section className="rounded-2xl border border-border bg-card p-5 space-y-3">
+        <h2 className="text-base font-semibold">我在这个项目的分工</h2>
+        <div className="flex flex-wrap gap-2">
+          {access.positions.map((position) => (
+            <Badge key={position} variant="secondary">
+              {POSITION_META[position].label}
+            </Badge>
+          ))}
+        </div>
+        <div className="grid gap-2 text-xs sm:grid-cols-2">
+          {[
+            ["维护项目", access.capabilities.manageProject],
+            ["指派任务", access.capabilities.task.actions.includes("assign")],
+            ["执行任务", access.capabilities.execute],
+            ["成果验收", access.capabilities.review],
+          ].map(([label, allowed]) => (
+            <div
+              key={String(label)}
+              className="flex items-center justify-between rounded-lg bg-muted p-3"
+            >
+              <span>{label}</span>
+              <span
+                className={allowed ? "text-brand" : "text-muted-foreground"}
+              >
+                {allowed ? "可操作" : "由其他职务负责"}
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
+      {access.capabilities.manageProject ? (
+        <ProjectSettingsForm key={project.id} project={project} />
+      ) : (
+        <section className="rounded-2xl border border-border bg-card p-5 text-sm">
+          <h2 className="font-semibold">项目目标</h2>
+          <p className="mt-2 whitespace-pre-wrap">
+            {project.description || "尚未填写项目目标"}
+          </p>
+          <p className="mt-3 text-xs text-muted-foreground">
+            起止：{project.startDate || "未设置"} →{" "}
+            {project.endDate || "未设置"} ·{" "}
+            {project.status === "active" ? "进行中" : "已归档"}
+          </p>
+          <p className="mt-3 text-xs text-muted-foreground">
+            项目设置由管理员维护，实验室与竞赛项目也可由队长维护。
+          </p>
+        </section>
+      )}
     </main>
   );
 }
