@@ -20,11 +20,11 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
 
 /** 动作 → 允许的角色 */
 export const ACTION_ROLES: Record<TaskAction, TeamRole[]> = {
-  claim: ["admin", "student"],
+  claim: ["student"],
   unclaim: ["admin", "teacher", "student"],
   assign: ["admin", "teacher"],
-  submit: ["admin", "student"],
-  resubmit: ["admin", "student"],
+  submit: ["student"],
+  resubmit: ["student"],
   accept: ["admin", "teacher"],
   reject: ["admin", "teacher"],
   reopen: ["admin", "teacher"],
