@@ -1,55 +1,50 @@
 @import "tailwindcss";
 
-/* ============================================================
-   AgileCampus 设计系统 · shadcn 兼容 tokens
-   净暖白纸背景 · 雅靛蓝主色 · 五态状态色
-   ============================================================ */
-
 :root {
-  --background: #f3f1ea;
-  --foreground: #1a1913;
+  --background: #f5f7fb;
+  --foreground: #09090b;
   --card: #ffffff;
-  --card-foreground: #1a1913;
+  --card-foreground: #09090b;
   --popover: #ffffff;
-  --popover-foreground: #1a1913;
+  --popover-foreground: #09090b;
   --primary: #294a78;
   --primary-foreground: #ffffff;
-  --secondary: #f0ede4;
-  --secondary-foreground: #1a1913;
-  --muted: #f0ede4;
-  --muted-foreground: #514c43;
-  --accent: #e8eef8;
-  --accent-foreground: #294a78;
-  --destructive: #b6482f;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --accent: #f4f4f5;
+  --accent-foreground: #09090b;
+  --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: #e8e3d8;
-  --input: #d8d1c2;
-  --ring: #bcccea;
-  --radius: 0.5rem;
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #294a78;
+  --radius: 0.625rem;
 
-  /* 品牌 / 点缀 */
   --brand: #294a78;
-  --brand-hover: #1e3a60;
-  --brand-soft: #e8eef8;
-  --brand-ring: #bcccea;
-  --terracotta: #bf6a34;
-  --terracotta-soft: #f6e7d5;
+  --brand-hover: #203d65;
+  --brand-soft: #edf2f9;
+  --brand-ring: #b8c9df;
+  --brand-accent: #bf6a34;
+  --icon-blue: #294a78;
+  --icon-blue-soft: #edf2f9;
 
-  /* 五态状态 */
-  --status-unclaimed: #7c8698;
-  --status-in-progress: #35548c;
-  --status-submitted: #a9722a;
-  --status-accepted: #3f7a58;
-  --status-rejected: #b6482f;
+  /* 五态状态色 */
+  --status-unclaimed: #71717a;
+  --status-in-progress: #2563eb;
+  --status-submitted: #d97706;
+  --status-accepted: #16a34a;
+  --status-rejected: #dc2626;
 
   /* 优先级 */
-  --priority-high: #b6482f;
-  --priority-medium: #a9722a;
-  --priority-low: #6f7987;
+  --priority-high: #dc2626;
+  --priority-medium: #d97706;
+  --priority-low: #71717a;
 
   --font-sans: var(--font-sans), ui-sans-serif, system-ui, -apple-system,
     "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-display: var(--font-display), Georgia, "Songti SC", serif;
+  --font-display: var(--font-display), -apple-system, "Segoe UI", sans-serif;
 }
 
 @theme inline {
@@ -76,8 +71,9 @@
   --color-brand: var(--brand);
   --color-brand-hover: var(--brand-hover);
   --color-brand-soft: var(--brand-soft);
-  --color-terracotta: var(--terracotta);
-  --color-terracotta-soft: var(--terracotta-soft);
+  --color-brand-accent: var(--brand-accent);
+  --color-icon-blue: var(--icon-blue);
+  --color-icon-blue-soft: var(--icon-blue-soft);
 
   --color-status-unclaimed: var(--status-unclaimed);
   --color-status-in-progress: var(--status-in-progress);
@@ -99,12 +95,6 @@
 
 body {
   background-color: var(--background);
-  background-image: radial-gradient(
-    circle at 1px 1px,
-    rgba(28, 22, 12, 0.024) 1px,
-    transparent 0
-  );
-  background-size: 24px 24px;
   color: var(--foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -113,5 +103,39 @@ body {
 
 .font-display {
   font-family: var(--font-display);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
 }
+
+/* Interfere / Linear 丝滑抽屉阻尼曲线 */
+.drawer-spring {
+  transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1), opacity 320ms ease;
+  will-change: transform;
+}
+
+/* 极简自定义细滚动条 */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(161, 161, 170, 0.3);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(161, 161, 170, 0.6);
+}
+
+/* 长列表渲染性能优化 (GPU 局部重绘隔离与视口外延迟绘制) */
+.card-render-optimized {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 100px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer-spring { transition: none; }
+  .animate-pulse { animation: none; }
+}
+

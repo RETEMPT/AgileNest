@@ -1,6 +1,7 @@
 // 五态状态机 —— 唯一合法转移表。service 只查表执行，调优改这一张表即可。
 import type { TaskAction, TaskStatus } from "@/db/schema";
 import type { TeamRole } from "@/db/schema";
+import type { TaskPermissions } from "@/modules/identity/client";
 
 export const TASK_STATUSES: TaskStatus[] = [
   "unclaimed",
@@ -28,13 +29,13 @@ export const ACTION_ROLES: Record<TaskAction, TeamRole[]> = {
   accept: ["admin", "teacher"],
   reject: ["admin", "teacher"],
   reopen: ["admin", "teacher"],
-  update: ["admin", "student"],
+  update: ["admin", "teacher", "student"],
   create: ["admin", "teacher", "student"],
   delete: ["admin", "teacher"],
 };
 
 export type TransitionRule = {
-  action: TaskAction;
+  action: Exclude<TaskAction, "create" | "update" | "delete">;
   from: TaskStatus[];
   to: TaskStatus;
   /** 是否必须本人（assignee / 认领人）才能做 */
@@ -60,6 +61,7 @@ export const TRANSITIONS: TransitionRule[] = [
     action: "unclaim",
     from: ["in_progress", "rejected"],
     to: "unclaimed",
+    selfOnly: true,
     label: "退回任务池",
   },
   {
@@ -111,16 +113,63 @@ export function findTransition(
   from: TaskStatus,
 ): TransitionRule | null {
   return (
-    TRANSITIONS.find((t) => t.action === action && t.from.includes(from)) ?? null
+    TRANSITIONS.find((t) => t.action === action && t.from.includes(from)) ??
+    null
   );
 }
 
 /** 某状态下某角色可执行的动作列表（供 UI 渲染按钮）。 */
-export function allowedActions(status: TaskStatus, role: TeamRole): TaskAction[] {
+export function allowedActions(
+  status: TaskStatus,
+  role: TeamRole,
+): TaskAction[] {
   return TRANSITIONS.filter(
     (t) => t.from.includes(status) && ACTION_ROLES[t.action].includes(role),
   ).map((t) => t.action);
 }
+
+export type TransitionContext = {
+  status: TaskStatus;
+  assigneeId: string | null;
+  permissions?: TaskPermissions;
+};
+
+export function availableTransitions(
+  task: TransitionContext,
+  role: TeamRole,
+  actorId: string,
+): TransitionRule[] {
+  return TRANSITIONS.filter((rule) => {
+    if (
+      !rule.from.includes(task.status) ||
+      !(task.permissions
+        ? task.permissions.actions.includes(rule.action)
+        : ACTION_ROLES[rule.action].includes(role))
+    )
+      return false;
+    if (
+      (rule.action === "submit" || rule.action === "resubmit") &&
+      !task.assigneeId
+    )
+      return false;
+    if (rule.selfOnly && rule.action !== "claim") {
+      const forOthers =
+        rule.action === "unclaim"
+          ? (task.permissions?.unclaimForOthers ?? role !== "student")
+          : (task.permissions?.submitForOthers ?? role === "admin");
+      if (!forOthers) return task.assigneeId === actorId;
+    }
+    return true;
+  });
+}
+
+export const STATUS_DESCRIPTIONS: Record<TaskStatus, string> = {
+  unclaimed: "选择任务，认领或由教师指派",
+  in_progress: "推进工作，完成后提交说明",
+  submitted: "等待教师查看成果并验收",
+  accepted: "验收通过，成果已确认",
+  rejected: "按修改意见完善后重新提交",
+};
 
 export const ACTION_LABELS: Record<TaskAction, string> = {
   claim: "认领",
@@ -135,3 +184,8 @@ export const ACTION_LABELS: Record<TaskAction, string> = {
   create: "创建",
   delete: "删除",
 };
+
+/** admin/teacher 可删任务；student 不可 */
+export function canDeleteTask(role: TeamRole) {
+  return role === "admin" || role === "teacher";
+}

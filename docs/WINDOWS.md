@@ -29,8 +29,11 @@ start.bat
 `setup.bat` 做了什么：起 Postgres → 生成 `.env`（含随机 `AUTH_SECRET`）→ `npm install` → `db:push`（dev+test 库）→ `db:seed`（演示账号）。
 
 种子账号：
-- `admin@agilecampus.local` / `password123`（教师侧）
-- `student@agilecampus.local` / `password123`（学生侧）
+- `admin@agilecampus.local` / `password123`（管理员）
+- `teacher@agilecampus.local` / `password123`（教师 / 验收）
+- `student@agilecampus.local` / `password123`（学生）
+
+种子还带一批示例任务（五态都有），登录后可直接点：工作台 → 项目 → 任务池 / 看板 / 验收台。
 
 ## 测试
 
@@ -61,7 +64,7 @@ npm run db:push:test
 
 1. 建库：`CREATE DATABASE agilecampus;` 与 `CREATE DATABASE agilecampus_test;`
 2. `.env` / `.env.test` 里改 `DATABASE_URL` 为你的连接串
-3. 跳过 `setup.bat` 里的 docker 步骤，直接 `npm install && npm run db:push && npm run db:push:test`
+3. 跳过 `setup.bat` 里的 docker 步骤，依次运行 `npm install`、`npm run db:push`、`npm run db:push:test`。
 
 ## 定时提醒（可选）
 
@@ -83,3 +86,14 @@ schtasks /create /tn "AgileCampusReminders" /sc daily /st 09:00 ^
 | `db:push` 报连不上 | 确认 `docker compose ps` 里 `db` 是 healthy |
 | 换行符报警 | 已有 `.gitattributes`（`* text=auto eol=lf`）；`git add --renormalize .` 一次 |
 | `next dev` 首次编译慢 | 正常；Turbopack 缓存在 `.next/`，`npm run clean` 可清 |
+
+## 已有数据库升级身份与职务
+
+本次新增表使用追加迁移，开发库与独立测试库分别执行，保留现有表、约束和数据：
+
+```powershell
+node scripts/migrate-identity.mjs
+node scripts/migrate-identity.mjs --test
+```
+
+随后运行 `npm test` 和 `npm run build`。新库仍按原有初始化流程执行 `db:push`。迁移按事务执行且可重复运行，细节见 [IDENTITY.md](IDENTITY.md)。

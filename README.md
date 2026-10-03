@@ -1,64 +1,85 @@
-# AgileCampus · 高校轻量化敏捷项目管理平台
+# AgileNest · 高校敏捷项目协作
 
-> 让敏捷从产业走向教育 —— 认领 → 做事 → 提交 → 验收，课设用 5 人可并行的模块化框架。
+面向课程设计、实验室课题和竞赛团队。核心链路是：团队空间 → 成员与角色 → 项目目标 → 任务协作 → 教师验收。
 
-## 快速开始（Windows）
+## 这版体验更新
 
-```bat
-setup.bat
-start.bat
+- 团队、成员和项目使用卡片管理；课程、实验室、竞赛以场景卡片选择。创建/加入成功后自动进入下一步。
+- 项目卡片展示任务状态分布与验收完成度，实验室课题可以独立筛选。
+- 五态看板支持拖动把手、任务侧边详情和等价按钮操作；提交、重交、打回需要填写说明，指派直接选择姓名。
+- 看板/表格共享 URL 筛选，支持搜索、状态、负责人、优先级、里程碑与分组。
+- 页面按钮、合法拖拽目标和服务端权限共同使用任务转移表。状态与事件在事务中提交，并发认领只会有一人成功。
+
+详细设计与手动验收见 [docs/UX.md](docs/UX.md)。本期实验室管理覆盖成员、课题和任务，不包含实验数据、文件或设备台账。
+
+## Windows 快速开始
+
+```powershell
+.\setup.bat
+.\start.bat
 ```
 
-打开 <http://localhost:3000/login> · 种子账号 `admin@` / `student@agilecampus.local`（密码 `password123`）。
-细节：[docs/WINDOWS.md](docs/WINDOWS.md)
+打开 <http://localhost:3000/login>。环境与便携式 Postgres 说明见 [docs/WINDOWS.md](docs/WINDOWS.md)。
 
-## 任务五态
+| 团队内角色 | 演示账号 | 密码 | 主要职责 |
+|---|---|---|---|
+| 管理员 | admin@agilecampus.local | password123 | 创建项目、管理成员，并参与协作 |
+| 教师 | teacher@agilecampus.local | password123 | 指派任务、查看成果、验收与打回 |
+| 学生 | student@agilecampus.local | password123 | 认领、填工时、提交与修改重交 |
 
-`待认领 → 进行中 → 待验收 → 已完成 / 待修改`
-状态机唯一真相：[src/modules/tasks/states.ts](src/modules/tasks/states.ts)
+角色以所属团队为准。教师通过邀请码加入后，由管理员在成员页设置教师角色；团队始终至少保留一位管理员。
 
-## 目录一览
+## 五态协作
 
+```mermaid
+stateDiagram-v2
+  state "待认领" as unclaimed
+  state "进行中" as in_progress
+  state "待验收" as submitted
+  state "待修改" as rejected
+  state "已完成" as accepted
+  unclaimed --> in_progress: 认领 / 指派
+  in_progress --> submitted: 提交完成说明
+  submitted --> accepted: 教师验收通过
+  submitted --> rejected: 教师填写修改意见
+  rejected --> submitted: 修改后重新提交
+  in_progress --> unclaimed: 退回任务池
+  rejected --> unclaimed: 退回任务池
+  rejected --> in_progress: 教师重新指派
+  accepted --> in_progress: 教师重新打开
 ```
-src/
-  app/                  路由壳（只调模块 ui，不写业务）
-    (auth)/             登录 / 注册（原样保留）
-    (app)/home/         学生工作台 · 教师监督台
-    (app)/t/            团队 · 项目 · 成员
-    (app)/p/[projectId]/  任务池 · 看板 · 表格 · 日历 · 里程碑 · 验收台 · 统计
-    api/                auth · cron/reminders · v1
-  modules/
-    core/  identity/                 地基
-    tasks/  board/  review/  worklog/  calendar/  milestone/  notify/
-  lib/                  登录链路（auth / password / feishu / user）
-  components/ui/        UI 原语 + StatusPill
-  db/                   schema barrel + drizzle 客户端
-tests/contract/         每模块契约测试
-docs/                   TEAM · DESIGN · WINDOWS · ROADMAP · opening/
-AGENTS.md               Agent 约束（硬规则）
+
+已完成表示验收通过；学生提交后进入待验收。状态唯一真相为 [states.ts](src/modules/tasks/states.ts)，非法转移返回 409，越权操作被服务端拒绝。
+
+## 开发与验证
+
+技术栈：Next.js 16、React 19、TypeScript strict、Tailwind CSS 4、Drizzle、PostgreSQL、Zod 4。复用已有 Radix 和 dnd-kit，不添加依赖。Credentials/飞书双 provider、JWT session 与 bcrypt 登录链路保留原样。
+
+```powershell
+npm test
+npm run build
 ```
 
-## 技术栈
+集成测试使用独立库 `agilecampus_test`，测试文件串行运行。无数据库时：
 
-Next.js 16 · React 19 · TypeScript strict · PostgreSQL 16 + Drizzle · Auth.js v5 · Tailwind v4 · Vitest
+```powershell
+npx vitest run tests/contract/exports.test.ts tests/contract/core tests/contract/identity/password.test.ts tests/contract/tasks/states.test.ts tests/contract/board/board.test.ts
+```
 
-## 协作
+业务通过 `@/modules/<m>` 公开契约协作；UI 的 `client`、`ui`、`views` 入口见 [docs/TEAM.md](docs/TEAM.md)，客户端不能导入数据库或会话运行时代码。路由只组合模块页面，状态更新只能走 `transitionTask()`。
 
-5 人按**模块**分工（不按前后端切）：
+## 文档
 
-| 人 | 分支 | 模块 |
-|---|---|---|
-| foundation | `chore/foundation` | core · identity · ui |
-| A | `feature/tasks-status` | tasks |
-| B | `feature/board-views` | board |
-| C | `feature/review-portal` | review |
-| D | `feature/worklog-stats` | worklog |
-| E | `feature/calendar-notify` | calendar · milestone · notify |
+- [体验设计与验收](docs/UX.md)
+- [数据链路与状态机](docs/DESIGN.md)
+- [模块分工与公开契约](docs/TEAM.md)
+- [开发工作流](docs/WORKFLOW.md)
+- [Windows 环境](docs/WINDOWS.md)
+- [Agent 约束](AGENTS.md)
+- [功能路线图](docs/ROADMAP.md)
 
-接口与规则：**[docs/TEAM.md](docs/TEAM.md)** · Agent 必读：**[AGENTS.md](AGENTS.md)**
+产品参考：[飞书任务管理](https://www.feishu.cn/content/40gyakm8)、[Plane 工作项](https://docs.plane.so/work-items/overview)、[OpenProject 工作流](https://www.openproject.org/docs/system-admin-guide/manage-work-packages/work-package-types/workflows/)。本期继续保留高校师生验收语义；AI、Agent API、甘特、Sprint、作品集和模板库只列路线图。
 
-## 更多
+## 学术身份与叠加职务
 
-- [docs/DESIGN.md](docs/DESIGN.md) — 链路 · IA · 五态图 · 借鉴点
-- [docs/ROADMAP.md](docs/ROADMAP.md) — 本期 / 下期 / 远期路牌
-- [docs/opening/](docs/opening/) — 开题 PPT · 分工 Word
+已实现本科生、硕士生、博士生、老师身份信息与按团队确认；管理员、指导老师、队长、队员可叠加，权限按职务和项目场景决定。资料更新需要重新确认，队长协调实验室/竞赛，不独立验收。规则见 [身份与权限](docs/IDENTITY.md)，来源与取舍见 [PR 调研](docs/PR-RESEARCH.md)。

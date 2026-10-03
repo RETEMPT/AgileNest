@@ -2,7 +2,7 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 import type { TaskStatus, TaskPriority } from "@/db/schema";
-import { STATUS_LABELS } from "@/modules/tasks/states";
+import { STATUS_LABELS } from "@/modules/tasks/client";
 
 const badgeVariants = cva(
   "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
@@ -39,15 +39,21 @@ const STATUS_CLASS: Record<TaskStatus, string> = {
 
 /** 五态 pill（Linear 式）—— 全站统一状态视觉 */
 export function StatusPill({ status, className }: { status: TaskStatus; className?: string }) {
+  const isLive = status === "in_progress" || status === "submitted";
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold transition-colors duration-200",
         STATUS_CLASS[status],
         className,
       )}
     >
-      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+      <span
+        className={cn(
+          "h-1.5 w-1.5 rounded-full bg-current opacity-80",
+          isLive && "animate-pulse",
+        )}
+      />
       {STATUS_LABELS[status]}
     </span>
   );

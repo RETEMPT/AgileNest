@@ -1,12 +1,6 @@
-import { ModulePlaceholder } from "@/components/ui/placeholder";
+import { TaskPoolView } from "@/modules/tasks/views";
 
-export default function TasksPage() {
-  return (
-    <ModulePlaceholder
-      title="任务池（Owner A）"
-      owner="A"
-      branch="feature/tasks-status"
-      doc="src/modules/tasks/index.ts → listProjectTasks / createTask / transitionTask"
-    />
-  );
+export default async function TasksPage({ params }: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await params;
+  return <TaskPoolView projectId={projectId} />;
 }

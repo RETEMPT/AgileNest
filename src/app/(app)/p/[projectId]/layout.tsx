@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireUser } from "@/modules/core/session";
-import { getProjectForUser } from "@/modules/core/permissions";
+import { requireUser, getProjectForUser } from "@/modules/core";
 import { ProjectSidebar } from "./sidebar";
 
 export default async function ProjectLayout({
@@ -16,13 +15,14 @@ export default async function ProjectLayout({
   if (!access) notFound();
 
   return (
-    <div className="flex gap-6">
+    <div className="space-y-6">
       <ProjectSidebar
         projectId={projectId}
-        role={access.role}
+        positions={access.positions}
+        canReview={access.capabilities.review}
         name={access.project.name}
       />
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }

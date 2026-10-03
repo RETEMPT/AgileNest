@@ -5,6 +5,17 @@ cd /d "%~dp0"
 
 echo === AgileCampus setup (Windows) ===
 
+rem 优先检测并启动内置便携式 Postgres
+if exist "%~dp0.tools\pgsql\pgsql\bin\pg_ctl.exe" (
+  echo [1/5] 启动内置便携式 Postgres ...
+  "%~dp0.tools\pgsql\pgsql\bin\pg_ctl.exe" status -D "%~dp0.tools\pgdata" >nul 2>nul
+  if errorlevel 1 (
+    "%~dp0.tools\pgsql\pgsql\bin\pg_ctl.exe" start -D "%~dp0.tools\pgdata" -l "%~dp0.tools\pg.log"
+    timeout /t 3 /nobreak >nul
+  )
+  goto :db_ready
+)
+
 where docker >nul 2>nul
 if errorlevel 1 (
   echo [WARN] 未检测到 Docker。请安装 Docker Desktop，或改用本机 Postgres 并填写 .env
@@ -15,6 +26,7 @@ if errorlevel 1 (
   timeout /t 5 /nobreak >nul
 )
 
+:db_ready
 if not exist .env (
   echo [2/5] 生成 .env ...
   powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup.ps1" -InitEnvOnly

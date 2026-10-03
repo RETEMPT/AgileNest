@@ -55,6 +55,7 @@ describe("identity 契约导出", () => {
       "createTeam",
       "joinTeam",
       "listMyTeams",
+      "listTeamSpaces",
       "listTeamMembers",
       "updateMemberRole",
       "createProject",
@@ -79,6 +80,7 @@ describe("业务模块契约导出（stub 期）", () => {
         "updateTask",
         "deleteTask",
         "transitionTask",
+        "availableTransitions",
         "createSubtask",
         "listSubtasks",
         "setDueDate",
@@ -87,7 +89,7 @@ describe("业务模块契约导出（stub 期）", () => {
     [
       "board",
       board,
-      ["deriveColumns", "applyFilters", "parseFilters", "serializeFilters", "moveTask"],
+      ["deriveColumns", "applyFilters", "parseFilters", "serializeFilters", "moveTask", "getMoveTransition"],
     ],
     [
       "review",

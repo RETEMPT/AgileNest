@@ -24,7 +24,12 @@ export async function registerAction(
     await createUser(parsed.data);
   } catch (e) {
     if (e instanceof AppError) return { error: e.message };
-    throw e;
+    console.error("[registerAction]", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("ECONNREFUSED") || msg.includes("5432")) {
+      return { error: "数据库连接失败，请确认数据库服务已启动。" };
+    }
+    return { error: "注册失败，请稍后重试。" };
   }
   redirect("/login?registered=1");
 }

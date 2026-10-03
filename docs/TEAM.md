@@ -2,6 +2,8 @@
 
 一份文档说清「谁做什么、接口长什么样、怎么不撞车」。
 
+本次身份权限补丁由 foundation 在 `feature/core-patch/member-capabilities` 实施：`getTeamMembership` 追加 `positions`，`getProjectForUser` 追加 `positions/capabilities`，既有字段与调用保持兼容。`identity/client` 是公开纯函数入口，导出学术身份、职务元数据、兼容角色映射及 `capabilitiesFor(positions, projectKind)`；不加载数据库或 session。实验室与竞赛队长可管理该类项目、指派任务；验收由指导老师/管理员负责。身份仅供展示和团队确认，不影响权限。
+
 ---
 
 ## 1. 模块地图
@@ -28,9 +30,12 @@ actions.ts   Server Actions 薄壳
 api.ts       /api/v1/<m>/* 薄壳
 ui/          本模块 React 组件
 index.ts     唯一对外契约
+client.ts    可选：浏览器安全的公开纯函数/类型
+ui.tsx       可选：公开客户端组件
+views.tsx    可选：公开服务端页面组合
 ```
 
-数据表归属：`users/teams/team_members/projects` → identity · `tasks` → tasks · `milestones` → milestone · `worklogs` → worklog · `task_acceptance_events` → review · `notifications` → notify。
+数据表归属：`users/teams/team_members/projects/academic_profiles/member_positions/academic_confirmations` → identity · `tasks` → tasks · `milestones` → milestone · `worklogs` → worklog · `task_acceptance_events` → review · `notifications` → notify。
 `src/db/schema.ts` 是 barrel，本期集中放一份，**只追加不重排**。
 
 ---
@@ -59,7 +64,7 @@ main  ──  可部署
 
 ### 冲突面规则
 
-1. **不跨目录改文件**。要动 core / `package.json` → `feature/core-patch/<slug>` 或开 issue。
+1. 默认**不跨 Owner 目录改文件**。用户明确授权的跨模块体验迭代先登记范围，按 Owner 分别评审；本次集成范围为 identity、tasks、board 和相关共享 UI。要动 core / `package.json` → `feature/core-patch/<slug>` 或开 issue。
 2. 路由文件只做壳，业务写在模块 `service.ts`。
 3. schema 只追加到 `src/db/schema.ts` 末尾并注释 `// <module>`。
 4. 依赖只在 foundation 阶段加；后续加依赖先声明理由。
@@ -100,14 +105,21 @@ toFormError(e, fallback?): string
 createTeam(userId, name)
 joinTeam(userId, inviteCode)
 listMyTeams(userId)
-listTeamMembers(teamId)
+listTeamSpaces(actorId)                   // 当前用户的空间，含 memberCount / projectCount（active）
+listTeamMembers(actorId, teamId)          // 必须先检查团队访问权限
 updateMemberRole(actorId, teamId, targetUserId, role)
+updateMemberPositions(actorId, teamId, targetUserId, positions: TeamPosition[])
+getAcademicProfile(actorId)
+saveAcademicProfile(actorId, { identity, institution?, department?, researchFocus? })
+confirmAcademicIdentity(actorId, teamId, targetUserId, profileVersion)
 createProject(actorId, teamId, input)
 listTeamProjects(actorId, teamId)
 updateProject(actorId, projectId, patch)
 listMyProjects(actorId)
 // re-export: getTeamMembership / getProjectForUser / requireTeamRole
 ```
+
+`createTeam`/`createProject` 校验并去除名称首尾空白；项目日期校验真实日历日期及开始≤结束。`updateMemberRole` 在事务中锁定团队，拒绝降级最后一位管理员。公开 UI：`identity/ui` 提供场景选择、创建/加入、成员职务与邀请码组件；`identity/views` 提供团队、成员、项目、个人设置、项目设置和项目概览页面。团队场景是引导选择，数据库实体仍为团队，课程/实验室/竞赛类型存于项目。
 
 ### `@/modules/tasks`（A）
 
@@ -123,9 +135,12 @@ transitionTask(actorId, taskId, action, input?)   // 唯一状态入口
 createSubtask(actorId, parentTaskId, input)
 listSubtasks(actorId, parentTaskId)
 setDueDate(actorId, taskId, dueDate)
+
+availableTransitions(task: { status, assigneeId, permissions? }, role, actorId): TransitionRule[]
+STATUS_DESCRIPTIONS / canDeleteTask(role)
 ```
 
-状态机：`@/modules/tasks/states` 的 `TRANSITIONS`（已就位）。
+状态机唯一真相是模块内部 `states.ts` 的 `TRANSITIONS`，外部通过 `@/modules/tasks` 或浏览器安全的 `@/modules/tasks/client` 使用。`TaskDTO.permissions?: TaskPermissions` 是当前操作者的权限引导快照，任务服务返回时按职务与场景计算；`availableTransitions` 同时处理状态、能力和负责人限制。纯函数旧调用未提供快照时保留三态角色兼容；服务端总是重新计算当前能力。`toDTO(row)` 签名保持不变，旧工作台 DTO 由共享 TaskActions 在显示前补齐权限。`claim` 由当前用户认领，管理员保留代提交权限。`transitionTask` 在行锁事务中同时写状态与活动事件，通知在提交后发送。公开 UI：`tasks/ui` 的 `TaskWorkflow`、`TaskActions`、`TransitionDialog`、`CreateTaskForm`；`tasks/views` 的任务池与详情组合。详情页必须检查 URL 的 projectId 与任务归属一致。
 
 ### `@/modules/board`（B）
 
@@ -134,7 +149,12 @@ deriveColumns(tasks, groupBy)
 applyFilters(tasks, f)
 parseFilters(params) / serializeFilters(f)
 moveTask(actorId, taskId, patch)   // 只调 tasks.updateTask / transitionTask
+getMoveTransition(task, targetStatus, role, actorId): TransitionRule | null
+type MovePatch = { status?, assigneeId?, priority?, milestoneId?, sortOrder?, note? }
+movePatchSchema
 ```
+
+`BoardFilters` 增加 `q?: string`，搜索标题和描述；URL 保留状态、负责人、优先级、里程碑和搜索。状态移动支持 `note`，提交/重交/打回均不能省略说明。状态、负责人和属性分别提交，组合写入会明确拒绝，避免丢弃半个操作。API `deriveColumns` 的历史五列顺序保持兼容；页面用 `BOARD_STATUS_ORDER` 展示待认领→进行中→待验收→待修改→已完成，并单独说明打回分支。只有按状态分组支持拖动；其他分组用于浏览。公开 UI：`board/client`（纯函数）、`board/ui`（`ProjectWorkspace`）、`board/views`（页面组合）。
 
 ### `@/modules/review`（C）
 
@@ -189,3 +209,5 @@ listMyNotifications(actorId, opts?) / markRead(actorId, id)
 - [ ] 未改不属于自己的目录
 
 Commit 用 Conventional Commits：`feat(tasks): 五态状态机` · `fix(board): 非法拖拽回滚` · `test(review): 越权矩阵`
+
+身份补充：`listTeamMembers` 追加 `positions/profile/confirmedVersion/confirmedAt/identityConfirmed/canExecute`；`listTeamSpaces` 追加 `positions`。`updateMemberRole` 兼容旧调用，同时同步唯一对应职务；新 UI 使用 `updateMemberPositions`。成员设置变更应刷新团队、项目、工作台入口。身份确认、职务并集和迁移细节见 [IDENTITY.md](IDENTITY.md)。身份、职务和项目编辑客户端组件在 `academic-ui` 内部，由公开 `views` 组合，不作为新的跨模块深链入口。

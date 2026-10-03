@@ -1,12 +1,9 @@
-import { ModulePlaceholder } from "@/components/ui/placeholder";
+import { ProjectWorkspaceView } from "@/modules/board/views";
 
-export default function TablePage() {
-  return (
-    <ModulePlaceholder
-      title="表格视图（Owner B）"
-      owner="B"
-      branch="feature/board-views"
-      doc="src/modules/board/index.ts（同一份 tasks 数据）"
-    />
-  );
+export default async function TablePage({ params, searchParams }: {
+  params: Promise<{ projectId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const { projectId } = await params;
+  return <ProjectWorkspaceView projectId={projectId} query={await searchParams} view="table" />;
 }
