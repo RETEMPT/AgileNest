@@ -26,6 +26,12 @@ start.bat
 
 浏览器开 <http://localhost:3000/login>。
 
+双击 `start.bat` 会结束当前项目已有的 Next.js 开发服务，再在 3000 端口启动一个新实例。脚本按完整项目路径与进程创建时间核对归属，同项目在其他端口运行的旧开发实例也会结束；数据库继续运行。若 3000 端口属于其他程序，会显示对应 PID 并停止启动。
+
+开发服务器运行期间保持窗口；启动失败或服务器退出时，窗口会保留提示，按键后才关闭。
+
+两个入口共用 `scripts/start-local.ps1`，`start.ps1` 显式按 UTF-8 加载它，兼容 Windows 自带 PowerShell 5.1。自动化或已打开的终端可使用 `start.bat -NoPause` / `.\start.ps1 -NoPause` 跳过等待按键；退出代码仍表示启动是否成功。
+
 `setup.bat` 做了什么：起 Postgres → 生成 `.env`（含随机 `AUTH_SECRET`）→ `npm install` → `db:push`（dev+test 库）→ `db:seed`（演示账号）。
 
 种子账号：
@@ -81,6 +87,8 @@ schtasks /create /tn "AgileCampusReminders" /sc daily /st 09:00 ^
 
 | 现象 | 处理 |
 |---|---|
+| 双击启动后提示「重启」 | 正在结束当前项目的旧开发服务，随后会启动一个新实例 |
+| 启动失败 | 窗口会保留具体错误；检查 Node.js、`.env`、依赖和数据库，修复后再运行 |
 | `EACCES` / 端口占用 | 关掉占用 3000 / 5432 的进程，或改端口 |
 | 中文乱码 | `.bat` 已 `chcp 65001`；IDE 请用 UTF-8（`.editorconfig` 已声明） |
 | `db:push` 报连不上 | 确认 `docker compose ps` 里 `db` 是 healthy |
