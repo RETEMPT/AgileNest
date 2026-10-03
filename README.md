@@ -21,6 +21,8 @@
 
 打开 <http://localhost:3000/login>。环境与便携式 Postgres 说明见 [docs/WINDOWS.md](docs/WINDOWS.md)。
 
+仓库提供通用环境示例和完整启动脚本。首次初始化会生成本机 `.env` / `.env.test`，已有配置会保留；依赖、构建缓存和便携数据库由接收者在本机准备，详见 [共享说明](docs/WINDOWS.md#共享给协作者)。
+
 | 团队内角色 | 演示账号 | 密码 | 主要职责 |
 |---|---|---|---|
 | 管理员 | admin@agilecampus.local | password123 | 创建项目、管理成员，并参与协作 |

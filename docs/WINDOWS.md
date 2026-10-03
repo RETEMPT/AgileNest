@@ -32,7 +32,22 @@ start.bat
 
 两个入口共用 `scripts/start-local.ps1`，`start.ps1` 显式按 UTF-8 加载它，兼容 Windows 自带 PowerShell 5.1。自动化或已打开的终端可使用 `start.bat -NoPause` / `.\start.ps1 -NoPause` 跳过等待按键；退出代码仍表示启动是否成功。
 
-`setup.bat` 做了什么：起 Postgres → 生成 `.env`（含随机 `AUTH_SECRET`）→ `npm install` → `db:push`（dev+test 库）→ `db:seed`（演示账号）。
+`setup.bat` 做了什么：从 `.env.example` / `.env.test.example` 生成缺失的本机配置（含随机 `AUTH_SECRET`）→ 起 Postgres → `npm install` → `db:push`（dev+test 库）→ `db:seed`（演示账号）。已有 `.env` / `.env.test` 不会被覆盖。
+
+首次克隆默认使用 Docker 的数据库账号；若使用本机 Postgres，先生成配置，再填写两个库的连接串：
+
+```powershell
+.\setup.ps1 -InitEnvOnly
+# 编辑 .env 和 .env.test 的 DATABASE_URL 后，再运行 setup.bat
+```
+
+### 共享给协作者
+
+提交源码、契约测试、依赖锁文件、数据库 schema 与迁移、环境示例、初始化/启动/停止/状态脚本及使用说明。`scripts/start-local.ps1` 是两个启动入口的必需文件；已有数据库还需要 `scripts/migrate-identity.mjs`。
+
+本机 `.env` / `.env.test`、`node_modules/`、`.next/`、`coverage/`、`.tools/` 与日志不随代码传输。`.tools/` 中的便携式 Postgres 和数据库数据仅在本机保留；接收者安装 Docker 或自己的 Postgres，按上述步骤初始化。
+
+从旧版本更新时，已有 `.env.test` 继续使用；没有该文件则从 `.env.test.example` 生成。
 
 种子账号：
 - `admin@agilecampus.local` / `password123`（管理员）
@@ -48,17 +63,14 @@ npm test           # 一次性
 npm run test:watch # 监听
 ```
 
-测试库 `agilecampus_test` 由 `scripts/init-test-db.sql` 在**首次**初始化数据卷时创建。若改过该脚本或测试库缺失：
+测试库 `agilecampus_test` 由 `scripts/init-test-db.sql` 在**首次**初始化数据卷时创建。已有 Docker 数据卷缺少测试库时，先建测试库再推送 schema：
 
 ```powershell
-docker compose down -v
-docker compose up -d
-npm run db:push
+docker compose up -d db
+docker compose exec db psql -U agilecampus -d postgres -c "CREATE DATABASE agilecampus_test;"
 npm run db:push:test
 ```
 
-> `down -v` 会清空本地开发数据，慎用。
->
 > **本机无 Docker / Postgres 时**：DB 用例（identity/user/team/project）会连不上库；纯函数用例仍可单独跑：
 > ```powershell
 > npx vitest run tests/contract/exports.test.ts tests/contract/core tests/contract/identity/password.test.ts

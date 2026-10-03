@@ -5,6 +5,9 @@ cd /d "%~dp0"
 
 echo === AgileCampus setup (Windows) ===
 
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup.ps1" -InitEnvOnly
+if errorlevel 1 goto :fail
+
 rem 优先检测并启动内置便携式 Postgres
 if exist "%~dp0.tools\pgsql\pgsql\bin\pg_ctl.exe" (
   echo [1/5] 启动内置便携式 Postgres ...
@@ -27,12 +30,7 @@ if errorlevel 1 (
 )
 
 :db_ready
-if not exist .env (
-  echo [2/5] 生成 .env ...
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup.ps1" -InitEnvOnly
-) else (
-  echo [2/5] .env 已存在，跳过
-)
+echo [2/5] .env / .env.test 已就绪，保留已有配置
 
 echo [3/5] 安装依赖 ...
 call npm install
@@ -46,6 +44,7 @@ if errorlevel 1 goto :fail
 
 echo [5/5] 种子数据（可选）...
 call npm run db:seed
+if errorlevel 1 goto :fail
 
 echo.
 echo === setup 完成，双击 start.bat 启动 ===
