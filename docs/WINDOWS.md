@@ -47,7 +47,7 @@ start.bat
 
 本机 `.env` / `.env.test`、`node_modules/`、`.next/`、`coverage/`、`.tools/` 与日志不随代码传输。`.tools/` 中的便携式 Postgres 和数据库数据仅在本机保留；接收者安装 Docker 或自己的 Postgres，按上述步骤初始化。
 
-从旧版本更新时，已有 `.env.test` 继续使用；没有该文件则从 `.env.test.example` 生成。
+旧版本曾跟踪 `.env.test`；协作者更新前先将它复制为 `.env.test.local-backup`，更新后恢复为 `.env.test`，保留自己的数据库连接。备份文件同样被 Git 忽略；缺少配置时再从 `.env.test.example` 生成。初始化脚本不会覆盖已有配置。
 
 种子账号：
 - `admin@agilecampus.local` / `password123`（管理员）
