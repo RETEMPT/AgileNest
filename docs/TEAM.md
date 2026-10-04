@@ -112,6 +112,10 @@ updateMemberPositions(actorId, teamId, targetUserId, positions: TeamPosition[])
 getAcademicProfile(actorId)
 saveAcademicProfile(actorId, { identity, institution?, department?, researchFocus? })
 confirmAcademicIdentity(actorId, teamId, targetUserId, profileVersion)
+getAccountProfile(actorId)               // 本人最新姓名、邮箱、简介、头像 URL
+saveAccountProfile(actorId, { name, bio?, avatar? })
+getAvatar(actorId, targetId)             // 本人或同团队；返回 PNG bytes / hash
+avatarGET(request, context)             // session → service → private PNG / 304
 createProject(actorId, teamId, input)
 listTeamProjects(actorId, teamId)
 updateProject(actorId, projectId, patch)
