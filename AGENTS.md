@@ -35,6 +35,8 @@
 | `worklog`（含 stats） | D | `feature/worklog-stats` | 工时 · 完成度 · 贡献 |
 | `calendar` `milestone` `notify` | E | `feature/calendar-notify` | 日历 · 节点 · 提醒 |
 
+本轮用户继续要求完整协作、个人资料及成员 PR 集成；集成分支按职责覆盖 identity/shared UI（foundation）、tasks（A）、board（B）、review（C）、worklog/stats（D）、notify（E），详见 docs/TEAM.md。本轮不调整 core 或登录文件。
+
 ## 2. 架构不变量
 
 1. **模块化单体**：`src/modules/<m>/{schema,service,actions,api,ui,index}.ts`

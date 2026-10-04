@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser, toFormError } from "@/modules/core";
+import { saveAccountProfile } from "./profile-service";
 import {
   createProject,
   createTeam,
@@ -23,6 +24,24 @@ import {
 } from "./schema";
 
 export type IdentityFormState = { error: string; ok?: string } | null;
+
+export async function saveAccountProfileAction(
+  _prev: IdentityFormState,
+  data: FormData,
+): Promise<IdentityFormState> {
+  const user = await requireUser();
+  try {
+    await saveAccountProfile(user.id, {
+      name: String(data.get("name") ?? ""),
+      bio: String(data.get("bio") ?? ""),
+      avatar: String(data.get("avatar") ?? "") || undefined,
+    });
+  } catch (error) {
+    return { error: toFormError(error) };
+  }
+  revalidatePath("/", "layout");
+  return { error: "", ok: "个人资料已保存" };
+}
 
 export async function updateProjectAction(
   _prev: IdentityFormState,

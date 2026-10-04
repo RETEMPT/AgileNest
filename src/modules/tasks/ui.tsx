@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useId, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { ArrowRight, RotateCcw, X } from "lucide-react";
@@ -10,6 +11,7 @@ import {
   addWorklogAction,
   createMilestoneAction,
   createTaskAction,
+  createSubtaskAction,
   deleteTaskAction,
   setDueDateAction,
   transitionAction,
@@ -40,15 +42,21 @@ const btnPrimary =
 
 function ErrorLine({ state }: { state: FormState }) {
   if (!state?.error) return null;
-  return <p className="text-xs text-destructive">{state.error}</p>;
+  return (
+    <p role="alert" className="text-xs text-destructive">
+      {state.error}
+    </p>
+  );
 }
 
 export function CreateTaskForm({
   projectId,
   onCreated,
+  parentTaskId,
 }: {
   projectId: string;
   onCreated?: () => void;
+  parentTaskId?: string;
 }) {
   const id = useId();
   const [fields, setFields] = useState({
@@ -59,7 +67,9 @@ export function CreateTaskForm({
   });
   const [state, formAction, pending] = useActionState<FormState, FormData>(
     async (prev, data) => {
-      const result = await createTaskAction(prev, data);
+      const result = await (parentTaskId
+        ? createSubtaskAction(prev, data)
+        : createTaskAction(prev, data));
       if (result?.ok) {
         setFields({
           title: "",
@@ -79,7 +89,12 @@ export function CreateTaskForm({
       onReset={(event) => event.preventDefault()}
       className="space-y-3 rounded-xl border border-border bg-card p-4"
     >
-      <h2 className="font-display text-sm font-semibold">新建任务</h2>
+      <h2 className="font-display text-sm font-semibold">
+        {parentTaskId ? "拆分子任务" : "新建任务"}
+      </h2>
+      {parentTaskId && (
+        <input type="hidden" name="parentTaskId" value={parentTaskId} />
+      )}
       <input type="hidden" name="projectId" value={projectId} />
       <label htmlFor={`${id}-title`} className="block text-xs font-medium">
         任务标题
@@ -679,18 +694,61 @@ export function DeleteTaskButton({
   taskId: string;
   projectId: string;
 }) {
-  const [, formAction, pending] = useActionState<FormState, FormData>(
-    deleteTaskAction,
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [state, formAction, pending] = useActionState<FormState, FormData>(
+    async (prev, data) => {
+      const result = await deleteTaskAction(prev, data);
+      if (result?.ok) {
+        setOpen(false);
+        router.push(`/p/${projectId}/tasks`);
+      }
+      return result;
+    },
     null,
   );
   return (
-    <form action={formAction}>
-      <input type="hidden" name="taskId" value={taskId} />
-      <input type="hidden" name="projectId" value={projectId} />
-      <button disabled={pending} className={`${btn} text-destructive`}>
-        {pending ? "删除中…" : "删除任务"}
-      </button>
-    </form>
+    <Dialog.Root
+      open={open}
+      onOpenChange={(value) => {
+        if (!pending) setOpen(value);
+      }}
+    >
+      <Dialog.Trigger asChild>
+        <Button size="sm" variant="ghost" className="text-destructive">
+          删除任务
+        </Button>
+      </Dialog.Trigger>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/35" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-card p-6 shadow-xl">
+          <Dialog.Title className="text-lg font-semibold">
+            确认删除任务？
+          </Dialog.Title>
+          <Dialog.Description className="mt-3 text-sm leading-6 text-muted-foreground">
+            任务及其子任务、工时和活动记录将一并删除。此操作无法撤销。
+          </Dialog.Description>
+          <form action={formAction} className="mt-5 space-y-3">
+            <input type="hidden" name="taskId" value={taskId} />
+            <input type="hidden" name="projectId" value={projectId} />
+            <ErrorLine state={state} />
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={pending}
+                onClick={() => setOpen(false)}
+              >
+                取消
+              </Button>
+              <Button variant="destructive" disabled={pending}>
+                {pending ? "删除中…" : "确认删除"}
+              </Button>
+            </div>
+          </form>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
@@ -699,45 +757,96 @@ export { canDeleteTask };
 export function WorklogForm({
   taskId,
   projectId,
+  defaultDate,
 }: {
   taskId: string;
   projectId: string;
+  defaultDate: string;
 }) {
+  const id = useId();
+  const [fields, setFields] = useState({
+    workDate: defaultDate,
+    minutes: "",
+    note: "",
+  });
   const [state, formAction, pending] = useActionState<FormState, FormData>(
-    addWorklogAction,
+    async (prev, data) => {
+      const result = await addWorklogAction(prev, data);
+      if (result?.ok)
+        setFields((current) => ({ ...current, minutes: "", note: "" }));
+      return result;
+    },
     null,
   );
   return (
-    <form action={formAction} className="space-y-2">
+    <form
+      action={formAction}
+      onReset={(event) => event.preventDefault()}
+      className="space-y-3 rounded-xl border border-border bg-card p-4"
+    >
       <input type="hidden" name="taskId" value={taskId} />
       <input type="hidden" name="projectId" value={projectId} />
-      <div className="flex flex-wrap gap-2">
-        <input
-          type="date"
-          name="workDate"
-          required
-          defaultValue={new Date().toISOString().slice(0, 10)}
-          className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-        />
-        <input
-          type="number"
-          name="minutes"
-          required
-          min={1}
-          placeholder="分钟"
-          className="w-24 rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-        />
-        <input
-          name="note"
-          placeholder="备注"
-          className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-        />
-        <button disabled={pending} className={btnPrimary}>
-          {pending ? "记录中…" : "记工时"}
-        </button>
-      </div>
+      <fieldset
+        disabled={pending}
+        className="grid items-end gap-3 sm:grid-cols-[170px_130px_1fr_auto]"
+      >
+        <div className="space-y-1.5">
+          <label htmlFor={`${id}-date`} className="text-xs font-medium">
+            投入日期
+          </label>
+          <Input
+            id={`${id}-date`}
+            type="date"
+            name="workDate"
+            required
+            value={fields.workDate}
+            onChange={(event) =>
+              setFields({ ...fields, workDate: event.target.value })
+            }
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label htmlFor={`${id}-minutes`} className="text-xs font-medium">
+            投入分钟
+          </label>
+          <Input
+            id={`${id}-minutes`}
+            type="number"
+            name="minutes"
+            required
+            min={1}
+            max={1440}
+            step={1}
+            value={fields.minutes}
+            onChange={(event) =>
+              setFields({ ...fields, minutes: event.target.value })
+            }
+            placeholder="例如 30"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label htmlFor={`${id}-note`} className="text-xs font-medium">
+            工作说明（选填）
+          </label>
+          <Input
+            id={`${id}-note`}
+            name="note"
+            value={fields.note}
+            onChange={(event) =>
+              setFields({ ...fields, note: event.target.value })
+            }
+            maxLength={2000}
+            placeholder="这次完成了什么…"
+          />
+        </div>
+        <Button type="submit">{pending ? "记录中…" : "记工时"}</Button>
+      </fieldset>
       <ErrorLine state={state} />
-      {state?.ok && <p className="text-xs text-emerald-600">{state.ok}</p>}
+      {state?.ok && (
+        <p role="status" className="text-xs text-brand">
+          {state.ok}
+        </p>
+      )}
     </form>
   );
 }

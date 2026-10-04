@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import type { ProjectKind } from "@/db/schema";
 import { notFound } from "next/navigation";
 import {
@@ -477,9 +478,11 @@ export async function TeamMembersView({ teamId }: { teamId: string }) {
           >
             <CardHeader>
               <div className="flex items-center gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-soft text-lg font-semibold text-brand">
-                  {member.name.slice(0, 1)}
-                </span>
+                <UserAvatar
+                  name={member.name}
+                  src={member.avatarUrl}
+                  className="h-11 w-11 text-lg"
+                />
                 <div className="min-w-0">
                   <CardTitle>
                     {member.name}
@@ -503,6 +506,11 @@ export async function TeamMembersView({ teamId }: { teamId: string }) {
                   </Badge>
                 ))}
               </div>
+              {member.bio && (
+                <p className="break-words text-sm text-muted-foreground">
+                  {member.bio}
+                </p>
+              )}
               <div className="rounded-xl bg-muted/50 p-3 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium">

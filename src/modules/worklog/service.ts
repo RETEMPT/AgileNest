@@ -3,7 +3,11 @@ import { db } from "@/db";
 import { tasks, teamMembers, users, worklogs } from "@/db/schema";
 import { AppError, ForbiddenError, NotFoundError } from "@/modules/core/errors";
 import { isValidISODate } from "@/modules/core/dates";
-import { getProjectForUser, requireProjectForUser } from "@/modules/core/permissions";
+import {
+  getProjectForUser,
+  requireProjectForUser,
+} from "@/modules/core/permissions";
+import { z } from "zod";
 
 export type WorklogDTO = {
   id: string;
@@ -20,7 +24,7 @@ export type Completion = {
   taskId: string;
   done: number;
   total: number;
-  /** 0..1，含子任务加权 */
+  /** 0..1；项目统计按顶层验收，任务统计按直接子任务验收。 */
   ratio: number;
 };
 
@@ -66,8 +70,23 @@ export async function addWorklog(
   taskId: string,
   input: { workDate: string; minutes: number; note?: string },
 ): Promise<WorklogDTO> {
-  const { task } = await loadTaskForWorklog(actorId, taskId);
-  if (!isValidISODate(input.workDate)) throw new AppError("日期需为 YYYY-MM-DD");
+  const { task, access } = await loadTaskForWorklog(actorId, taskId);
+  if (!access.capabilities.execute || task.assigneeId !== actorId)
+    throw new ForbiddenError("请先认领任务，只能给自己负责的任务记工时");
+  const parsed = z
+    .object({
+      workDate: z.iso.date({ error: "日期需为有效的 YYYY-MM-DD" }),
+      minutes: z
+        .number({ error: "工时需为数字" })
+        .int("工时需为整数分钟")
+        .positive("工时需为正整数分钟")
+        .max(1440, "单条工时不能超过 24 小时"),
+      note: z.string().trim().max(2000, "工时说明最多 2000 字").optional(),
+    })
+    .safeParse(input);
+  if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
+  if (!isValidISODate(input.workDate))
+    throw new AppError("日期需为 YYYY-MM-DD");
   if (!Number.isInteger(input.minutes) || input.minutes <= 0) {
     throw new AppError("工时需为正整数（分钟）");
   }
@@ -142,25 +161,21 @@ export async function projectCompletion(
   projectId: string,
 ): Promise<Completion> {
   await requireProjectForUser(actorId, projectId);
-  const tops = await db
-    .select({ id: tasks.id, status: tasks.status })
+  const [counts] = await db
+    .select({
+      total: sql<number>`count(*)`.mapWith(Number),
+      done: sql<number>`count(*) filter (where ${tasks.status} = 'accepted')`.mapWith(
+        Number,
+      ),
+    })
     .from(tasks)
     .where(and(eq(tasks.projectId, projectId), isNull(tasks.parentTaskId)));
 
-  if (tops.length === 0) {
-    return { taskId: projectId, done: 0, total: 0, ratio: 0 };
-  }
-
-  let done = 0;
-  for (const t of tops) {
-    const c = await completionRatio(actorId, t.id);
-    done += c.ratio;
-  }
   return {
     taskId: projectId,
-    done: Math.round(done),
-    total: tops.length,
-    ratio: done / tops.length,
+    done: counts.done,
+    total: counts.total,
+    ratio: counts.total ? counts.done / counts.total : 0,
   };
 }
 
@@ -178,7 +193,9 @@ export async function taskHours(
     .select({
       userId: worklogs.userId,
       userName: users.name,
-      minutes: sql<number>`coalesce(sum(${worklogs.minutes}), 0)`.mapWith(Number),
+      minutes: sql<number>`coalesce(sum(${worklogs.minutes}), 0)`.mapWith(
+        Number,
+      ),
     })
     .from(worklogs)
     .innerJoin(tasks, eq(worklogs.taskId, tasks.id))

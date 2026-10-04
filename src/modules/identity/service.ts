@@ -9,6 +9,7 @@ import {
   academicProfiles,
   academicConfirmations,
   memberPositions,
+  personalProfiles,
   type TeamRole,
 } from "@/db/schema";
 import {
@@ -34,6 +35,7 @@ import {
   type AcademicIdentity,
   type TeamPosition,
 } from "./client";
+import { avatarUrl } from "./profile-service";
 
 // —— identity：团队 / 成员 / 项目（登录之外的基础域）——
 
@@ -100,6 +102,8 @@ export async function listTeamMembers(actorId: string, teamId: string) {
       id: users.id,
       name: users.name,
       email: users.email,
+      avatarHash: personalProfiles.avatarHash,
+      bio: personalProfiles.bio,
       role: teamMembers.role,
       positions: memberPositions.positions,
       profile: {
@@ -116,6 +120,7 @@ export async function listTeamMembers(actorId: string, teamId: string) {
     .innerJoin(users, eq(teamMembers.userId, users.id))
     .leftJoin(memberPositions, eq(memberPositions.membershipId, teamMembers.id))
     .leftJoin(academicProfiles, eq(academicProfiles.userId, users.id))
+    .leftJoin(personalProfiles, eq(personalProfiles.userId, users.id))
     .leftJoin(
       academicConfirmations,
       eq(academicConfirmations.membershipId, teamMembers.id),
@@ -125,6 +130,7 @@ export async function listTeamMembers(actorId: string, teamId: string) {
     const positions = row.positions ?? positionsFromRole(row.role);
     return {
       ...row,
+      avatarUrl: avatarUrl(row.id, row.avatarHash),
       positions,
       canExecute: capabilitiesFor(positions).execute,
       identityConfirmed:

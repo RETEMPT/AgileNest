@@ -164,6 +164,7 @@ listUnclaimedPool(actorId, projectId)
 listPendingReview(actorId, projectId)
 listOverdueRisks(actorId, projectId)
 listTaskEvents(actorId, taskId)
+getWorkbench(actorId) // { mine, review, pool }，附项目名与当前操作者权限
 ```
 
 ### `@/modules/worklog`（D，含 stats）
@@ -211,3 +212,17 @@ listMyNotifications(actorId, opts?) / markRead(actorId, id)
 Commit 用 Conventional Commits：`feat(tasks): 五态状态机` · `fix(board): 非法拖拽回滚` · `test(review): 越权矩阵`
 
 身份补充：`listTeamMembers` 追加 `positions/profile/confirmedVersion/confirmedAt/identityConfirmed/canExecute`；`listTeamSpaces` 追加 `positions`。`updateMemberRole` 兼容旧调用，同时同步唯一对应职务；新 UI 使用 `updateMemberPositions`。成员设置变更应刷新团队、项目、工作台入口。身份确认、职务并集和迁移细节见 [IDENTITY.md](IDENTITY.md)。身份、职务和项目编辑客户端组件在 `academic-ui` 内部，由公开 `views` 组合，不作为新的跨模块深链入口。
+
+## 5. 协作闭环集成 · 2026-10-04
+
+用户授权的集成范围：foundation 负责 identity、个人资料与共享 UI；A 负责任务编辑/拆分与校验；B 负责排序；C 负责工作台；D 负责验收口径/工时；E 负责消息收件箱。登录与 core 保持既有契约。
+
+identity 根入口新增 `getAccountProfile(actorId)`、`saveAccountProfile(actorId, { name, bio?, avatar? })`、`getAvatar(actorId, targetId)`、API 薄壳 `avatarGET(request, context)`。`avatar` 省略表示保留，`remove` 表示移除，上传为客户端处理的 256×256 PNG data URL；返回资料只含头像 URL，不含图片内容。头像仅本人或同团队成员可读。成员 DTO 追加 `bio/avatarUrl/avatarHash`。保存姓名使学术资料版本增加，旧确认失效。
+
+tasks 的 `createSubtask` 输入追加 `priority?`。创建与更新校验真实日期、起止顺序、标题、预计工时和当前项目的里程碑；父任务只能在创建时关联，不允许继续嵌套。父任务验收需全部子任务通过；已提交/完成的父任务不能追加子任务，重开已完成子任务需先重开父任务。`tasks/ui` 内提供 `CreateTaskForm({ projectId, parentTaskId?, onCreated? })`；编辑表单是模块内实现，由 `tasks/views` 调用，仍使用统一任务服务。
+
+review 的 `getWorkbench` 用成员关联查询进行访问隔离，按项目能力分类，归档项目不进入当前队列。公开 `review/views` 提供 `WorkbenchView`，兼容原 student/teacher 路由；纯队员在教师入口看到空验收视图，不报错。DTO 直接带权限快照，避免每张卡再请求权限。
+
+`projectCompletion` 的 `{ done, total, ratio }` 为已验收顶层任务数/顶层总数，单次聚合查询；`completionRatio` 在有子任务时为已验收子任务数/直接子任务总数，两者在 UI 明确标识。工时仅执行职务且当前负责人可记；`tasks/ui.WorklogForm` 接收 `{ taskId, projectId, defaultDate }`，默认日期由服务端的 `todayISO` 提供。公开 `worklog/views` 提供 `StatsView`。
+
+notify 公开 `notify/views` 的 `NotificationsView` 和 `notify/ui` 的 `MarkReadButton`，收件箱按 actorId 隔离，展示最近 100 条，可筛选未读并进入对应任务。标记他人消息返回 NotFoundError，不暴露消息存在性。

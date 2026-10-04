@@ -293,3 +293,11 @@ export const academicConfirmations = pgTable("academic_confirmations", {
   }),
   confirmedAt: timestamp("confirmed_at").notNull().defaultNow(),
 });
+
+export const personalProfiles = pgTable("personal_profiles", {
+  userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  bio: text("bio").notNull().default(""),
+  avatarData: text("avatar_data"),
+  avatarHash: text("avatar_hash"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});

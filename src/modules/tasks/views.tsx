@@ -1,22 +1,22 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireUser, getProjectForUser } from "@/modules/core";
+import { requireUser, getProjectForUser, todayISO } from "@/modules/core";
 import { getTaskDetail, listProjectTasks } from "./service";
 import { listTeamMembers } from "@/modules/identity";
 import { listTaskEvents } from "@/modules/review";
 import { listWorklogs } from "@/modules/worklog";
+import { listMilestones } from "@/modules/milestone";
+import { EditTaskButton } from "./edit-ui";
 import { completionRatio } from "@/modules/worklog";
 import { StatusPill, PriorityPill } from "@/components/ui/badge";
 import {
   DeleteTaskButton,
-  DueDateForm,
   TaskActions,
   WorklogForm,
   TaskWorkflow,
   TaskCard,
   CreateTaskForm,
 } from "./ui";
-import { canDeleteTask } from "./states";
 import { Button } from "@/components/ui/button";
 import { TaskAuditStream } from "@/components/cards/task-audit-stream";
 
@@ -33,16 +33,17 @@ export async function TaskDetailView({
   const task = await getTaskDetail(user.id, taskId).catch(() => null);
   if (!task || task.projectId !== projectId) notFound();
 
-  const [events, logs, ratio, members] = await Promise.all([
+  const [events, logs, ratio, members, milestones] = await Promise.all([
     listTaskEvents(user.id, taskId),
     listWorklogs(user.id, taskId),
     completionRatio(user.id, taskId),
     listTeamMembers(user.id, access.project.teamId),
+    listMilestones(user.id, projectId),
   ]);
 
   return (
     <main className="space-y-6">
-      <header className="space-y-2">
+      <header className="space-y-4 rounded-2xl border border-border bg-card p-5 sm:p-6">
         <p className="text-sm text-muted-foreground">
           <Link
             href={`/p/${projectId}/tasks`}
@@ -51,6 +52,14 @@ export async function TaskDetailView({
             ← 任务池
           </Link>
         </p>
+        {task.parentTaskId && (
+          <Link
+            href={`/p/${projectId}/tasks/${task.parentTaskId}`}
+            className="inline-block text-sm text-brand hover:underline"
+          >
+            ↑ 返回父任务
+          </Link>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="font-display text-2xl font-semibold">{task.title}</h1>
           <StatusPill status={task.status} />
@@ -59,7 +68,7 @@ export async function TaskDetailView({
         <p className="text-sm text-muted-foreground">
           负责：{task.assigneeName ?? "未认领"}
           {task.dueDate ? ` · 截止 ${task.dueDate}` : ""}
-          {` · 完成度 ${ratio.done}/${ratio.total}`}
+          {` · ${task.subtasks.length ? "子任务验收" : "任务验收"} ${ratio.done}/${ratio.total}`}
         </p>
         {task.description && (
           <p className="whitespace-pre-wrap rounded-md bg-muted p-3 text-sm">
@@ -90,7 +99,7 @@ export async function TaskDetailView({
 
       <TaskWorkflow status={task.status} />
 
-      <section className="space-y-2">
+      <section className="space-y-3 rounded-2xl border border-border bg-card p-5">
         <h2 className="font-display text-sm font-semibold">操作</h2>
         <TaskActions
           task={task}
@@ -98,21 +107,45 @@ export async function TaskDetailView({
           actorId={user.id}
           members={members}
         />
-        <DueDateForm
-          taskId={task.id}
-          projectId={projectId}
-          dueDate={task.dueDate}
-        />
-        {canDeleteTask(access.role) && (
-          <DeleteTaskButton taskId={task.id} projectId={projectId} />
-        )}
+        <div className="flex flex-wrap gap-3 border-t border-border pt-3">
+          {task.permissions?.actions.includes("update") && (
+            <EditTaskButton task={task} milestones={milestones} />
+          )}
+          {task.permissions?.actions.includes("delete") && (
+            <DeleteTaskButton taskId={task.id} projectId={projectId} />
+          )}
+        </div>
+        <dl className="grid gap-3 text-sm sm:grid-cols-3">
+          <div>
+            <dt className="text-xs text-muted-foreground">开始日期</dt>
+            <dd className="mt-1">{task.startDate || "未设置"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">预计工时</dt>
+            <dd className="mt-1">
+              {task.estimatedMinutes === null
+                ? "未估算"
+                : `${task.estimatedMinutes} 分钟`}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">关联里程碑</dt>
+            <dd className="mt-1">
+              {milestones.find((m) => m.id === task.milestoneId)?.title ||
+                "暂未关联"}
+            </dd>
+          </div>
+        </dl>
       </section>
 
-      {task.subtasks.length > 0 && (
+      {!task.parentTaskId && (
         <section className="space-y-2">
           <h2 className="font-display text-sm font-semibold">
             子任务（{task.subtasks.length}）
           </h2>
+          <p className="text-xs text-muted-foreground">
+            子任务有独立负责人和验收流程。全部子任务通过后，父任务才可验收。
+          </p>
           <ul className="divide-y divide-border rounded-xl border border-border bg-card">
             {task.subtasks.map((s) => (
               <li
@@ -129,12 +162,30 @@ export async function TaskDetailView({
               </li>
             ))}
           </ul>
+          {task.permissions?.actions.includes("create") &&
+          !["submitted", "accepted"].includes(task.status) ? (
+            <CreateTaskForm projectId={projectId} parentTaskId={task.id} />
+          ) : (
+            <p className="rounded-lg bg-brand-soft p-3 text-xs text-brand">
+              当前任务已提交验收。需要继续拆分时，请先打回或重新打开。
+            </p>
+          )}
         </section>
       )}
 
       <section className="space-y-2">
         <h2 className="font-display text-sm font-semibold">工时</h2>
-        <WorklogForm taskId={task.id} projectId={projectId} />
+        {access.capabilities.execute && task.assigneeId === user.id ? (
+          <WorklogForm
+            taskId={task.id}
+            projectId={projectId}
+            defaultDate={todayISO()}
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            由任务负责人记录实际投入工时。
+          </p>
+        )}
         {logs.length > 0 && (
           <ul className="divide-y divide-border rounded-xl border border-border bg-card text-sm">
             {logs.map((l) => (

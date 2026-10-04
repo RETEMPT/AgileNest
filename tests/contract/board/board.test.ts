@@ -33,6 +33,26 @@ function task(partial: Partial<TaskDTO> & { id: string }): TaskDTO {
 }
 
 describe("board 纯函数契约", () => {
+  it("采用成员 PR 的组内稳定排序，重分组不打乱顺序且不修改输入", () => {
+    const input = [
+      task({ id: "late", sortOrder: 2 }),
+      task({ id: "new", sortOrder: 1, createdAt: new Date("2026-10-02") }),
+      task({ id: "old", sortOrder: 1, createdAt: new Date("2026-10-01") }),
+    ];
+    for (const grouping of [
+      "status",
+      "priority",
+      "assignee",
+      "milestone",
+    ] as const) {
+      expect(
+        deriveColumns(input, grouping)
+          .flatMap((column) => column.tasks)
+          .map((t) => t.id),
+      ).toEqual(["old", "new", "late"]);
+    }
+    expect(input.map((t) => t.id)).toEqual(["late", "new", "old"]);
+  });
   it("deriveColumns 按状态分五列且顺序稳定", () => {
     const cols = deriveColumns(
       [
