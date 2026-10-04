@@ -1,32 +1,23 @@
-import { eq } from "drizzle-orm";
 import { requireUser } from "@/modules/core";
-import { db } from "@/db";
-import { users } from "@/db/schema";
 import { getAcademicProfile } from "./service";
 import { getAccountProfile } from "./profile-service";
 import { AccountProfileForm } from "./profile-ui";
 import { AcademicProfileForm } from "./academic-ui";
-import { FeishuCard } from "@/app/(app)/settings/feishu-card";
+import { getFeishuConnection } from "./connection-service";
+import { FeishuConnectionPanel } from "./connection-ui";
 
 export async function SettingsView({
   searchParams,
 }: {
-  searchParams: Promise<{ feishu?: string }>;
+  searchParams: Promise<{ feishu?: string; notice?: string }>;
 }) {
   const user = await requireUser();
-  const [profile, academic, rows, query] = await Promise.all([
+  const [profile, academic, connection, query] = await Promise.all([
     getAccountProfile(user.id),
     getAcademicProfile(user.id),
-    db
-      .select({
-        feishuName: users.feishuName,
-        feishuBoundAt: users.feishuBoundAt,
-      })
-      .from(users)
-      .where(eq(users.id, user.id)),
+    getFeishuConnection(user.id),
     searchParams,
   ]);
-  const row = rows[0];
   return (
     <div className="mx-auto max-w-5xl space-y-7">
       <header>
@@ -46,7 +37,7 @@ export async function SettingsView({
             {[
               ["profile", "个人资料"],
               ["academic", "学术身份"],
-              ["notify", "飞书绑定"],
+              ["notify", "飞书连接"],
             ].map(([id, label]) => (
               <a
                 key={id}
@@ -68,16 +59,15 @@ export async function SettingsView({
         </aside>
         <div className="min-w-0 space-y-6">
           <section id="profile" className="scroll-mt-6">
-            <AccountProfileForm profile={profile} />
+            <AccountProfileForm profile={profile} feishuName={connection.name} />
           </section>
           <section id="academic" className="scroll-mt-6">
             <AcademicProfileForm profile={academic} />
           </section>
           <section id="notify" className="scroll-mt-6">
-            <FeishuCard
-              boundName={row?.feishuName ?? null}
-              boundAtLabel={row?.feishuBoundAt?.toLocaleString("zh-CN") ?? null}
-              notice={query.feishu ?? null}
+            <FeishuConnectionPanel
+              connection={connection}
+              notice={query.feishu ?? query.notice ?? null}
             />
           </section>
         </div>

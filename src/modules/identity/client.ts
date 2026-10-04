@@ -1,5 +1,14 @@
 import type { ProjectKind, TaskAction, TeamRole } from "@/db/schema";
 
+export type FeishuConnection = {
+  connected: boolean;
+  configured: boolean;
+  name: string | null;
+  boundAt: string | null;
+  bindingVersion: string | null;
+  canDisconnect: boolean;
+};
+
 export const ACADEMIC_IDENTITIES = [
   "undergraduate",
   "master",

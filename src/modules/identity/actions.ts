@@ -24,23 +24,36 @@ import {
 } from "./schema";
 
 export type IdentityFormState = { error: string; ok?: string } | null;
+export type AccountFormState = {
+  error: string;
+  ok?: string;
+  saved?: { name: string; bio: string; avatarUrl: string | null };
+} | null;
 
 export async function saveAccountProfileAction(
-  _prev: IdentityFormState,
+  _prev: AccountFormState,
   data: FormData,
-): Promise<IdentityFormState> {
+): Promise<AccountFormState> {
   const user = await requireUser();
   try {
-    await saveAccountProfile(user.id, {
+    const profile = await saveAccountProfile(user.id, {
       name: String(data.get("name") ?? ""),
       bio: String(data.get("bio") ?? ""),
       avatar: String(data.get("avatar") ?? "") || undefined,
     });
+    revalidatePath("/", "layout");
+    return {
+      error: "",
+      ok: "个人资料已保存",
+      saved: {
+        name: profile.name,
+        bio: profile.bio,
+        avatarUrl: profile.avatarUrl,
+      },
+    };
   } catch (error) {
     return { error: toFormError(error) };
   }
-  revalidatePath("/", "layout");
-  return { error: "", ok: "个人资料已保存" };
 }
 
 export async function updateProjectAction(

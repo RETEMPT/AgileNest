@@ -12,6 +12,7 @@
 - 统一工作台按各项目职务展示本人任务、待验收成果和可认领事项，兼任队员与指导老师不会丢失待办。
 - 项目概览中的状态、个人任务与里程碑直接关联相应功能；任务详情可编辑完整信息并拆分子任务，项目完成度只统计已验收的顶层任务。
 - 个人中心可维护姓名、简介、头像与学术身份，消息中心可筛选未读并进入对应任务。
+- 飞书是可选账号连接，姓名由本人确认后采用；平台资料与权限独立维护。未配置时显示实际状态，解绑校验登录方式和当前绑定版本。
 
 详细设计与手动验收见 [docs/UX.md](docs/UX.md)。本期实验室管理覆盖成员、课题和任务，不包含实验数据、文件或设备台账。
 
@@ -82,6 +83,8 @@ npx vitest run tests/contract/exports.test.ts tests/contract/core tests/contract
 
 业务通过 `@/modules/<m>` 公开契约协作；UI 的 `client`、`ui`、`views` 入口见 [docs/TEAM.md](docs/TEAM.md)，客户端不能导入数据库或会话运行时代码。路由只组合模块页面，状态更新只能走 `transitionTask()`。
 
+GitHub `Verify` 工作流在 PR 和主干/集成分支推送时运行：Linux 隔离 PostgreSQL 契约测试，以及 Windows 生产构建。只使用测试环境示例与测试凭据，不需要飞书或生产密钥。仍须在提交前完成本地 Windows 检查。
+
 ## 文档
 
 - [体验设计与验收](docs/UX.md)
@@ -89,6 +92,7 @@ npx vitest run tests/contract/exports.test.ts tests/contract/core tests/contract
 - [模块分工与公开契约](docs/TEAM.md)
 - [开发工作流](docs/WORKFLOW.md)
 - [Windows 环境](docs/WINDOWS.md)
+- [飞书接入与边界](docs/FEISHU.md)
 - [Agent 约束](AGENTS.md)
 - [功能路线图](docs/ROADMAP.md)
 

@@ -62,6 +62,11 @@ describe("identity 契约导出", () => {
       "listTeamProjects",
       "updateProject",
       "listMyProjects",
+      "getAccountProfile",
+      "saveAccountProfile",
+      "getAvatar",
+      "getFeishuConnection",
+      "disconnectFeishu",
     ]) {
       expect(identity, `identity 缺少 ${name}`).toHaveProperty(name);
     }

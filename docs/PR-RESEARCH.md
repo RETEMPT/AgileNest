@@ -35,3 +35,11 @@
 核对 [Linear My issues](https://linear.app/docs/my-issues) 和[飞书项目工作台](https://www.feishu.cn/content/3c6y1qwl)官方文档。采用个人事项分类、优先事项排序、项目与日期筛选，以及从事项直接进入操作的设计思路。工作台合并重复计数区，新增 URL 搜索/项目/日期筛选；逾期优先，其次优先级和截止日期。筛选仅消费原有 ACL 限定的队列。
 
 团队、项目、任务、个人资料与消息入口统一为功能名称及客观状态说明；移除姓名问候、鼓励式标语和无实际信息的卡片副标题。新手流程集中在空状态或可展开区域，不占据已有数据的主要操作空间。沿用现有品牌色、组件和五态验收规则，没有引入外部代码、依赖或路牌功能。
+
+## 公共基础补充 · 2026-10-04
+
+按用户确认的轻量接入边界，飞书保留既有 OAuth 登录与绑定，只提供本人连接摘要和手动采用姓名；平台身份、职务、头像与协作继续独立管理。检查现有实现发现私信发送封装未被业务调用，移除页面的自动私信承诺，并明确尚未联调。连接 UI 归 identity，解绑增加事务版本校验及占位邮箱登录保护。
+
+公共验证参考 [GitHub PostgreSQL 服务容器](https://docs.github.com/en/actions/tutorials/use-containerized-services/create-postgresql-service-containers)、官方 [checkout v7.0.1](https://github.com/actions/checkout/releases/tag/v7.0.1) 与 [setup-node v7.0.0](https://github.com/actions/setup-node/releases/tag/v7.0.0)。工作流固定已核对的提交 SHA，使用现有锁文件、Node 22、隔离测试库和 Windows 构建，凭据仅为临时测试值。
+
+页面验收中发现开发工具浮标遮挡折叠侧栏的退出按钮；依照 [Next devIndicators](https://nextjs.org/docs/app/api-reference/config/next-config-js/devIndicators) 及本仓已安装的配置类型关闭浮标，保留正常错误反馈。

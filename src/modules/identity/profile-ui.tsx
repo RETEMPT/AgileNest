@@ -5,7 +5,7 @@ import { Camera, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { UserAvatar } from "@/components/ui/user-avatar";
-import { saveAccountProfileAction } from "./actions";
+import { saveAccountProfileAction, type AccountFormState } from "./actions";
 
 async function prepareAvatar(file: File): Promise<string> {
   if (!["image/png", "image/jpeg", "image/webp"].includes(file.type))
@@ -40,6 +40,7 @@ async function prepareAvatar(file: File): Promise<string> {
 
 export function AccountProfileForm({
   profile,
+  feishuName,
 }: {
   profile: {
     name: string;
@@ -47,6 +48,7 @@ export function AccountProfileForm({
     bio: string;
     avatarUrl: string | null;
   };
+  feishuName?: string | null;
 }) {
   const id = useId();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -55,11 +57,25 @@ export function AccountProfileForm({
   const [avatar, setAvatar] = useState("");
   const [imageError, setImageError] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [saved, setSaved] = useState(profile);
+  const [showFeedback, setShowFeedback] = useState(false);
   const [state, action, pending] = useActionState(
-    saveAccountProfileAction,
+    async (prev: AccountFormState, data: FormData) => {
+      const result = await saveAccountProfileAction(prev, data);
+      if (result?.saved) {
+        setSaved({ ...saved, ...result.saved });
+        setName(result.saved.name);
+        setBio(result.saved.bio);
+        setAvatar("");
+      }
+      setShowFeedback(true);
+      return result;
+    },
     null,
   );
-  const preview = avatar === "remove" ? null : avatar || profile.avatarUrl;
+  const preview = avatar === "remove" ? null : avatar || saved.avatarUrl;
+  const dirty = name !== saved.name || bio !== saved.bio || avatar !== "";
+  const importedName = feishuName?.trim().slice(0, 50);
   return (
     <form
       action={action}
@@ -102,8 +118,9 @@ export function AccountProfileForm({
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    setAvatar("remove");
+                    setAvatar(saved.avatarUrl ? "remove" : "");
                     setImageError("");
+                    setShowFeedback(false);
                   }}
                 >
                   移除
@@ -124,6 +141,7 @@ export function AccountProfileForm({
                 if (!file) return;
                 setProcessing(true);
                 setImageError("");
+                setShowFeedback(false);
                 try {
                   setAvatar(await prepareAvatar(file));
                 } catch (error) {
@@ -153,11 +171,28 @@ export function AccountProfileForm({
               id={`${id}-name`}
               name="name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setShowFeedback(false);
+              }}
               maxLength={50}
               required
               autoComplete="name"
             />
+            {importedName && importedName !== name && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-auto max-w-full justify-start whitespace-normal px-0 text-left text-xs text-brand"
+                onClick={() => {
+                  setName(importedName);
+                  setShowFeedback(false);
+                }}
+              >
+                使用飞书姓名：{importedName}（保存后生效）
+              </Button>
+            )}
           </div>
           <div className="space-y-2">
             <label htmlFor={`${id}-email`} className="text-sm font-medium">
@@ -182,7 +217,10 @@ export function AccountProfileForm({
             id={`${id}-bio`}
             name="bio"
             value={bio}
-            onChange={(e) => setBio(e.target.value)}
+            onChange={(e) => {
+              setBio(e.target.value);
+              setShowFeedback(false);
+            }}
             rows={3}
             maxLength={300}
             placeholder="填写研究方向、技能或工作职责"
@@ -193,29 +231,34 @@ export function AccountProfileForm({
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs leading-6 text-muted-foreground">
+            {dirty && (
+              <span className="mr-2 font-medium text-brand">有未保存的修改</span>
+            )}
             修改姓名后，学术身份需由团队重新确认。
           </p>
           <div className="flex items-center gap-2">
             <Button
               type="button"
               variant="ghost"
+              disabled={!dirty}
               onClick={() => {
-                setName(profile.name);
-                setBio(profile.bio);
+                setName(saved.name);
+                setBio(saved.bio);
                 setAvatar("");
                 setImageError("");
+                setShowFeedback(false);
               }}
             >
               还原修改
             </Button>
-            <Button type="submit">
+            <Button type="submit" disabled={!dirty}>
               {pending ? "保存中…" : "保存个人资料"}
             </Button>
           </div>
         </div>
       </fieldset>
-      {state && (
+      {state && showFeedback && (
         <p
           role={state.error ? "alert" : "status"}
           className={`px-6 pb-5 text-sm ${state.error ? "text-destructive" : "text-brand"}`}
