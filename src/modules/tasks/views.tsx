@@ -233,14 +233,17 @@ export async function TaskPoolView({ projectId }: { projectId: string }) {
         <div>
           <h1 className="text-2xl font-semibold">任务池</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {tasks.length} 个任务 · 认领、提交与验收形成完整协作链路
+            {tasks.length} 个任务 · 查看任务详情、负责人和执行进度
           </p>
         </div>
         <Button asChild variant="outline">
-          <Link href={`/p/${projectId}/board`}>进入可视化看板 →</Link>
+          <Link href={`/p/${projectId}/board`}>任务看板 →</Link>
         </Button>
       </header>
-      <TaskWorkflow />
+      <details className="rounded-xl border border-border bg-card p-4" open={tasks.length === 0}>
+        <summary className="cursor-pointer text-sm font-medium text-muted-foreground">任务流程与权限</summary>
+        <div className="mt-4"><TaskWorkflow /></div>
+      </details>
       <div className="grid items-start gap-5 xl:grid-cols-[1fr_320px]">
         <div className="grid gap-3 lg:grid-cols-2">
           {tasks.map((task) => (
@@ -253,7 +256,7 @@ export async function TaskPoolView({ projectId }: { projectId: string }) {
           ))}
           {tasks.length === 0 && (
             <p className="rounded-xl border border-dashed border-border bg-card p-6 text-sm text-muted-foreground">
-              还没有任务。创建第一个任务，之后就可以认领和指派。
+              暂无任务。创建后可由有执行职务的成员认领，或由有指派权限的成员分配。
             </p>
           )}
         </div>

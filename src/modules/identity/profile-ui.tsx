@@ -72,7 +72,7 @@ export function AccountProfileForm({
           个人资料
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          让同伴在任务、讨论和团队中更容易认出你。
+          姓名和头像显示在团队成员、任务负责人等位置。
         </p>
       </div>
       <fieldset
@@ -185,7 +185,7 @@ export function AccountProfileForm({
             onChange={(e) => setBio(e.target.value)}
             rows={3}
             maxLength={300}
-            placeholder="你的专长、协作习惯，或正在关注的方向…"
+            placeholder="填写研究方向、技能或工作职责"
             className="w-full resize-y rounded-xl border border-input bg-background p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           <p className="text-right text-xs text-muted-foreground">

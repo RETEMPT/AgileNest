@@ -80,43 +80,36 @@ export function AppSidebar({
           href: `/p/${activeProjectId}/tasks`,
           label: "任务池",
           icon: TasksIcon,
-          tag: "tasks",
         },
         {
           href: `/p/${activeProjectId}/board`,
-          label: "多维看板",
+          label: "任务看板",
           icon: BoardIcon,
-          tag: "board",
         },
         {
           href: `/p/${activeProjectId}/table`,
-          label: "结构表格",
+          label: "任务表格",
           icon: TableIcon,
-          tag: "table",
         },
         {
           href: `/p/${activeProjectId}/calendar`,
           label: "项目日历",
           icon: CalendarIcon,
-          tag: "calendar",
         },
         {
           href: `/p/${activeProjectId}/milestones`,
           label: "项目里程碑",
           icon: MilestoneIcon,
-          tag: "milestone",
         },
         {
           href: `/p/${activeProjectId}/review`,
-          label: "验收审核台",
+          label: "验收台",
           icon: ReviewIcon,
-          tag: "review",
         },
         {
           href: `/p/${activeProjectId}/stats`,
           label: "工时与贡献",
           icon: StatsIcon,
-          tag: "stats",
         },
       ]
     : [];
@@ -135,7 +128,7 @@ export function AppSidebar({
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
           className="rounded-lg p-2 text-muted-foreground hover:bg-accent"
-          aria-label="Toggle Navigation"
+          aria-label="切换导航菜单"
         >
           <MenuIcon size={20} />
         </button>
@@ -342,13 +335,13 @@ export function AppSidebar({
                 isCollapsed ? "md:hidden" : ""
               }`}
             >
-              核心工作台
+              工作空间
             </div>
             <nav className="space-y-0.5">
               <Link
                 href="/home"
                 onClick={() => setMobileOpen(false)}
-                title={isCollapsed ? "今日工作台" : undefined}
+                title={isCollapsed ? "工作台" : undefined}
                 className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition ${
                   isHomeActive
                     ? "bg-foreground text-background"
@@ -360,7 +353,7 @@ export function AppSidebar({
                   className={isHomeActive ? "text-background" : "text-brand"}
                 />
                 <span className={isCollapsed ? "md:hidden" : ""}>
-                  今日工作台
+                  工作台
                 </span>
               </Link>
               <Link
@@ -389,7 +382,7 @@ export function AppSidebar({
                 isCollapsed ? "md:hidden" : ""
               }`}
             >
-              <span>项目系统</span>
+              <span>当前项目</span>
               {activeProject && (
                 <span className="max-w-[100px] truncate text-[10px] font-normal text-muted-foreground">
                   {activeProject.name}
@@ -437,19 +430,6 @@ export function AppSidebar({
                           {item.label}
                         </span>
                       </div>
-                      {item.tag && (
-                        <span
-                          className={`rounded px-1.5 py-0.2 text-[9px] uppercase tracking-wide ${
-                            isCollapsed ? "md:hidden" : ""
-                          } ${
-                            isActive
-                              ? "bg-background/20 text-background"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          {item.tag}
-                        </span>
-                      )}
                     </Link>
                   );
                 })}
@@ -490,7 +470,7 @@ export function AppSidebar({
               <Link
                 href="/settings"
                 onClick={() => setMobileOpen(false)}
-                title={isCollapsed ? "个人设置" : undefined}
+                title={isCollapsed ? "个人中心" : undefined}
                 className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition ${
                   isSettingsActive
                     ? "bg-foreground text-background"
@@ -503,7 +483,7 @@ export function AppSidebar({
                     isSettingsActive ? "text-background" : "text-brand"
                   }
                 />
-                <span className={isCollapsed ? "md:hidden" : ""}>个人设置</span>
+                <span className={isCollapsed ? "md:hidden" : ""}>个人中心</span>
               </Link>
             </nav>
           </div>

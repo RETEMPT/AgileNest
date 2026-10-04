@@ -177,9 +177,9 @@ export function TaskWorkflow({ status }: { status?: TaskDTO["status"] }) {
       className="rounded-xl border border-border bg-card p-4"
     >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">从认领到验收</h2>
+        <h2 className="text-sm font-semibold">任务流程</h2>
         <span className="text-xs text-muted-foreground">
-          学生推进 · 教师验收
+          任务执行 · 成果验收
         </span>
       </div>
       <ol className="grid gap-2 sm:grid-cols-4">
@@ -376,7 +376,7 @@ export function TransitionDialog({
                   rows={4}
                   placeholder={
                     rule.action === "reject"
-                      ? "具体指出需要修改的内容，让同学知道下一步怎么做"
+                      ? "填写需要修改的内容与验收要求"
                       : "说明完成内容、验证结果，可附成果链接"
                   }
                   className="w-full rounded-md border border-input bg-background p-3 text-sm"
@@ -474,7 +474,7 @@ export function TaskActions({
     return (
       <p className="text-xs text-muted-foreground">
         {task.status === "submitted"
-          ? "等待教师验收"
+          ? "等待管理员或指导老师验收"
           : task.status === "accepted"
             ? "任务已验收完成"
             : "由负责人推进任务"}
@@ -637,10 +637,10 @@ export function TaskCard({
       {task.status === "rejected" && (
         <div className="rounded-xl border border-red-200/70 bg-red-50/50 p-2.5 text-xs text-red-900 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300">
           <span className="font-semibold block mb-0.5">
-            ⚠️ 教师打回修改意见：
+            修改意见：
           </span>
           <p className="text-[11px] leading-relaxed">
-            {task.rejectReason || "请与指导教师沟通后修改重交"}
+            {task.rejectReason || "请联系验收人确认修改要求"}
           </p>
         </div>
       )}

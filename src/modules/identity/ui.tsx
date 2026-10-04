@@ -151,7 +151,7 @@ export function CreateTeamForm() {
           placeholder={SPACE_KINDS.find((item) => item.id === kind)?.example}
         />
         <p className="text-xs text-muted-foreground">
-          创建者成为管理员，下一步将沿用所选场景建立项目。
+          创建者拥有管理员职务，可继续创建项目并邀请成员。
         </p>
       </div>
       <div className="flex items-center gap-2 rounded-lg bg-muted p-3 text-xs text-muted-foreground">
@@ -196,7 +196,7 @@ export function JoinTeamForm() {
           autoComplete="off"
         />
         <p className="text-xs text-muted-foreground">
-          加入后默认是学生；指导教师可请管理员在成员页调整角色。
+          加入后拥有队员职务；管理员可在成员页设置指导老师、队长等职务。
         </p>
       </div>
       <Feedback state={state} />
@@ -213,16 +213,16 @@ export function TeamEntryActions({ large = false }: { large?: boolean }) {
     <div className={`grid gap-3 ${large ? "sm:grid-cols-2" : "sm:flex"}`}>
       <FormDialog
         title="创建团队空间"
-        description="先聚集成员，再围绕项目协作。"
+        description="设置团队名称与默认项目类型。"
         trigger={
           large ? (
             <button className="rounded-2xl border border-brand/30 bg-brand-soft p-6 text-left transition hover:shadow-sm">
               <Plus className="mb-4 h-7 w-7 text-brand" />
               <span className="block text-lg font-semibold">
-                我是团队发起人
+                创建团队
               </span>
               <span className="mt-2 block text-sm text-muted-foreground">
-                创建空间，邀请成员，开启第一个项目
+                设置团队名称，邀请成员并创建项目
               </span>
             </button>
           ) : (
@@ -237,12 +237,12 @@ export function TeamEntryActions({ large = false }: { large?: boolean }) {
       </FormDialog>
       <FormDialog
         title="加入已有团队"
-        description="使用邀请码，进入同学和老师的协作空间。"
+        description="填写团队邀请码。加入后由管理员设置职务。"
         trigger={
           large ? (
             <button className="rounded-2xl border border-border bg-card p-6 text-left transition hover:border-brand/40 hover:shadow-sm">
               <LogIn className="mb-4 h-7 w-7 text-brand" />
-              <span className="block text-lg font-semibold">我已收到邀请</span>
+              <span className="block text-lg font-semibold">加入团队</span>
               <span className="mt-2 block text-sm text-muted-foreground">
                 粘贴邀请码，直接参与团队项目
               </span>
@@ -387,7 +387,7 @@ export function ProjectForm({
         </div>
       </div>
       <p className="rounded-lg bg-muted p-3 text-xs text-muted-foreground">
-        创建后进入五态看板。指导老师负责验收，实验室和竞赛队长可协调指派。
+        创建后进入任务看板。管理员或指导老师可验收；实验室和竞赛队长可指派任务。
       </p>
       <Feedback state={state} />
       <Button disabled={pending} className="w-full">
@@ -409,8 +409,8 @@ export function CreateProjectButton({
 }) {
   return (
     <FormDialog
-      title="开启一个新项目"
-      description="选择场景，让团队目标和任务有一个共同的归属。"
+      title="新建项目"
+      description="设置项目名称、类型和计划日期。"
       trigger={
         <Button>
           <Plus className="h-4 w-4" />

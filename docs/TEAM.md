@@ -230,3 +230,11 @@ review 的 `getWorkbench` 用成员关联查询进行访问隔离，按项目能
 `projectCompletion` 的 `{ done, total, ratio }` 为已验收顶层任务数/顶层总数，单次聚合查询；`completionRatio` 在有子任务时为已验收子任务数/直接子任务总数，两者在 UI 明确标识。工时仅执行职务且当前负责人可记；`tasks/ui.WorklogForm` 接收 `{ taskId, projectId, defaultDate }`，默认日期由服务端的 `todayISO` 提供。公开 `worklog/views` 提供 `StatsView`。
 
 notify 公开 `notify/views` 的 `NotificationsView` 和 `notify/ui` 的 `MarkReadButton`，收件箱按 actorId 隔离，展示最近 100 条，可筛选未读并进入对应任务。标记他人消息返回 NotFoundError，不暴露消息存在性。
+
+## 6. 工作台与产品文案迭代 · 2026-10-04
+
+本轮范围及 Owner：foundation（identity、共享导航），A（任务流程入口文案），B（看板文案），C（工作台筛选与排序），E（系统通知）。沿用集成分支，不调整 core、登录、数据结构或依赖。
+
+公开 `review/client` 为浏览器安全的纯函数入口，导出 `WorkbenchQuery`、`WorkbenchSearchParams`、`parseWorkbenchQuery(params)`、`workbenchUrl(query, changes?)` 与 `selectWorkbenchItems(items, query, today)`，仅使用 Zod 和纯日期函数，不引入 DB/session/service。工作台 `view/q/projectId/due` 保存在 URL，分类切换保留筛选；`soon` 为今天至第六天，逾期不含今天。任务按逾期、优先级、截止日期、sortOrder、createdAt、id 排序，筛选和排序不修改输入，不扩大 `getWorkbench` 的权限范围。
+
+系统指派/验收通知使用客观状态说明。旧版这两类通知的固定文案在 DTO 展示时兼容转换，历史数据和成员填写的成果说明、修改意见不变。

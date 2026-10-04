@@ -16,12 +16,9 @@ export async function NotificationsView({
     <div className="mx-auto max-w-4xl space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold tracking-widest text-brand">
-            INBOX / 消息中心
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold">协作动态</h1>
+          <h1 className="text-3xl font-semibold">消息中心</h1>
           <p className="mt-3 text-sm text-muted-foreground">
-            任务指派、交付和验收结果，及时找到对应事项。
+            查看任务分配、提交和验收通知。
           </p>
         </div>
         <Link
@@ -54,10 +51,10 @@ export async function NotificationsView({
           <div className="py-16 text-center">
             <Bell className="mx-auto mb-4 h-9 w-9 text-brand/40" />
             <h2 className="font-medium">
-              {unreadOnly ? "未读消息已处理完毕" : "暂时没有协作消息"}
+              {unreadOnly ? "暂无未读消息" : "暂无消息"}
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              有新的任务与验收动态时，会显示在这里。
+              新的任务分配和验收通知将显示在此处。
             </p>
           </div>
         ) : (

@@ -3,6 +3,9 @@ import { listMyNotifications, markRead } from "@/modules/notify";
 import { createTask, transitionTask } from "@/modules/tasks";
 import { NotFoundError } from "@/modules/core";
 import { makeFixture, resetDb } from "../../helpers";
+import { db } from "@/db";
+import { notifications } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 describe("协作消息中心", () => {
   let fx: Awaited<ReturnType<typeof makeFixture>>;
@@ -25,6 +28,7 @@ describe("协作消息中心", () => {
     const messages = await listMyNotifications(fx.student.id);
     expect(messages[0].link).toBe(`/p/${fx.project.id}/tasks/${task.id}`);
     expect(messages[0].readAt).toBeNull();
+    expect(messages[0].body).toBe("任务已分配给你。");
   });
   it("消息仅对收件人可见", async () => {
     await assigned();
@@ -65,5 +69,27 @@ describe("协作消息中心", () => {
         (n) => n.type === "task_rejected" && n.body?.includes("补充实验结论"),
       ),
     ).toBe(true);
+  });
+  it("验收成功通知使用状态说明", async () => {
+    const task = await assigned();
+    await transitionTask(fx.student.id, task.id, "submit", { note: "完成分析" });
+    await transitionTask(fx.teacher.id, task.id, "accept");
+    expect((await listMyNotifications(fx.student.id)).find((item) => item.type === "task_accepted")?.body).toBe("任务已验收通过。");
+  });
+  it("旧版系统通知更新展示文案但不改历史数据", async () => {
+    const [note] = await db.insert(notifications).values({
+      userId: fx.student.id,
+      type: "task_accepted",
+      title: "已通过：历史任务",
+      body: "验收通过，干得漂亮",
+    }).returning();
+    expect((await listMyNotifications(fx.student.id))[0].body).toBe("任务已验收通过。");
+    const [stored] = await db.select().from(notifications).where(eq(notifications.id, note.id));
+    expect(stored.body).toBe("验收通过，干得漂亮");
+  });
+  it("成员填写的成果说明不因匹配旧文案而被替换", async () => {
+    const task = await assigned();
+    await transitionTask(fx.student.id, task.id, "submit", { note: "验收通过，干得漂亮" });
+    expect((await listMyNotifications(fx.teacher.id)).find((item) => item.type === "task_submitted")?.body).toBe("验收通过，干得漂亮");
   });
 });

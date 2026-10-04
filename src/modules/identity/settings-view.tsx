@@ -30,14 +30,11 @@ export async function SettingsView({
   return (
     <div className="mx-auto max-w-5xl space-y-7">
       <header>
-        <p className="mb-2 text-xs font-semibold tracking-widest text-brand">
-          ACCOUNT / 个人中心
-        </p>
         <h1 className="text-3xl font-semibold tracking-tight">
-          把自己介绍给团队
+          个人中心
         </h1>
         <p className="mt-3 text-sm text-muted-foreground">
-          维护个人资料、学术身份与协作账号，在不同项目中保持一致。
+          管理头像、个人资料、学术身份和飞书账号绑定。
         </p>
       </header>
       <div className="grid items-start gap-6 lg:grid-cols-[180px_1fr]">

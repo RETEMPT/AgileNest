@@ -76,7 +76,7 @@ export async function ProjectOverviewView({
             )}
           </div>
           <p className="mt-3 max-w-2xl whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">
-            {p.description || "从一个清晰的目标开始，创建任务并安排团队分工。"}
+            {p.description || "未填写项目说明"}
           </p>
         </div>
         <Button asChild>
@@ -201,11 +201,11 @@ export async function ProjectOverviewView({
           ) : (
             <div className="p-8 text-center">
               <CheckCircle2 className="mx-auto mb-3 h-7 w-7 text-brand/50" />
-              <p className="text-sm font-medium">当前没有逾期或待修改事项</p>
+              <p className="text-sm font-medium">暂无待关注事项</p>
               <p className="mt-2 text-xs text-muted-foreground">
                 {tasks.length
-                  ? "保持节奏，按计划推进下一项交付。"
-                  : "先到任务池创建第一个任务，再安排分工。"}
+                  ? "当前没有逾期或待修改任务。"
+                  : "项目还没有任务，可到任务池创建。"}
               </p>
             </div>
           )}

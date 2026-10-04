@@ -48,7 +48,7 @@ function CollaborationPath({ current }: { current: number }) {
   const steps = ["团队空间", "成员与分工", "项目与课题", "任务看板"];
   return (
     <nav
-      aria-label="协作上手路径"
+      aria-label="团队协作流程"
       className="grid grid-cols-2 gap-2 sm:grid-cols-4"
     >
       {steps.map((step, index) => (
@@ -79,23 +79,20 @@ export async function TeamSpacesView() {
     <main className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="mb-1 text-xs font-medium tracking-wider text-brand">
-            协作从这里开始
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight">团队与空间</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">团队空间</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            把成员聚在一起，让课程、课题和竞赛有序推进。
+            管理团队成员、项目与课题。
           </p>
         </div>
         {teams.length > 0 && <TeamEntryActions />}
       </header>
-      <CollaborationPath current={0} />
+      {teams.length === 0 && <CollaborationPath current={0} />}
       {teams.length === 0 ? (
         <section className="space-y-5 rounded-2xl border border-border bg-card p-5 sm:p-8">
           <div>
-            <h2 className="text-xl font-semibold">选择你的起点</h2>
+            <h2 className="text-xl font-semibold">暂无团队</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              发起新的协作，或加入已有团队。创建后会引导你建立第一个项目。
+              创建团队，或使用邀请码加入已有团队。
             </p>
           </div>
           <TeamEntryActions large />
@@ -104,7 +101,7 @@ export async function TeamSpacesView() {
         <>
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold">
-              我的空间{" "}
+              我的团队{" "}
               <span className="ml-2 text-muted-foreground">{teams.length}</span>
             </h2>
             <span className="text-xs text-muted-foreground">
@@ -138,9 +135,6 @@ export async function TeamSpacesView() {
                       {team.name}
                     </Link>
                   </CardTitle>
-                  <CardDescription>
-                    一个空间，连接团队成员与共同目标
-                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 rounded-lg bg-muted/60 p-3">
@@ -169,7 +163,7 @@ export async function TeamSpacesView() {
                     </Link>
                     <Button asChild size="sm">
                       <Link href={`/t/${team.id}/projects`}>
-                        进入空间
+                        查看项目
                         <ArrowRight className="h-3 w-3" />
                       </Link>
                     </Button>
@@ -232,7 +226,7 @@ export async function TeamProjectsView({
           href="/t"
           className="text-xs text-muted-foreground hover:text-brand"
         >
-          团队与空间 /
+          团队空间 /
         </Link>
         <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -240,8 +234,7 @@ export async function TeamProjectsView({
               {team.name}
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              {members.length} 位成员 · {projects.length} 个项目 ·
-              从共同目标进入任务协作
+              {members.length} 位成员 · {projects.length} 个项目
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -262,7 +255,7 @@ export async function TeamProjectsView({
           </div>
         </div>
       </header>
-      <CollaborationPath current={2} />
+      {projects.length === 0 && <CollaborationPath current={2} />}
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
         <div>
           <h2 className="text-sm font-semibold">邀请团队成员</h2>
@@ -296,8 +289,8 @@ export async function TeamProjectsView({
           <FolderKanban className="mx-auto mb-4 h-10 w-10 text-brand" />
           <h2 className="text-lg font-semibold">
             {projects.length === 0
-              ? "让团队的第一个目标落地"
-              : "这个分类还没有项目"}
+              ? "暂无项目"
+              : "此分类暂无项目"}
           </h2>
           <p className="mb-5 mt-2 text-sm text-muted-foreground">
             {canCreate
@@ -353,8 +346,7 @@ export async function TeamProjectsView({
                     </Link>
                   </CardTitle>
                   <CardDescription className="line-clamp-2">
-                    {project.description ||
-                      "进入看板，拆分目标并明确每个人的下一步。"}
+                    {project.description || "未填写项目说明"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">

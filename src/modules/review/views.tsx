@@ -5,28 +5,37 @@ import {
   Inbox,
   ListTodo,
   UsersRound,
+  Search,
+  SlidersHorizontal,
 } from "lucide-react";
 import { requireUser, isOverdue, todayISO } from "@/modules/core";
-import { getAccountProfile, listMyProjects } from "@/modules/identity";
+import { listMyProjects } from "@/modules/identity";
 import { TaskActions } from "@/modules/tasks/ui";
 import { StatusPill, PriorityPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input, Label, Select } from "@/components/ui/input";
 import { getWorkbench } from "./service";
+import {
+  parseWorkbenchQuery,
+  selectWorkbenchItems,
+  workbenchUrl,
+  type WorkbenchSearchParams,
+} from "./client";
 
 export async function WorkbenchView({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<WorkbenchSearchParams>;
 }) {
   const user = await requireUser();
-  const [work, profile, projects, query] = await Promise.all([
+  const [work, projects, params] = await Promise.all([
     getWorkbench(user.id),
-    getAccountProfile(user.id),
     listMyProjects(user.id),
     searchParams,
   ]);
-  const view =
-    query.view === "review" || query.view === "pool" ? query.view : "mine";
+  const query = parseWorkbenchQuery(params);
+  const { view } = query;
+  const today = todayISO();
   const tabs = [
     { key: "mine", title: "我负责的", count: work.mine.length, icon: ListTodo },
     {
@@ -36,23 +45,18 @@ export async function WorkbenchView({
       icon: CheckCheck,
     },
     { key: "pool", title: "可以认领", count: work.pool.length, icon: Inbox },
-  ];
-  const items = work[view];
-  const overdue = work.mine.filter((task) =>
-    isOverdue(task.dueDate, todayISO()),
-  ).length;
+  ] as const;
+  const items = selectWorkbenchItems(work[view], query, today);
+  const filtered = Boolean(query.q || query.projectId || query.due !== "all");
+  const resetUrl = workbenchUrl(query, { q: "", projectId: "", due: "all" });
+  const overdue = work.mine.filter((task) => isOverdue(task.dueDate, today)).length;
   return (
     <div className="space-y-7">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold tracking-widest text-brand">
-            WORKSPACE / 工作台
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-            {profile.name}，从这里开始
-          </h1>
+          <h1 className="text-3xl font-semibold tracking-tight">工作台</h1>
           <p className="mt-3 text-sm text-muted-foreground">
-            自己的任务、团队的交付，在一个地方接着推进。
+            跨项目查看负责、待验收和可认领的任务。
           </p>
         </div>
         <Button asChild variant="outline">
@@ -62,74 +66,139 @@ export async function WorkbenchView({
           </Link>
         </Button>
       </header>
-      <div className="grid gap-0 overflow-hidden rounded-2xl border border-border bg-card sm:grid-cols-3">
+      <nav aria-label="工作台任务分类" className="grid grid-cols-3 gap-2 sm:gap-3">
         {tabs.map(({ key, title, count, icon: Icon }) => (
           <Link
             key={key}
-            href={`/home?view=${key}`}
-            className="group flex items-center justify-between border-b border-border p-5 transition hover:bg-brand-soft sm:border-b-0 sm:border-r last:border-0"
+            href={workbenchUrl(query, { view: key })}
+            aria-current={view === key ? "page" : undefined}
+            className={`group rounded-xl border p-3 transition sm:p-4 ${view === key ? "border-brand/40 bg-brand-soft ring-1 ring-brand/10" : "border-border bg-card hover:border-brand/30"}`}
           >
             <div>
-              <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Icon className="h-4 w-4 text-brand" />
+              <p
+                className={`flex items-center gap-1.5 text-xs font-medium sm:text-sm ${view === key ? "text-brand" : "text-muted-foreground"}`}
+              >
+                <Icon className="hidden h-4 w-4 sm:block" />
                 {title}
               </p>
-              <p className="mt-3 text-3xl font-semibold tabular-nums">
+              <p className="mt-2 text-2xl font-semibold tabular-nums">
                 {count}
                 <span className="ml-2 text-xs font-normal text-muted-foreground">
                   项
                 </span>
               </p>
             </div>
-            <ArrowUpRight className="h-5 w-5 text-muted-foreground group-hover:text-brand" />
           </Link>
         ))}
-      </div>
+      </nav>
       {overdue > 0 && (
-        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          你有 {overdue} 项任务已过截止日期，请优先更新进展或协调排期。
-        </p>
+        <Link
+          href={workbenchUrl(query, { view: "mine", due: "overdue", q: "", projectId: "" })}
+          className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 hover:bg-amber-100"
+        >
+          <span>我负责的任务中有 {overdue} 项已逾期</span>
+          <span className="shrink-0 text-xs font-medium">查看任务 →</span>
+        </Link>
       )}
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_260px]">
         <section className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card">
-          <nav
-            aria-label="工作台任务分类"
-            className="flex overflow-x-auto border-b border-border px-3"
+          <form
+            action="/home"
+            method="get"
+            aria-label="筛选工作台任务"
+            className="grid gap-3 border-b border-border bg-muted/20 p-4 sm:grid-cols-2 sm:p-5"
           >
-            {tabs.map((tab) => (
-              <Link
-                key={tab.key}
-                href={`/home?view=${tab.key}`}
-                aria-current={view === tab.key ? "page" : undefined}
-                className={`whitespace-nowrap border-b-2 px-4 py-4 text-sm font-medium ${view === tab.key ? "border-brand text-brand" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            <input type="hidden" name="view" value={view} />
+            <div className="sm:col-span-2">
+              <Label htmlFor="workbench-q" className="sr-only">
+                搜索任务
+              </Label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  key={query.q}
+                  id="workbench-q"
+                  name="q"
+                  defaultValue={query.q}
+                  maxLength={200}
+                  placeholder="搜索任务名称、描述或项目"
+                  className="pl-9"
+                />
+              </div>
+            </div>
+            <div className="min-w-0 space-y-2">
+              <Label htmlFor="workbench-project">项目</Label>
+              <Select
+                key={query.projectId}
+                id="workbench-project"
+                name="projectId"
+                defaultValue={query.projectId}
               >
-                {tab.title}
-                <span className="ml-2 rounded-md bg-muted px-1.5 py-0.5 text-xs tabular-nums">
-                  {tab.count}
-                </span>
-              </Link>
-            ))}
-          </nav>
+                <option value="">全部项目</option>
+                {query.projectId &&
+                  !projects.some((project) => project.id === query.projectId && project.status !== "archived") && (
+                    <option value={query.projectId}>所选项目已归档或不可访问</option>
+                  )}
+                {projects.filter((project) => project.status !== "archived").map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name} · {project.teamName}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="workbench-due">截止日期</Label>
+              <Select
+                key={query.due}
+                id="workbench-due"
+                name="due"
+                defaultValue={query.due}
+              >
+                <option value="all">全部日期</option>
+                <option value="overdue">已逾期</option>
+                <option value="soon">7 天内到期（含今天）</option>
+              </Select>
+            </div>
+            <div className="flex items-center gap-3 sm:col-span-2">
+              <Button type="submit" variant="outline" size="sm">
+                <SlidersHorizontal className="h-3.5 w-3.5" />筛选
+              </Button>
+              {filtered && (
+                <Link href={resetUrl} className="text-xs text-muted-foreground hover:text-brand">
+                  清除筛选
+                </Link>
+              )}
+            </div>
+          </form>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3 sm:px-5">
+            <h2 className="text-sm font-semibold">
+              {tabs.find((tab) => tab.key === view)?.title}
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                {items.length} 项{filtered ? ` / 共 ${work[view].length} 项` : ""}
+              </span>
+            </h2>
+            <p className="text-xs text-muted-foreground">逾期优先 · 优先级 · 截止日期</p>
+          </div>
           {items.length === 0 ? (
             <div className="px-6 py-16 text-center">
               <Inbox className="mx-auto mb-4 h-9 w-9 text-brand/40" />
               <h2 className="font-medium">
-                {view === "mine"
-                  ? "还没有待办任务"
+                {filtered ? "没有符合筛选条件的任务" : view === "mine"
+                  ? "暂无负责的任务"
                   : view === "review"
-                    ? "暂无需要你验收的成果"
-                    : "任务池暂时没有可认领任务"}
+                    ? "暂无待验收任务"
+                    : "暂无可认领任务"}
               </h2>
               <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
-                {view === "mine"
-                  ? "到任务池认领一项工作，或请队长安排分工。"
+                {filtered ? "调整关键词、项目或截止日期后重试。" : view === "mine"
+                  ? "可到任务池认领，或由有指派权限的成员分配任务。"
                   : view === "review"
-                    ? "你在某个项目拥有管理员或指导老师职务时，待验收成果会出现在这里。"
-                    : "进入团队项目创建任务，一起明确下一步目标。"}
+                    ? "仅显示当前职务允许验收的项目任务。"
+                    : "可进入团队项目查看或创建任务。"}
               </p>
               <Button asChild variant="outline" size="sm" className="mt-5">
-                <Link href={view === "mine" ? "/home?view=pool" : "/t"}>
-                  {view === "mine" ? "查看可认领任务" : "进入团队空间"}
+                <Link href={filtered ? resetUrl : view === "mine" ? "/home?view=pool" : "/t"}>
+                  {filtered ? "清除筛选" : view === "mine" ? "查看可认领任务" : "进入团队空间"}
                 </Link>
               </Button>
             </div>
@@ -170,7 +239,7 @@ export async function WorkbenchView({
                     <div className="flex items-center gap-2">
                       <PriorityPill priority={task.priority} />
                       <span
-                        className={`text-xs ${isOverdue(task.dueDate, todayISO()) ? "text-destructive" : "text-muted-foreground"}`}
+                        className={`text-xs ${isOverdue(task.dueDate, today) ? "text-destructive" : "text-muted-foreground"}`}
                       >
                         {task.dueDate ? `截止 ${task.dueDate}` : "未设截止日期"}
                       </span>
@@ -215,7 +284,7 @@ export async function WorkbenchView({
               ))}
               {projects.length === 0 && (
                 <p className="p-4 text-sm text-muted-foreground">
-                  加入或创建团队后，从项目开始协作。
+                  暂无项目，可在团队空间创建或加入团队。
                 </p>
               )}
             </div>

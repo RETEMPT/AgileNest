@@ -286,7 +286,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
           </h1>
           <p className="mt-2 text-xs text-muted-foreground">
             {view === "board"
-              ? "拖动卡片推进状态，点击标题查看详情与下一步。"
+              ? "按状态查看任务，拖动卡片可调整状态。"
               : "集中查看负责人、状态与排期，点击任务查看操作。"}
           </p>
         </div>
@@ -319,7 +319,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
       </div>
       <details className="rounded-xl border border-border bg-card p-3">
         <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
-          查看五态流转路径与角色分工
+          查看任务流程与权限
         </summary>
         <div className="mt-3">
           <TaskWorkflow />
@@ -507,11 +507,11 @@ export function ProjectWorkspace(props: WorkspaceProps) {
       {tasks.length === 0 ? (
         <section className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
           <LayoutGrid className="mx-auto mb-3 h-8 w-8 text-brand" />
-          <h2 className="text-lg font-semibold">从第一个任务开始</h2>
+          <h2 className="text-lg font-semibold">暂无任务</h2>
           <p className="mb-5 mt-2 text-sm text-muted-foreground">
-            将项目目标拆成可交付的小任务，成员认领后就能开始协作。
+            创建任务并设置负责人、优先级和截止日期。
           </p>
-          <Button onClick={() => setCreateOpen(true)}>创建第一个任务</Button>
+          <Button onClick={() => setCreateOpen(true)}>新建任务</Button>
         </section>
       ) : (
         <>
@@ -708,7 +708,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
                   </p>
                 )}
                 <section className="mt-5 space-y-3">
-                  <h2 className="text-sm font-semibold">下一步操作</h2>
+                  <h2 className="text-sm font-semibold">任务操作</h2>
                   <TaskActions
                     key={`${openedTask.id}-${openedTask.status}-${openedTask.assigneeId}`}
                     task={openedTask}
@@ -748,7 +748,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
               创建项目任务
             </Dialog.Title>
             <Dialog.Description className="mb-4 text-xs text-muted-foreground">
-              先创建到待认领任务池，再由成员认领或教师指派。
+              任务创建后进入任务池，可由成员认领或按权限指派。
             </Dialog.Description>
             <Dialog.Close asChild>
               <Button
