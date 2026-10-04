@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireUser, AppError, getProjectForUser } from "@/modules/core";
 import {
   createTask,
+  createSubtask,
   deleteTask,
   transitionTask,
   updateTask,
@@ -55,6 +56,64 @@ export async function createTaskAction(
   revalidatePath("/home", "layout");
   revalidatePath("/t");
   return { error: "", ok: "已创建" };
+}
+
+const updateSchema = z.object({
+  taskId: z.uuid("任务无效"),
+  title: z.string().trim().min(1, "请填写标题").max(200, "标题最多 200 字"),
+  description: z.string().optional(),
+  priority: z.enum(["low", "medium", "high"]).optional(),
+});
+
+export async function updateTaskAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const user = await requireUser();
+  const parsed = updateSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  try {
+    const updated = await updateTask(user.id, parsed.data.taskId, {
+      title: parsed.data.title,
+      description: parsed.data.description ?? null,
+      priority: parsed.data.priority,
+    });
+    revalidatePath(`/p/${updated.projectId}/tasks/${parsed.data.taskId}`);
+    revalidatePath(`/p/${updated.projectId}/tasks`);
+    revalidatePath(`/p/${updated.projectId}/board`);
+  } catch (e) {
+    return fail(e);
+  }
+  revalidatePath("/home");
+  return { error: "", ok: "已保存" };
+}
+
+const subtaskSchema = z.object({
+  parentTaskId: z.uuid("父任务无效"),
+  title: z.string().trim().min(1, "请填写标题").max(200, "标题最多 200 字"),
+  description: z.string().optional(),
+  dueDate: z.string().optional(),
+});
+
+export async function createSubtaskAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const user = await requireUser();
+  const parsed = subtaskSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  try {
+    const sub = await createSubtask(user.id, parsed.data.parentTaskId, {
+      title: parsed.data.title,
+      description: parsed.data.description || undefined,
+      dueDate: parsed.data.dueDate || undefined,
+    });
+    revalidatePath(`/p/${sub.projectId}/tasks/${parsed.data.parentTaskId}`);
+    revalidatePath(`/p/${sub.projectId}/tasks`);
+  } catch (e) {
+    return fail(e);
+  }
+  return { error: "", ok: "已创建子任务" };
 }
 
 const transitionSchema = z.object({
