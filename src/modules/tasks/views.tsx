@@ -10,6 +10,8 @@ import { StatusPill, PriorityPill } from "@/components/ui/badge";
 import {
   DeleteTaskButton,
   DueDateForm,
+  EditTaskForm,
+  SubtaskForm,
   TaskActions,
   WorklogForm,
   TaskWorkflow,
@@ -108,27 +110,40 @@ export async function TaskDetailView({
         )}
       </section>
 
-      {task.subtasks.length > 0 && (
+      {task.permissions?.actions.includes("update") && (
+        <section className="space-y-2">
+          <EditTaskForm task={task} />
+        </section>
+      )}
+
+      {(task.subtasks.length > 0 ||
+        (task.permissions?.actions.includes("create") &&
+          !task.parentTaskId)) && (
         <section className="space-y-2">
           <h2 className="font-display text-sm font-semibold">
-            子任务（{task.subtasks.length}）
+            子任务{task.subtasks.length > 0 ? `（${task.subtasks.length}）` : ""}
           </h2>
-          <ul className="divide-y divide-border rounded-xl border border-border bg-card">
-            {task.subtasks.map((s) => (
-              <li
-                key={s.id}
-                className="flex items-center justify-between px-3 py-2 text-sm"
-              >
-                <Link
-                  href={`/p/${projectId}/tasks/${s.id}`}
-                  className="hover:underline"
+          {task.permissions?.actions.includes("create") && !task.parentTaskId && (
+            <SubtaskForm parentTaskId={task.id} />
+          )}
+          {task.subtasks.length > 0 && (
+            <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+              {task.subtasks.map((s) => (
+                <li
+                  key={s.id}
+                  className="flex items-center justify-between px-3 py-2 text-sm"
                 >
-                  {s.title}
-                </Link>
-                <StatusPill status={s.status} />
-              </li>
-            ))}
-          </ul>
+                  <Link
+                    href={`/p/${projectId}/tasks/${s.id}`}
+                    className="hover:underline"
+                  >
+                    {s.title}
+                  </Link>
+                  <StatusPill status={s.status} />
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 
