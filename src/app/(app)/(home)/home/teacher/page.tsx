@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireUser } from "@/modules/core/session";
-import { listMyProjects } from "@/modules/identity";
+import { listMyProjects, listMyTeams } from "@/modules/identity";
 import {
   listOverdueRisks,
   listPendingReview,
@@ -12,10 +13,21 @@ import { TelemetryCard } from "@/components/cards/telemetry-card";
 
 export default async function TeacherHome() {
   const user = await requireUser();
-  const projects = await listMyProjects(user.id);
+  const [projects, teams] = await Promise.all([
+    listMyProjects(user.id),
+    listMyTeams(user.id),
+  ]);
+  const staffTeamIds = new Set(
+    teams
+      .filter((t) => t.role === "admin" || t.role === "teacher")
+      .map((t) => t.id),
+  );
+  if (staffTeamIds.size === 0) redirect("/home/student");
+  // 只监督自己具备评审权限的项目，避免对仅队员身份的项目调用 requireReviewer 抛 500。
+  const supervised = projects.filter((p) => staffTeamIds.has(p.teamId));
 
   const results = await Promise.all(
-    projects.map(async (p) => {
+    supervised.map(async (p) => {
       const [rev, od] = await Promise.all([
         listPendingReview(user.id, p.id),
         listOverdueRisks(user.id, p.id),
@@ -75,7 +87,7 @@ export default async function TeacherHome() {
         />
         <TelemetryCard
           title="监管项目总数"
-          value={projects.length}
+          value={supervised.length}
           unit="个"
           subtitle="所指导或管理的课程设计组"
           badge="全部在轨"
@@ -84,10 +96,10 @@ export default async function TeacherHome() {
       </div>
 
       {/* 快速直达项目 */}
-      {projects.length > 0 && (
+      {supervised.length > 0 && (
         <section className="flex flex-wrap items-center gap-2 text-xs">
           <span className="font-medium text-muted-foreground mr-1">监管项目直达:</span>
-          {projects.map((p) => (
+          {supervised.map((p) => (
             <Link
               key={p.id}
               href={`/p/${p.id}/review`}

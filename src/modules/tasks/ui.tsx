@@ -9,10 +9,12 @@ import { Input } from "@/components/ui/input";
 import {
   addWorklogAction,
   createMilestoneAction,
+  createSubtaskAction,
   createTaskAction,
   deleteTaskAction,
   setDueDateAction,
   transitionAction,
+  updateTaskAction,
   loadTaskAssigneesAction,
   loadTaskPermissionsAction,
   type FormState,
@@ -137,6 +139,165 @@ export function CreateTaskForm({
       </div>
       <ErrorLine state={state} />
       {state?.ok && <p className="text-xs text-emerald-600">{state.ok}</p>}
+    </form>
+  );
+}
+
+export function EditTaskForm({
+  task,
+  onSaved,
+}: {
+  task: TaskDTO;
+  onSaved?: () => void;
+}) {
+  const id = useId();
+  const [fields, setFields] = useState<{
+    title: string;
+    description: string;
+    priority: string;
+  }>({
+    title: task.title,
+    description: task.description ?? "",
+    priority: task.priority,
+  });
+  const [state, formAction, pending] = useActionState<FormState, FormData>(
+    async (prev, data) => {
+      const result = await updateTaskAction(prev, data);
+      if (result?.ok) onSaved?.();
+      return result;
+    },
+    null,
+  );
+  return (
+    <form
+      action={formAction}
+      onReset={(event) => event.preventDefault()}
+      className="space-y-3 rounded-xl border border-border bg-card p-4"
+    >
+      <div className="flex items-center justify-between">
+        <h2 className="font-display text-sm font-semibold">编辑任务</h2>
+        {state?.ok && <span className="text-xs text-emerald-600">{state.ok}</span>}
+      </div>
+      <input type="hidden" name="taskId" value={task.id} />
+      <label htmlFor={`${id}-title`} className="block text-xs font-medium">
+        任务标题
+      </label>
+      <Input
+        id={`${id}-title`}
+        name="title"
+        value={fields.title}
+        onChange={(event) =>
+          setFields({ ...fields, title: event.target.value })
+        }
+        maxLength={200}
+        placeholder="任务标题"
+        required
+        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+      />
+      <textarea
+        aria-label="任务描述"
+        name="description"
+        value={fields.description}
+        onChange={(event) =>
+          setFields({ ...fields, description: event.target.value })
+        }
+        placeholder="描述（可选）"
+        rows={3}
+        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          aria-label="任务优先级"
+          name="priority"
+          value={fields.priority}
+          onChange={(event) =>
+            setFields({ ...fields, priority: event.target.value })
+          }
+          className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+        >
+          <option value="low">低优先</option>
+          <option value="medium">中优先</option>
+          <option value="high">高优先</option>
+        </select>
+        <button disabled={pending} className={btnPrimary}>
+          {pending ? "保存中…" : "保存修改"}
+        </button>
+      </div>
+      <ErrorLine state={state} />
+    </form>
+  );
+}
+
+export function SubtaskForm({
+  parentTaskId,
+  onCreated,
+}: {
+  parentTaskId: string;
+  onCreated?: () => void;
+}) {
+  const id = useId();
+  const [fields, setFields] = useState({
+    title: "",
+    description: "",
+    dueDate: "",
+  });
+  const [state, formAction, pending] = useActionState<FormState, FormData>(
+    async (prev, data) => {
+      const result = await createSubtaskAction(prev, data);
+      if (result?.ok) {
+        setFields({ title: "", description: "", dueDate: "" });
+        onCreated?.();
+      }
+      return result;
+    },
+    null,
+  );
+  return (
+    <form
+      action={formAction}
+      onReset={(event) => event.preventDefault()}
+      className="space-y-2 rounded-xl border border-dashed border-border bg-card p-3"
+    >
+      <input type="hidden" name="parentTaskId" value={parentTaskId} />
+      <Input
+        id={`${id}-title`}
+        name="title"
+        value={fields.title}
+        onChange={(event) =>
+          setFields({ ...fields, title: event.target.value })
+        }
+        maxLength={200}
+        placeholder="子任务标题"
+        required
+        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+      />
+      <textarea
+        aria-label="子任务描述"
+        name="description"
+        value={fields.description}
+        onChange={(event) =>
+          setFields({ ...fields, description: event.target.value })
+        }
+        placeholder="描述（可选）"
+        rows={2}
+        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          aria-label="子任务截止日期"
+          type="date"
+          name="dueDate"
+          value={fields.dueDate}
+          onChange={(event) =>
+            setFields({ ...fields, dueDate: event.target.value })
+          }
+          className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+        />
+        <button disabled={pending} className={btnPrimary}>
+          {pending ? "创建中…" : "添加子任务"}
+        </button>
+      </div>
+      <ErrorLine state={state} />
     </form>
   );
 }
