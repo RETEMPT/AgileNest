@@ -43,3 +43,5 @@
 公共验证参考 [GitHub PostgreSQL 服务容器](https://docs.github.com/en/actions/tutorials/use-containerized-services/create-postgresql-service-containers)、官方 [checkout v7.0.1](https://github.com/actions/checkout/releases/tag/v7.0.1) 与 [setup-node v7.0.0](https://github.com/actions/setup-node/releases/tag/v7.0.0)。工作流固定已核对的提交 SHA，使用现有锁文件、Node 22、隔离测试库和 Windows 构建，凭据仅为临时测试值。
 
 页面验收中发现开发工具浮标遮挡折叠侧栏的退出按钮；依照 [Next devIndicators](https://nextjs.org/docs/app/api-reference/config/next-config-js/devIndicators) 及本仓已安装的配置类型关闭浮标，保留正常错误反馈。
+
+首次 CI 在 npm ci 阶段发现孤立的 Vitest/esbuild 平台锁项未标可选，Windows/Linux 均尝试安装 AIX 组件。按 [npm 锁文件格式](https://docs.npmjs.com/cli/v11/configuring-npm/package-lock-json/) 在隔离目录重新生成依赖图，移除无引用项、补全原有 Tailwind WASM 的包内置可选记录；核对保留条目的版本未变，未修改依赖声明。全新安装验证独立于开发目录已有 node_modules。
