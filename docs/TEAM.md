@@ -239,7 +239,7 @@ notify 公开 `notify/views` 的 `NotificationsView` 和 `notify/ui` 的 `MarkRe
 
 ## 公共基础与可选连接补充 · 2026-10-04
 
-用户确认本轮限于公共基础、个人中心和飞书轻量接入；Owner 为 foundation。范围为 identity、个人设置壳下旧组件移除、公共 Next 配置、契约测试、文档和 `.github/workflows/verify.yml`，不接管成员模块分支。沿用集成分支，不修改 core、锁定登录文件、数据库结构或依赖。
+用户确认本轮限于公共基础、个人中心和飞书轻量接入；Owner 为 foundation。范围为 identity、个人设置壳下旧组件移除、公共 Next 配置、契约测试、文档、锁文件元数据和 `.github/workflows/verify.yml`，不接管成员模块分支。沿用集成分支，不修改 core、锁定登录文件、数据库结构或业务依赖声明。
 
 `identity/client` 追加浏览器安全的 `FeishuConnection` 类型：`connected/configured/name/boundAt/bindingVersion/canDisconnect`。设置页面通过本人 service 取摘要，连接 UI 与 action 归 identity 内部，由公开 `identity/views.SettingsView` 组合；不从路由目录反向导入业务组件。配置状态只检查应用 ID、密钥及回调地址是否填写，不等同于飞书联调成功。
 
@@ -247,7 +247,7 @@ notify 公开 `notify/views` 的 `NotificationsView` 和 `notify/ui` 的 `MarkRe
 
 个人资料 action 成功返回已保存的姓名、简介和头像 URL，客户端以此更新还原基线、清空头像上传草稿；无修改时不重复提交。飞书姓名只填入本地表单草稿，沿用本人保存、姓名变更使旧身份确认失效的规则。飞书私信投递仍由 E 的后续独立实现负责，当前仅站内消息可用，参见 [FEISHU.md](FEISHU.md)。
 
-公共 CI 的首次全新安装暴露历史锁文件中的无引用 Vitest/esbuild 平台项。foundation 用 npm 重新计算锁文件，删除这些非可选孤立项并补全既有 Tailwind WASM 包内置的可选依赖记录，同步已更名的包名；`package.json` 依赖声明与保留的包版本、来源和完整性值保持不变。此为依赖图修复，不新增业务依赖。PR 触发检查全部分支，push 只检查 main/develop，避免同一 PR 推送重复运行。
+公共 CI 的首次全新安装暴露历史锁文件中 Vitest/esbuild 平台项缺少可选标记。foundation 用 Node 22 对应的 npm 10 重新计算锁文件，恢复 optional/dev/peer 标记并补全既有 Tailwind WASM 包内置的可选依赖记录，同步已更名的包名；`package.json` 依赖声明与保留的包版本、来源和完整性值保持不变。Windows npm 10/11 全新安装均验证，避免仅按本机 npm 11 生成而遗漏 npm 10 所需的可选 peer 图。此为依赖图修复，不新增业务依赖。PR 触发检查全部分支，push 只检查 main/develop，避免同一 PR 推送重复运行。
 
 公开 `review/client` 为浏览器安全的纯函数入口，导出 `WorkbenchQuery`、`WorkbenchSearchParams`、`parseWorkbenchQuery(params)`、`workbenchUrl(query, changes?)` 与 `selectWorkbenchItems(items, query, today)`，仅使用 Zod 和纯日期函数，不引入 DB/session/service。工作台 `view/q/projectId/due` 保存在 URL，分类切换保留筛选；`soon` 为今天至第六天，逾期不含今天。任务按逾期、优先级、截止日期、sortOrder、createdAt、id 排序，筛选和排序不修改输入，不扩大 `getWorkbench` 的权限范围。
 

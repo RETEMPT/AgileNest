@@ -44,4 +44,4 @@
 
 页面验收中发现开发工具浮标遮挡折叠侧栏的退出按钮；依照 [Next devIndicators](https://nextjs.org/docs/app/api-reference/config/next-config-js/devIndicators) 及本仓已安装的配置类型关闭浮标，保留正常错误反馈。
 
-首次 CI 在 npm ci 阶段发现孤立的 Vitest/esbuild 平台锁项未标可选，Windows/Linux 均尝试安装 AIX 组件。按 [npm 锁文件格式](https://docs.npmjs.com/cli/v11/configuring-npm/package-lock-json/) 在隔离目录重新生成依赖图，移除无引用项、补全原有 Tailwind WASM 的包内置可选记录；核对保留条目的版本未变，未修改依赖声明。全新安装验证独立于开发目录已有 node_modules。
+首次 CI 在 npm ci 阶段发现 Vitest/esbuild 平台锁项未标可选，Windows/Linux 均尝试安装 AIX 组件。按 [npm 锁文件格式](https://docs.npmjs.com/cli/v11/configuring-npm/package-lock-json/) 在隔离目录用 CI 对应的 npm 10 重新生成依赖图，恢复 optional/dev/peer 标记、补全原有 Tailwind WASM 的包内置可选记录；核对保留条目的版本未变，未修改依赖声明。npm 10 与 11 分别验证全新安装，独立于开发目录已有 node_modules。
