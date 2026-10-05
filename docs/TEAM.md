@@ -224,6 +224,7 @@ listMyNotifications(actorId, opts?) / markRead(actorId, id)
 - [ ] 契约测试 ≥ 6 条（happy + 越权 + 非法状态转移）
 - [ ] Windows：`npm test` + `npm run build` 绿
 - [ ] 未改不属于自己的目录
+- [ ] 本轮集成版本递增，包与锁文件版本、README、CHANGELOG、PR 和对应 tag 一致；候选/正式状态准确，正式版已合入主分支并验证
 
 Commit 用 Conventional Commits：`feat(tasks): 五态状态机` · `fix(board): 非法拖拽回滚` · `test(review): 越权矩阵`
 
@@ -270,3 +271,7 @@ notify 公开 `notify/views` 的 `NotificationsView` 和 `notify/ui` 的 `MarkRe
 正式测试仅扫描 `tests/**/*.test.ts`，避免 `.tools` 内的本地安装验证副本重复执行。新增草稿用例覆盖恢复、账号隔离、损坏数据保护、拒绝存储、写入失败/恢复、删除后的选择、容量/长度/索引约束与搜索；页面覆盖刷新水合、名称保留和取消操作。细节见 [AI.md](AI.md)。
 
 系统指派/验收通知使用客观状态说明。旧版这两类通知的固定文案在 DTO 展示时兼容转换，历史数据和成员填写的成果说明、修改意见不变。
+
+## 迭代版本管理 · 2026-10-05
+
+用户要求每轮迭代有递增版本号。foundation 在 `feature/core-patch/iteration-version` 仅调整包与锁文件的本项目版本元数据、README、更新日志、Agent/协作约束、工作流和 PR 模板；验证后快速合入 `codex/collaboration-completion`。当前候选版为 `0.3.0-rc.1`，不更改依赖、模块契约、数据库、core 或登录文件。版本统一由集成人维护，成员模块分支不独立抢占下一版本；候选版和正式版的规则见 [WORKFLOW.md](WORKFLOW.md#9-迭代版本与发布)。

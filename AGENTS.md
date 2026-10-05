@@ -82,6 +82,7 @@ npm run build     # Windows 上零改动通过
 - 改了 `index.ts` 导出 → 同步 [docs/TEAM.md](docs/TEAM.md) 对应契约节。
 - 只包含本模块相关文件；不顺手重构别人的目录。
 - 体验改动按 [docs/UX.md](docs/UX.md) 检查空状态、姓名指派、取消/失败、角色权限、键盘操作与窄屏；看板/表格切换保留 URL 筛选。
+- 每轮完成验收的集成迭代递增版本，同步 `package.json`、`package-lock.json` 根与根包版本、README 及 `CHANGELOG.md`。候选版递增 `rc` 序号，合入主分支并重新验证后才标正式版；只为本轮版本创建对应 tag，不覆盖历史 tag。规则见 [docs/WORKFLOW.md](docs/WORKFLOW.md#9-迭代版本与发布)。
 
 ## 5. 测试约定
 

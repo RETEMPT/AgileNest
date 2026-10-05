@@ -259,18 +259,38 @@ PR 打开 → CI（npm test + build）自动跑
 
 ---
 
-## 9. 发布流程（版本 tag）
+## 9. 迭代版本与发布
+
+版本唯一来源为 `package.json.version`；`package-lock.json` 的根版本和 `packages[""].version` 必须相同。README 显示当前分支版本，CHANGELOG 按版本记录变化、升级要求和验证范围。当前集成分支为 `codex/collaboration-completion`，通过 PR #6 交付到 `main`，不要求另建 `develop`。
+
+每轮完成验收的集成迭代必须有递增编号；同一轮中的编辑、小提交和成员模块 PR 不各自升版，由 foundation 集成人统一维护，避免多分支抢占版本。
+
+| 变化 | 递增方式 | 示例 |
+|---|---|---|
+| 修复、文案、性能或其他兼容维护 | 补丁号 | `0.3.0` → `0.3.1` |
+| 新功能或完整体验迭代 | 次版本号 | `0.3.1` → `0.4.0` |
+| 不兼容的契约或升级要求 | 次版本号（0.x 阶段），1.0 后主版本号 | `0.4.0` → `0.5.0`，`1.2.0` → `2.0.0` |
+| 同一目标正式版的下一轮候选迭代 | 候选序号 | `0.3.0-rc.1` → `0.3.0-rc.2` |
+
+候选版使用 `<目标版本>-rc.<序号>`。本轮 `0.3.0-rc.1` 包含个人资料、协作闭环、AI 本地草稿和个人日历；PR 尚未合入主分支时保留候选标识。正式版必须先解决主分支冲突、完成合并，再对最终代码运行测试与 Windows 构建，随后移除候选后缀并提交元数据。不得把分支推送或 tag 当作已经部署。
+
+维护下一轮候选版时，可在版本管理短分支运行下列命令，同步 README、CHANGELOG 与 PR 后完成验证；这里仅更新包和锁文件，不自动提交或打 tag。
 
 ```powershell
-# develop 上测试全绿后
-git checkout main
-git merge --no-ff develop
-git tag v0.2.0-framework
-git push origin main --tags
+npm version prerelease --preid=rc --no-git-tag-version
+npm test
+npm run build
+```
 
-# 或按阶段
-git tag v0.3.0-tasks      # tasks 模块完成后
-git tag v0.4.0-full       # 全部模块集成后
+每个完成验证并提交的集成版本创建同名注释 tag，如 `v0.3.0-rc.1`；tag 指向该版本提交，既有 tag 不移动、不覆盖。仅推送本轮具体 tag，不使用 `--tags` 批量推送。候选 tag 保留用于追溯；未来正式版 `v0.3.0` 指向主分支中已验证的正式版本提交。正式版本编号同样通过 `npm version <确定的版本> --no-git-tag-version` 更新，并同步上述记录。
+
+查当前本地版本与提交：
+
+```powershell
+node -p "require('./package.json').version"
+git branch --show-current
+git rev-parse --short HEAD
+git describe --tags --always
 ```
 
 ---
