@@ -14,7 +14,7 @@
 - [ ] 学生：认领 / 提交 / 修改（C）
 - [ ] 教师：分派 / 验收 / 打回（C）
 - [ ] 工时登记 + 完成度 %（D）
-- [ ] 日历 + 里程碑（E）
+- [ ] 日历 + 里程碑（E）— 日程表与跨天排期已就位，里程碑沿用现有实现
 - [ ] 截止提醒（cron + 飞书私信）（E）
 
 ## 下期 · 重要
@@ -41,13 +41,13 @@
 - [x] `tests/contract/identity/spaces.test.ts` — 成员查询 ACL / 日期校验 / 最后管理员保护
 - [ ] `tests/contract/review/**` — 双端越权矩阵
 - [ ] `tests/contract/worklog/**` — 工时汇总 / 完成度加权
-- [ ] `tests/contract/{calendar,milestone}/**`
+- [x] `tests/contract/{calendar,milestone}/**` — 日历：落格/跨天排期/窗口裁剪/越权/URL 视图（milestone 自行补齐）
 - [ ] `tests/contract/notify/**` — cron 扫描
 
 ## 后续体验完善（不在本次范围）
 
 - [ ] 完整任务字段编辑与子任务创建入口
-- [ ] 日历视图与看板共享所有 URL 筛选
+- [ ] 日历视图与看板共享所有 URL 筛选（状态/负责人词表已对齐，搜索 q 未接）
 - [ ] 自定义流程配置（先评估高校验收语义，不直接开放任意状态跳转）
 
 ## 学术身份与叠加职务
