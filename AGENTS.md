@@ -37,6 +37,8 @@
 
 本轮用户继续要求完整协作、个人资料及成员 PR 集成；集成分支按职责覆盖 identity/shared UI（foundation）、tasks（A）、board（B）、review（C）、worklog/stats（D）、notify（E），详见 docs/TEAM.md。本轮不调整 core 或登录文件。
 
+用户提供个人日程文档并授权改进、按分支集成：E 在 `codex/calendar-schedules` 实现 calendar 服务、接口、个人日历和追加表/迁移；foundation 仅增加直接服务该功能的共享导航。验证后合入 `codex/collaboration-completion`，范围与契约见 docs/TEAM.md；不覆盖其他成员分支、不改变项目任务状态机或登录。
+
 ## 2. 架构不变量
 
 1. **模块化单体**：`src/modules/<m>/{schema,service,actions,api,ui,index}.ts`
@@ -55,6 +57,7 @@
 8. **交互同源**：按钮、拖拽目标和服务端权限都使用 `availableTransitions()`；不得复制角色×状态按钮表。提交/重交需完成说明，打回需修改意见，指派选择团队成员，禁止让用户输入数据库 ID。
 9. **一致性**：`transitionTask()` 在事务中锁住任务后查转移表，状态与事件一同提交；并发认领不能覆盖负责人。失败或取消时卡片保留原列，成功后刷新相关视图。
 10. **产品链路**：团队空间 → 成员与角色 → 项目/课题 → 任务 → 验收。实验室在本期是团队空间内的 `lab` 类型项目；不新增实验数据、文件库和设备管理。
+11. **个人日程**：仅当前账号读写，团队职务不授予他人日程访问。日期仍为 `YYYY-MM-DD`，可选时间为同日 `HH:mm`；编辑/删除携带版本，旧版本返回 409，个人日程不修改项目任务。
 
 ## 3. 禁止事项
 

@@ -9,8 +9,10 @@ import {
   integer,
   doublePrecision,
   index,
+  check,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 // ============================================================
 // identity：users / teams / team_members / projects
@@ -301,3 +303,26 @@ export const personalProfiles = pgTable("personal_profiles", {
   avatarHash: text("avatar_hash"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// calendar：个人日程独立于项目任务，仅本人可读写。
+export const personalSchedules = pgTable("personal_schedules", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  scheduleDate: date("schedule_date").notNull(),
+  startTime: text("start_time"),
+  endTime: text("end_time"),
+  priority: integer("priority").$type<0 | 1 | 2>().notNull().default(0),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  index("personal_schedules_user_date_idx").on(t.userId, t.scheduleDate),
+  check("personal_schedules_title_check", sql`char_length(btrim(${t.title})) between 1 and 100`),
+  check("personal_schedules_description_check", sql`char_length(${t.description}) <= 500`),
+  check("personal_schedules_date_check", sql`${t.scheduleDate} between date '1900-01-01' and date '2100-12-31'`),
+  check("personal_schedules_priority_check", sql`${t.priority} between 0 and 2`),
+  check("personal_schedules_version_check", sql`${t.version} > 0`),
+  check("personal_schedules_time_check", sql`(${t.startTime} is null and ${t.endTime} is null) or (${t.startTime} is not null and ${t.endTime} is not null and ${t.startTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' and ${t.endTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' and ${t.startTime} < ${t.endTime})`),
+]);

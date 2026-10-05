@@ -14,6 +14,7 @@
 - 个人中心可维护姓名、简介、头像与学术身份，消息中心可筛选未读并进入对应任务。
 - 飞书是可选账号连接，姓名由本人确认后采用；平台资料与权限独立维护。未配置时显示实际状态，解绑校验登录方式和当前绑定版本。
 - 侧栏可进入 AI 对话页，整理并管理按账号区分的浏览器草稿；模型尚未接入，内容不向外部服务发送。
+- 个人日历管理本人全天或定时安排，支持月历选日、搜索、优先级筛选与版本冲突保护；项目日历继续关联任务截止和里程碑。
 
 详细设计与手动验收见 [docs/UX.md](docs/UX.md)。本期实验室管理覆盖成员、课题和任务，不包含实验数据、文件或设备台账。
 
@@ -33,6 +34,7 @@
 ```powershell
 node scripts/migrate-identity.mjs
 node scripts/migrate-profiles.mjs
+node scripts/migrate-schedules.mjs
 ```
 
 测试库分别添加 `--test`，细节见 [数据库升级](docs/WINDOWS.md#已有数据库升级)。
@@ -95,6 +97,7 @@ GitHub `Verify` 工作流在 PR 和主干/集成分支推送时运行：Linux �
 - [Windows 环境](docs/WINDOWS.md)
 - [飞书接入与边界](docs/FEISHU.md)
 - [AI 对话界面与草稿](docs/AI.md)
+- [个人日历与日程](docs/SCHEDULES.md)
 - [Agent 约束](AGENTS.md)
 - [功能路线图](docs/ROADMAP.md)
 

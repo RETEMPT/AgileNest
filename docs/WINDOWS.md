@@ -43,7 +43,7 @@ start.bat
 
 ### 共享给协作者
 
-提交源码、契约测试、依赖锁文件、数据库 schema 与迁移、环境示例、初始化/启动/停止/状态脚本及使用说明。`scripts/start-local.ps1` 是两个启动入口的必需文件；已有数据库还需要 `scripts/migrate-identity.mjs` 和 `scripts/migrate-profiles.mjs`。
+提交源码、契约测试、依赖锁文件、数据库 schema 与迁移、环境示例、初始化/启动/停止/状态脚本及使用说明。`scripts/start-local.ps1` 是两个启动入口的必需文件；已有数据库还需要 `scripts/migrate-identity.mjs`、`scripts/migrate-profiles.mjs` 与 `scripts/migrate-schedules.mjs`。
 
 本机 `.env` / `.env.test`、`node_modules/`、`.next/`、`coverage/`、`.tools/` 与日志不随代码传输。`.tools/` 中的便携式 Postgres 和数据库数据仅在本机保留；接收者安装 Docker 或自己的 Postgres，按上述步骤初始化。
 
@@ -116,6 +116,8 @@ node scripts/migrate-identity.mjs
 node scripts/migrate-identity.mjs --test
 node scripts/migrate-profiles.mjs
 node scripts/migrate-profiles.mjs --test
+node scripts/migrate-schedules.mjs
+node scripts/migrate-schedules.mjs --test
 ```
 
 随后运行 `npm test` 和 `npm run build`。新库仍按原有初始化流程执行 `db:push`。迁移按事务执行且可重复运行，细节见 [IDENTITY.md](IDENTITY.md)。

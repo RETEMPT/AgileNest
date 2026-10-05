@@ -16,7 +16,7 @@ src/modules/
   board/       看板 + 表格 · 筛选 · 拖拽               B
   review/      双端工作台 · 验收台 · 活动流            C
   worklog/     工时 · 完成度 · 贡献（含原 stats）      D
-  calendar/    月视图（任务截止 + 里程碑）             E
+  calendar/    项目月视图 · 本人日程 CRUD              E
   milestone/   开题/中期/结题/答辩节点                 E
   notify/      站内消息 + cron；可选飞书私信待接入      E
 ```
@@ -62,6 +62,7 @@ main  ──  可部署
 | C | `feature/review-portal` | review | `/home/student` `/home/teacher` `/p/[id]/review` |
 | D | `feature/worklog-stats` | worklog | `/p/[id]/stats`（工时面板嵌任务详情） |
 | E | `feature/calendar-notify` | calendar · milestone · notify | `/p/[id]/{calendar,milestones}` `/api/cron/**` |
+| E（本轮个人日程） | `codex/calendar-schedules` → 集成分支 | calendar · 日程表/迁移；导航由 foundation 配合 | `/calendar` `/api/v1/calendar/schedules/**` |
 
 ### 冲突面规则
 
@@ -187,7 +188,15 @@ memberContribution(actorId, projectId)
 
 ```ts
 monthView(actorId, projectId, year, month)   // month: 1-12
+listMySchedules(actorId, year, month)       // 本人自然月，YYYY-MM-DD / HH:mm
+createSchedule(actorId, input: ScheduleInput): Promise<ScheduleDTO>
+updateSchedule(actorId, scheduleId, version, input: ScheduleInput): Promise<ScheduleDTO>
+deleteSchedule(actorId, scheduleId, version): Promise<void>
+schedulesGET(request) / schedulesPOST(request)
+schedulePUT(request, { params }) / scheduleDELETE(request, { params })
 ```
+
+个人日程表 `personal_schedules` 归 calendar（E）。UI 公开 `calendar/views.PersonalCalendarView/ProjectCalendarView`，路由只做壳；`calendar/ui.ScheduleControls` 提供日程弹窗，`calendar/client` 公开 DTO、`ScheduleInput`、优先级元数据、输入/月校验、`parseCalendarQuery/calendarUrl/selectSchedules/scheduleTimeLabel`，均为浏览器安全的纯实现。服务只通过当前 actorId 管理本人记录，职务与身份不扩展权限；更新/删除以版本条件写入，404 不泄露他人记录，409 防旧页面覆盖。日期范围、HTTP 输入、追加迁移及源文件取舍见 [SCHEDULES.md](SCHEDULES.md)。原项目月视图返回结构和 ACL 保留，新增年月边界校验。
 
 ### `@/modules/milestone`（E）
 

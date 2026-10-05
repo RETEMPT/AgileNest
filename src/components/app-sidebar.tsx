@@ -74,6 +74,7 @@ export function AppSidebar({
   const isTeamActive = pathname === "/t" || pathname.startsWith("/t/");
   const isSettingsActive = pathname === "/settings";
   const isAiActive = pathname === "/ai";
+  const isCalendarActive = pathname === "/calendar";
 
   // 项目各独立系统的入口配置
   const projectNavItems = activeProjectId
@@ -354,9 +355,7 @@ export function AppSidebar({
                   size={16}
                   className={isHomeActive ? "text-background" : "text-brand"}
                 />
-                <span className={isCollapsed ? "md:hidden" : ""}>
-                  工作台
-                </span>
+                <span className={isCollapsed ? "md:hidden" : ""}>工作台</span>
               </Link>
               <Link
                 href="/t"
@@ -386,8 +385,29 @@ export function AppSidebar({
                     : "text-muted-foreground hover:bg-accent hover:text-foreground"
                 } ${isCollapsed ? "md:justify-center md:px-0" : ""}`}
               >
-                <AiChatIcon size={16} aria-hidden="true" className={isAiActive ? "text-background" : "text-brand"} />
+                <AiChatIcon
+                  size={16}
+                  aria-hidden="true"
+                  className={isAiActive ? "text-background" : "text-brand"}
+                />
                 <span className={isCollapsed ? "md:hidden" : ""}>AI 对话</span>
+              </Link>
+              <Link
+                href="/calendar"
+                onClick={() => setMobileOpen(false)}
+                aria-label="个人日历"
+                aria-current={isCalendarActive ? "page" : undefined}
+                title={isCollapsed ? "个人日历" : undefined}
+                className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${isCalendarActive ? "bg-foreground text-background" : "text-muted-foreground hover:bg-accent hover:text-foreground"} ${isCollapsed ? "md:justify-center md:px-0" : ""}`}
+              >
+                <CalendarIcon
+                  size={16}
+                  aria-hidden="true"
+                  className={
+                    isCalendarActive ? "text-background" : "text-brand"
+                  }
+                />
+                <span className={isCollapsed ? "md:hidden" : ""}>个人日历</span>
               </Link>
             </nav>
           </div>

@@ -51,3 +51,11 @@
 按用户指定方向核对 [DeepSeek Harness 的 ui-chat](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/client/ui-chat/README.md)、[Harnss](https://github.com/OpenSource03/harnss) 与 [Open WebUI](https://github.com/open-webui/open-webui) 的公开仓库说明。采用清晰的主区/输入区、可收起的会话列表、标题/内容搜索与移动抽屉。Harnss 当前自述处于早期开发并将重写，作为交互参考，不作稳定运行时依赖；没有声称此为官方 DeepSeek Chat 的源代码。
 
 本仓仍采用既有品牌色、字体、SVG 线宽与共享 UI，自行实现，未复制外部代码或图形。用户已确认先做界面与本地草稿，模型调用与三级 Agent 不在本轮；空回复、推理过程、工具进度和历史对话不填演示内容。新建的验收草稿均标为本地界面验收，不写入团队任务。能力、存储限制与后续接入边界见 [AI.md](AI.md)。
+
+## 用户提供个人日程资料 · 2026-10-05
+
+完整核对 `schedule.docx`（Java/MyBatis 实体）、`script.js.docx`（月查询/增删改请求封装）、`路由注测.docx`（Vue 登录后日历路由）和 `数据库建表.docx`（MySQL schedule 表与用户/日期索引）。四份文档无图片、表格、批注或修订内容；原文件只读且不放进仓库。
+
+采用个人归属、标题/说明、日期与起止时间、三级优先级、按月 CRUD、登录后入口和复合索引。按现有技术栈改为独立的 `personal_schedules` 追加表、UUID、当前会话归属、真实日期/同日时间校验和版本条件写入；本人日历与项目任务截止/里程碑分开，避免个人安排被团队管理员读取或被当成任务完成记录。没有移植 Java/Vue/MySQL 运行时，没有引入依赖。
+
+本轮 E 在 `codex/calendar-schedules` 开发，foundation 仅配合共享导航；通过公开 `calendar`、`client`、`ui`、`views` 契约集成到 `codex/collaboration-completion`，不修改其他成员分支。具体输入、权限、并发和可重复迁移见 [SCHEDULES.md](SCHEDULES.md)。

@@ -122,7 +122,21 @@ describe("业务模块契约导出（stub 期）", () => {
         "memberContribution",
       ],
     ],
-    ["calendar", calendar, ["monthView"]],
+    [
+      "calendar",
+      calendar,
+      [
+        "monthView",
+        "listMySchedules",
+        "createSchedule",
+        "updateSchedule",
+        "deleteSchedule",
+        "schedulesGET",
+        "schedulesPOST",
+        "schedulePUT",
+        "scheduleDELETE",
+      ],
+    ],
     [
       "milestone",
       milestone,
