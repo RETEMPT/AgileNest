@@ -16,7 +16,7 @@ src/modules/
   board/       看板 + 表格 · 筛选 · 拖拽               B
   review/      双端工作台 · 验收台 · 活动流            C
   worklog/     工时 · 完成度 · 贡献（含原 stats）      D
-  calendar/    月视图（任务截止 + 里程碑）             E
+  calendar/    月视图 + 日程表（任务排期 + 里程碑）     E
   milestone/   开题/中期/结题/答辩节点                 E
   notify/      站内消息 + 飞书私信 + cron              E
 ```
@@ -178,8 +178,34 @@ memberContribution(actorId, projectId)
 ### `@/modules/calendar`（E）
 
 ```ts
-monthView(actorId, projectId, year, month)   // month: 1-12
+// 公开入口 1：`@/modules/calendar`（service，服务端）
+monthView(actorId, projectId, year, month)            // 42 格；单日按截止日，跨天在区间内每天落格
+listAgenda(actorId, projectId, { from?, to?, filters? })   // 默认今天起 14 天
+listAgendaDays(actorId, projectId, range?)            // 按天聚合，空日不返回
+calendarBoard(actorId, projectId, { year, month, horizonDays? })  // 一次读库同时给月网格 + 日程
+parseCalendarFilters(params) / parseCalendarQuery(params, today?) / serializeCalendarQuery(query)
+agendaWindow(query, today?)                           // 月视图看近两周，日程视图看整月
+
+// 公开入口 2：`@/modules/calendar/client`（浏览器安全纯函数/类型，不含 db）
+type CalendarView / CalendarFilters / CalendarQuery / CalendarEvent / CalendarCell / AgendaDay
+taskDates(task) / calendarRange(event, from, to)      // 任务占用的每一天（起止区间展开）
+taskEventsForDate(task, iso) / milestoneToEvent(milestone)
+eventIsDone / eventIsOverdue / eventIsAtRisk
+groupByDay(events, today?) / compareEvents(a, b)
+shiftMonth(y, m, delta) / monthGridRange(y, m) / monthBounds(y, m) / monthKey(y, m)
+isValidYearMonth(y, m) / weekdayLabel(iso) / isWeekendISO(iso) / addDays(iso, days) / WEEKDAY_LABELS
+
+// 公开入口 3：`@/modules/calendar/ui`（客户端组件）
+CalendarWorkspace / MonthGrid / AgendaList / EventChip
+
+// 服务端页面组合：`@/modules/calendar/views`
+CalendarWorkspaceView({ projectId, query })           // 路由壳只调它
 ```
+
+URL 契约：`?year=&month=&view=month|agenda&status=&assigneeId=&milestoneId=&risk=1`。
+状态 / 负责人 / 里程碑三个筛选与看板同词表（`status` 复用 `TASK_STATUSES`），命中任务类筛选时里程碑不参与。
+`risk=1` 只看逾期未完成与今天到期，默认窗口自动往回看 90 天（否则历史逾期会被 14 天窗口排掉）。
+`/api/v1/calendar` 返回 `{ cells: [{ iso, inMonth, isWeekend, tasks, milestones }] }`，带 `view=agenda` 时附 `days`（同一套筛选参数）。
 
 ### `@/modules/milestone`（E）
 
