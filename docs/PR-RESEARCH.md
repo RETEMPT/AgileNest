@@ -45,3 +45,9 @@
 页面验收中发现开发工具浮标遮挡折叠侧栏的退出按钮；依照 [Next devIndicators](https://nextjs.org/docs/app/api-reference/config/next-config-js/devIndicators) 及本仓已安装的配置类型关闭浮标，保留正常错误反馈。
 
 首次 CI 在 npm ci 阶段发现 Vitest/esbuild 平台锁项未标可选，Windows/Linux 均尝试安装 AIX 组件。按 [npm 锁文件格式](https://docs.npmjs.com/cli/v11/configuring-npm/package-lock-json/) 在隔离目录用 CI 对应的 npm 10 重新生成依赖图，恢复 optional/dev/peer 标记、补全原有 Tailwind WASM 的包内置可选记录；核对保留条目的版本未变，未修改依赖声明。npm 10 与 11 分别验证全新安装，独立于开发目录已有 node_modules。
+
+## AI 页面设计调研 · 2026-10-05
+
+按用户指定方向核对 [DeepSeek Harness 的 ui-chat](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/client/ui-chat/README.md)、[Harnss](https://github.com/OpenSource03/harnss) 与 [Open WebUI](https://github.com/open-webui/open-webui) 的公开仓库说明。采用清晰的主区/输入区、可收起的会话列表、标题/内容搜索与移动抽屉。Harnss 当前自述处于早期开发并将重写，作为交互参考，不作稳定运行时依赖；没有声称此为官方 DeepSeek Chat 的源代码。
+
+本仓仍采用既有品牌色、字体、SVG 线宽与共享 UI，自行实现，未复制外部代码或图形。用户已确认先做界面与本地草稿，模型调用与三级 Agent 不在本轮；空回复、推理过程、工具进度和历史对话不填演示内容。新建的验收草稿均标为本地界面验收，不写入团队任务。能力、存储限制与后续接入边界见 [AI.md](AI.md)。

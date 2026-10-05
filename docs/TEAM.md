@@ -56,6 +56,7 @@ main  ──  可部署
 | 人 | 分支 | 模块 | 路由 |
 |---|---|---|---|
 | foundation | `chore/foundation` | core · identity · ui · lib | `/login` `/register` `/t/*` `/settings` `/api/auth/**` |
+| foundation（本轮 AI 界面） | `codex/collaboration-completion` | 共享 AI UI · 浏览器草稿 | `/ai`，仅界面与本地存储 |
 | A | `feature/tasks-status` | tasks | `/p/[id]/tasks/**` |
 | B | `feature/board-views` | board | `/p/[id]/board` `/p/[id]/table` |
 | C | `feature/review-portal` | review | `/home/student` `/home/teacher` `/p/[id]/review` |
@@ -250,5 +251,13 @@ notify 公开 `notify/views` 的 `NotificationsView` 和 `notify/ui` 的 `MarkRe
 公共 CI 的首次全新安装暴露历史锁文件中 Vitest/esbuild 平台项缺少可选标记。foundation 用 Node 22 对应的 npm 10 重新计算锁文件，恢复 optional/dev/peer 标记并补全既有 Tailwind WASM 包内置的可选依赖记录，同步已更名的包名；`package.json` 依赖声明与保留的包版本、来源和完整性值保持不变。Windows npm 10/11 全新安装均验证，避免仅按本机 npm 11 生成而遗漏 npm 10 所需的可选 peer 图。此为依赖图修复，不新增业务依赖。PR 触发检查全部分支，push 只检查 main/develop，避免同一 PR 推送重复运行。
 
 公开 `review/client` 为浏览器安全的纯函数入口，导出 `WorkbenchQuery`、`WorkbenchSearchParams`、`parseWorkbenchQuery(params)`、`workbenchUrl(query, changes?)` 与 `selectWorkbenchItems(items, query, today)`，仅使用 Zod 和纯日期函数，不引入 DB/session/service。工作台 `view/q/projectId/due` 保存在 URL，分类切换保留筛选；`soon` 为今天至第六天，逾期不含今天。任务按逾期、优先级、截止日期、sortOrder、createdAt、id 排序，筛选和排序不修改输入，不扩大 `getWorkbench` 的权限范围。
+
+## AI 对话界面 · 2026-10-05
+
+用户确认本轮先做侧栏图标、对话页面与本地草稿，Owner 为 foundation；沿用 `codex/collaboration-completion` 集成分支。范围仅 `src/components/ai/*`、共享导航/图标、`/ai` 壳、foundation 草稿测试和文档；不修改成员模块、core、登录文件、数据库或依赖声明。
+
+`@/components/ai/view.AiWorkspaceView` 是共享 UI 的服务端组合入口，调用公开 `core.requireUser()`，只把当前会话 userId 传入客户端，不接受 URL 指定的用户。`workspace.tsx` 负责 UI；`drafts.ts` 提供 Zod 边界与草稿纯函数，`draft-store.ts` 提供浏览器存储适配，均不导入 session/DB/service。没有新增业务模块、公开业务签名或模型 API。草稿按账号命名，服务端不保存；本地浏览器存储不等同于服务端 ACL。
+
+正式测试仅扫描 `tests/**/*.test.ts`，避免 `.tools` 内的本地安装验证副本重复执行。新增草稿用例覆盖恢复、账号隔离、损坏数据保护、拒绝存储、写入失败/恢复、删除后的选择、容量/长度/索引约束与搜索；页面覆盖刷新水合、名称保留和取消操作。细节见 [AI.md](AI.md)。
 
 系统指派/验收通知使用客观状态说明。旧版这两类通知的固定文案在 DTO 展示时兼容转换，历史数据和成员填写的成果说明、修改意见不变。

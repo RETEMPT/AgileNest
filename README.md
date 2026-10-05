@@ -13,6 +13,7 @@
 - 项目概览中的状态、个人任务与里程碑直接关联相应功能；任务详情可编辑完整信息并拆分子任务，项目完成度只统计已验收的顶层任务。
 - 个人中心可维护姓名、简介、头像与学术身份，消息中心可筛选未读并进入对应任务。
 - 飞书是可选账号连接，姓名由本人确认后采用；平台资料与权限独立维护。未配置时显示实际状态，解绑校验登录方式和当前绑定版本。
+- 侧栏可进入 AI 对话页，整理并管理按账号区分的浏览器草稿；模型尚未接入，内容不向外部服务发送。
 
 详细设计与手动验收见 [docs/UX.md](docs/UX.md)。本期实验室管理覆盖成员、课题和任务，不包含实验数据、文件或设备台账。
 
@@ -93,10 +94,11 @@ GitHub `Verify` 工作流在 PR 和主干/集成分支推送时运行：Linux �
 - [开发工作流](docs/WORKFLOW.md)
 - [Windows 环境](docs/WINDOWS.md)
 - [飞书接入与边界](docs/FEISHU.md)
+- [AI 对话界面与草稿](docs/AI.md)
 - [Agent 约束](AGENTS.md)
 - [功能路线图](docs/ROADMAP.md)
 
-产品参考：[飞书任务管理](https://www.feishu.cn/content/40gyakm8)、[Plane 工作项](https://docs.plane.so/work-items/overview)、[OpenProject 工作流](https://www.openproject.org/docs/system-admin-guide/manage-work-packages/work-package-types/workflows/)。本期继续保留高校师生验收语义；AI、Agent API、甘特、Sprint、作品集和模板库只列路线图。
+产品参考：[飞书任务管理](https://www.feishu.cn/content/40gyakm8)、[Plane 工作项](https://docs.plane.so/work-items/overview)、[OpenProject 工作流](https://www.openproject.org/docs/system-admin-guide/manage-work-packages/work-package-types/workflows/)。本期继续保留高校师生验收语义；AI 模型执行、Agent API、甘特、Sprint、作品集和模板库只列路线图。
 
 ## 学术身份与叠加职务
 

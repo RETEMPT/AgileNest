@@ -7,7 +7,7 @@
 
 - 只动 `E:\AgileCampus`（本仓）。**不要**改 `E:\agilecampus-master\`（旧仓，只读参照）。
 - 目标平台是 **Windows**。禁止 bash-only 语法（`export`、`rm -rf`、`&&` 链式脚本）；npm scripts 必须跨平台。
-- 本期目标：课设框架，**刚需完整 + 重要占位 + 创新只挂路牌**。不实现 AI / Agent API / 甘特 / Sprint / 作品集 / 模板库。
+- 本期目标：课设框架，**刚需完整 + 重要占位 + 创新只挂路牌**。用户已授权 AI 侧栏入口、对话界面与本地草稿；不实现模型调用、三级 Agent / Agent API / 甘特 / Sprint / 作品集 / 模板库。
 
 ## 1. 目录边界（最重要）
 
@@ -58,7 +58,7 @@
 
 ## 3. 禁止事项
 
-- 不要实现路牌功能（AI、agent-api、gantt、sprint、portfolio、templates）——只在 `docs/ROADMAP.md` 留条目。
+- AI 本轮仅做用户确认的对话界面与本地草稿（foundation 共享 UI），明确模型未接入；不接入 AI SDK、不生成模拟回答、不自动读写任务。模型执行、agent-api、gantt、sprint、portfolio、templates 只在 `docs/ROADMAP.md` 留条目。
 - 不要引入 AI SDK、MSW、重型状态库、CSS 框架以外的 UI 套件。
 - 不要写多段 docstring / 注释块；注释只写非显而易见的 WHY。
 - 不要为不可能的分支加 fallback；不要留半成品抽象。

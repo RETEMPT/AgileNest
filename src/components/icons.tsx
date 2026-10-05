@@ -50,6 +50,16 @@ export function WorkbenchIcon(props: IconProps) {
   );
 }
 
+export function AiChatIcon(props: IconProps) {
+  return (
+    <BaseSvg {...props}>
+      <path d="M20 13v4a3 3 0 0 1-3 3H7l-4 2V7a3 3 0 0 1 3-3h5" />
+      <path d="m17 2 1.5 4.5L23 8l-4.5 1.5L17 14l-1.5-4.5L11 8l4.5-1.5L17 2Z" />
+      <path d="M7 14h4M7 17h7" />
+    </BaseSvg>
+  );
+}
+
 /** 2. 团队与空间：多用户协同组织 */
 export function TeamIcon(props: IconProps) {
   return (
@@ -225,4 +235,3 @@ export function SidebarExpandIcon(props: IconProps) {
     </BaseSvg>
   );
 }
-
