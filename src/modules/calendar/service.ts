@@ -4,15 +4,15 @@ import {
   eq,
   getTableColumns,
   gte,
-  inArray,
   isNotNull,
   lte,
   or,
 } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import { milestones, tasks, users, type TaskStatus } from "@/db/schema";
 import { AppError } from "@/modules/core/errors";
-import { addDaysISO, todayISO } from "@/modules/core/dates";
+import { todayISO } from "@/modules/core/dates";
 import { requireProjectForUser } from "@/modules/core/permissions";
 import { toDTO, type TaskRow } from "@/modules/tasks";
 import { TASK_STATUSES } from "@/modules/tasks/client";
@@ -28,25 +28,26 @@ import {
   monthGridRange,
   monthKey,
   shiftMonth,
-  taskDates,
   taskEventsForDate,
   weekdayLabel,
   type AgendaDay,
-  type CalendarCell,
+  type CalendarCell as CalendarEventCell,
   type CalendarEvent,
   type CalendarFilters,
   type CalendarQuery,
   type CalendarView,
 } from "./model";
+import { calendarMonthSchema } from "./schema";
 
 /** 保留原始 DTO 形状，便于看板/表格等复用同一批任务对象。 */
 export type CalendarTask = ReturnType<typeof toDTO>;
 
-export type { CalendarCell };
+export type CalendarCell = CalendarEventCell & {
+  tasks: CalendarTask[];
+  milestones: MilestoneDTO[];
+};
 
-function isoOrNull(value: string | null): string | null {
-  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
-}
+const agendaDateSchema = z.iso.date().refine((value) => value >= "1900-01-01" && value <= "2100-12-31");
 
 function taskSelect() {
   return { ...getTableColumns(tasks), assigneeName: users.name };
@@ -117,7 +118,7 @@ function taskEventsOnDates(rows: TaskRow[], isos: string[]): CalendarEvent[] {
   const events: CalendarEvent[] = [];
   for (const row of rows) {
     const dto = toDTO(row);
-    for (const iso of taskDates(dto)) {
+    for (const iso of calendarRange(dto, isos[0], isos[isos.length - 1])) {
       if (!wanted.has(iso)) continue;
       const event = taskEventsForDate(dto, iso);
       if (event) events.push(event);
@@ -150,7 +151,8 @@ export async function monthView(
   month: number,
 ): Promise<CalendarCell[]> {
   await requireProjectForUser(actorId, projectId);
-  if (!isValidYearMonth(year, month)) throw new AppError("月份需在 1–12");
+  const parsed = calendarMonthSchema.safeParse({ year, month });
+  if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
 
   const cells = monthGridRange(year, month);
   const from = cells[0];
@@ -176,11 +178,15 @@ export async function monthView(
   }
 
   const key = monthKey(year, month);
+  const taskById = new Map(taskRows.map((task) => [task.id, toDTO(task)]));
+  const milestoneById = new Map(milestoneList.map((milestone) => [milestone.id, milestone]));
   return cells.map((iso) => ({
     iso,
     inMonth: iso.slice(0, 7) === key,
     isWeekend: new Date(`${iso}T00:00:00`).getDay() % 6 === 0,
     events: byDate.get(iso) ?? [],
+    tasks: (byDate.get(iso) ?? []).filter((event) => event.kind === "task").map((event) => taskById.get(event.id)!),
+    milestones: (byDate.get(iso) ?? []).filter((event) => event.kind === "milestone").map((event) => milestoneById.get(event.id)!),
   }));
 }
 
@@ -188,19 +194,46 @@ export async function monthView(
 export async function calendarBoard(
   actorId: string,
   projectId: string,
-  input: { year: number; month: number; horizonDays?: number },
+  input: { year: number; month: number; horizonDays?: number; range?: { from: string; to: string }; filters?: CalendarFilters },
 ): Promise<{ cells: CalendarCell[]; days: AgendaDay[] }> {
   await requireProjectForUser(actorId, projectId);
   const today = todayISO();
-  const [cells, events] = await Promise.all([
-    monthView(actorId, projectId, input.year, input.month),
-    listAgendaEvents(
-      projectId,
-      today,
-      addDays(today, (input.horizonDays ?? 14) - 1),
-    ),
+  const parsed = calendarMonthSchema.safeParse({ year: input.year, month: input.month });
+  if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
+  const horizon = z.number().int().min(1).max(366).safeParse(input.horizonDays ?? 14);
+  if (!horizon.success) throw new AppError("日程窗口需为 1–366 天");
+  const range = input.range ?? { from: today, to: addDays(today, horizon.data - 1) };
+  if (!agendaDateSchema.safeParse(range.from).success || !agendaDateSchema.safeParse(range.to).success) throw new AppError("请使用有效的 YYYY-MM-DD 日期");
+  if (range.from > range.to) throw new AppError("结束日期不能早于开始日期");
+  const grid = monthGridRange(input.year, input.month);
+  const from = grid[0] < range.from ? grid[0] : range.from;
+  const to = grid[grid.length - 1] > range.to ? grid[grid.length - 1] : range.to;
+  const [taskRows, milestoneList] = await Promise.all([
+    loadDatedTasks(projectId), loadMilestonesInRange(projectId, from, to),
   ]);
-  return { cells, days: groupByDay(events, today) };
+  const taskById = new Map(taskRows.map((task) => [task.id, toDTO(task)]));
+  const milestoneById = new Map(milestoneList.map((milestone) => [milestone.id, milestone]));
+  const filters = input.filters ?? {};
+  const makeEvents = (start: string, end: string) => shapeEvents([
+    ...taskEventsInRange(taskRows, start, end),
+    ...milestoneList.filter((milestone) => milestone.targetDate! >= start && milestone.targetDate! <= end).map(milestoneToEvent).filter((event): event is CalendarEvent => event !== null),
+  ], filters).filter((event) => !filters.riskOnly || eventIsAtRisk(event, today));
+  const byDate = new Map<string, CalendarEvent[]>();
+  for (const event of makeEvents(grid[0], grid[grid.length - 1])) {
+    const bucket = byDate.get(event.date) ?? [];
+    bucket.push(event);
+    byDate.set(event.date, bucket);
+  }
+  const cells = grid.map((iso) => {
+    const events = byDate.get(iso) ?? [];
+    return {
+      iso, inMonth: iso.startsWith(monthKey(input.year, input.month)),
+      isWeekend: new Date(`${iso}T00:00:00`).getDay() % 6 === 0, events,
+      tasks: events.filter((event) => event.kind === "task").map((event) => taskById.get(event.id)!),
+      milestones: events.filter((event) => event.kind === "milestone").map((event) => milestoneById.get(event.id)!),
+    };
+  });
+  return { cells, days: groupByDay(makeEvents(range.from, range.to), today) };
 }
 
 async function listAgendaEvents(
@@ -235,8 +268,9 @@ export async function listAgenda(
   const filters = range?.filters ?? {};
   // 逾期风险要往回看：默认窗口从今天起会把已经逾期的任务排除在外。
   const defaultFrom = filters.riskOnly ? addDays(today, -90) : today;
-  const from = isoOrNull(range?.from ?? null) ?? defaultFrom;
-  const to = isoOrNull(range?.to ?? null) ?? addDays(today, 13);
+  const from = range?.from ?? defaultFrom;
+  const to = range?.to ?? addDays(today, 13);
+  if (!agendaDateSchema.safeParse(from).success || !agendaDateSchema.safeParse(to).success) throw new AppError("请使用有效的 YYYY-MM-DD 日期");
   if (from > to) throw new AppError("结束日期不能早于开始日期");
 
   const events = await listAgendaEvents(projectId, from, to);
@@ -278,7 +312,9 @@ export function parseCalendarQuery(
   params: URLSearchParams,
   today = todayISO(),
 ): CalendarQuery {
-  const year = Number(params.get("year")) || Number(today.slice(0, 4));
+  const fallbackYear = Number(today.slice(0, 4));
+  const yearInput = Number(params.get("year")) || fallbackYear;
+  const year = isValidYearMonth(yearInput, 1) ? yearInput : fallbackYear;
   const month = Number(params.get("month")) || Number(today.slice(5, 7));
   const view = params.get("view") === "agenda" ? "agenda" : "month";
   return {

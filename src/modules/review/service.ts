@@ -1,10 +1,35 @@
-import { and, asc, eq, getTableColumns, isNotNull, isNull, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  eq,
+  getTableColumns,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+} from "drizzle-orm";
 import { db } from "@/db";
-import { taskAcceptanceEvents, tasks, users } from "@/db/schema";
+import {
+  taskAcceptanceEvents,
+  tasks,
+  users,
+  projects,
+  teamMembers,
+  memberPositions,
+} from "@/db/schema";
 import { NotFoundError } from "@/modules/core/errors";
 import { isOverdue, todayISO } from "@/modules/core/dates";
-import { requireProjectForUser, requireReviewer } from "@/modules/core/permissions";
-import { listProjectTasks, toDTO, type TaskDTO, type TaskRow } from "@/modules/tasks";
+import {
+  requireProjectForUser,
+  requireReviewer,
+} from "@/modules/core/permissions";
+import {
+  listProjectTasks,
+  toDTO,
+  type TaskDTO,
+  type TaskRow,
+} from "@/modules/tasks";
+import { capabilitiesFor, positionsFromRole } from "@/modules/identity/client";
 
 export type ReviewItem = TaskDTO & {
   submitterName: string | null;
@@ -36,45 +61,81 @@ function toReviewItem(row: TaskRow): ReviewItem {
   };
 }
 
-/** 学生工作台「待认领」：我可见项目里的任务池 */
+export async function getWorkbench(actorId: string) {
+  // 成员关联本身就是访问边界，避免先扫描全库任务再逐个查权限。
+  const rows = await db
+    .select({
+      ...taskSelect,
+      projectName: projects.name,
+      kind: projects.kind,
+      role: teamMembers.role,
+      positions: memberPositions.positions,
+    })
+    .from(tasks)
+    .innerJoin(projects, eq(projects.id, tasks.projectId))
+    .innerJoin(
+      teamMembers,
+      and(
+        eq(teamMembers.teamId, projects.teamId),
+        eq(teamMembers.userId, actorId),
+      ),
+    )
+    .leftJoin(memberPositions, eq(memberPositions.membershipId, teamMembers.id))
+    .leftJoin(users, eq(tasks.assigneeId, users.id))
+    .where(
+      and(
+        eq(projects.status, "active"),
+        inArray(tasks.status, [
+          "unclaimed",
+          "in_progress",
+          "rejected",
+          "submitted",
+        ]),
+        or(
+          eq(tasks.assigneeId, actorId),
+          eq(tasks.status, "submitted"),
+          and(eq(tasks.status, "unclaimed"), isNull(tasks.parentTaskId)),
+        ),
+      ),
+    )
+    .orderBy(asc(tasks.dueDate), asc(tasks.sortOrder));
+  const visible = rows.map((row) => {
+    const capabilities = capabilitiesFor(
+      row.positions ?? positionsFromRole(row.role),
+      row.kind,
+    );
+    return {
+      ...toDTO(row),
+      projectName: row.projectName,
+      role: row.role,
+      permissions: capabilities.task,
+      canExecute: capabilities.execute,
+      canReview: capabilities.review,
+    };
+  });
+  return {
+    mine: visible.filter((task) => task.assigneeId === actorId),
+    review: visible.filter(
+      (task) => task.status === "submitted" && task.canReview,
+    ),
+    pool: visible.filter(
+      (task) => task.status === "unclaimed" && task.canExecute,
+    ),
+  };
+}
+
 export async function listMyTodo(actorId: string): Promise<TaskDTO[]> {
-  const all = await db
-    .select(taskSelect)
-    .from(tasks)
-    .leftJoin(users, eq(tasks.assigneeId, users.id))
-    .where(and(eq(tasks.status, "unclaimed"), isNull(tasks.parentTaskId)))
-    .orderBy(asc(tasks.dueDate), asc(tasks.sortOrder));
-
-  const visible: TaskDTO[] = [];
-  for (const row of all) {
-    try {
-      await requireProjectForUser(actorId, row.projectId);
-      visible.push(toDTO(row));
-    } catch {
-      // 非本项目成员
-    }
-  }
-  return visible;
+  return (await getWorkbench(actorId)).pool;
 }
-
 export async function listMyInProgress(actorId: string): Promise<TaskDTO[]> {
-  const rows = await db
-    .select(taskSelect)
-    .from(tasks)
-    .leftJoin(users, eq(tasks.assigneeId, users.id))
-    .where(and(eq(tasks.assigneeId, actorId), eq(tasks.status, "in_progress")))
-    .orderBy(asc(tasks.dueDate), asc(tasks.sortOrder));
-  return rows.map(toDTO);
+  return (await getWorkbench(actorId)).mine.filter(
+    (task) => task.status === "in_progress",
+  );
 }
-
 export async function listMyRejected(actorId: string): Promise<TaskDTO[]> {
-  const rows = await db
-    .select(taskSelect)
-    .from(tasks)
-    .leftJoin(users, eq(tasks.assigneeId, users.id))
-    .where(and(eq(tasks.assigneeId, actorId), eq(tasks.status, "rejected")))
-    .orderBy(asc(tasks.dueDate), asc(tasks.sortOrder));
-  return rows.map(toDTO);
+  return (await getWorkbench(actorId)).mine.filter(
+    (task) => task.status === "rejected",
+  );
 }
 
 export async function listUnclaimedPool(
@@ -91,14 +152,17 @@ export async function listPendingReview(
   actorId: string,
   projectId: string,
 ): Promise<ReviewItem[]> {
-  await requireReviewer(actorId, projectId);
+  const access = await requireReviewer(actorId, projectId);
   const rows = await db
     .select(taskSelect)
     .from(tasks)
     .leftJoin(users, eq(tasks.assigneeId, users.id))
     .where(and(eq(tasks.projectId, projectId), eq(tasks.status, "submitted")))
     .orderBy(asc(tasks.submittedAt));
-  return rows.map(toReviewItem);
+  return rows.map((row) => ({
+    ...toReviewItem(row),
+    permissions: access.capabilities.task,
+  }));
 }
 
 export async function listOverdueRisks(

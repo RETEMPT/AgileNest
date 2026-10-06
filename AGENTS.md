@@ -7,7 +7,7 @@
 
 - 只动 `E:\AgileCampus`（本仓）。**不要**改 `E:\agilecampus-master\`（旧仓，只读参照）。
 - 目标平台是 **Windows**。禁止 bash-only 语法（`export`、`rm -rf`、`&&` 链式脚本）；npm scripts 必须跨平台。
-- 本期目标：课设框架，**刚需完整 + 重要占位 + 创新只挂路牌**。不实现 AI / Agent API / 甘特 / Sprint / 作品集 / 模板库。
+- 本期目标：课设框架，**刚需完整 + 重要占位 + 创新只挂路牌**。用户已授权 AI 侧栏入口、对话界面与本地草稿；不实现模型调用、三级 Agent / Agent API / 甘特 / Sprint / 作品集 / 模板库。
 
 ## 1. 目录边界（最重要）
 
@@ -35,6 +35,12 @@
 | `worklog`（含 stats） | D | `feature/worklog-stats` | 工时 · 完成度 · 贡献 |
 | `calendar` `milestone` `notify` | E | `feature/calendar-notify` | 日历 · 节点 · 提醒 |
 
+本轮用户继续要求完整协作、个人资料及成员 PR 集成；集成分支按职责覆盖 identity/shared UI（foundation）、tasks（A）、board（B）、review（C）、worklog/stats（D）、notify（E），详见 docs/TEAM.md。本轮不调整 core 或登录文件。
+
+用户提供个人日程文档并授权改进、按分支集成：E 在 `codex/calendar-schedules` 实现 calendar 服务、接口、个人日历和追加表/迁移；foundation 仅增加直接服务该功能的共享导航。验证后合入 `codex/collaboration-completion`，范围与契约见 docs/TEAM.md；不覆盖其他成员分支、不改变项目任务状态机或登录。
+
+用户授权本轮交互反馈优化、阶段汇总与一键运行 Release：沿用集成分支，foundation 负责共享反馈/动效、个人设置和 Windows 发布包；A/B/E 分别调整任务/看板/日历的直接反馈入口，E 整合已合入主分支的 PR #7 项目日程与跨天排期。范围与公开契约同步 docs/TEAM.md；不调整 core、登录或依赖声明，个人日程仍仅本人、同日时间。
+
 ## 2. 架构不变量
 
 1. **模块化单体**：`src/modules/<m>/{schema,service,actions,api,ui,index}.ts`
@@ -53,10 +59,11 @@
 8. **交互同源**：按钮、拖拽目标和服务端权限都使用 `availableTransitions()`；不得复制角色×状态按钮表。提交/重交需完成说明，打回需修改意见，指派选择团队成员，禁止让用户输入数据库 ID。
 9. **一致性**：`transitionTask()` 在事务中锁住任务后查转移表，状态与事件一同提交；并发认领不能覆盖负责人。失败或取消时卡片保留原列，成功后刷新相关视图。
 10. **产品链路**：团队空间 → 成员与角色 → 项目/课题 → 任务 → 验收。实验室在本期是团队空间内的 `lab` 类型项目；不新增实验数据、文件库和设备管理。
+11. **个人日程**：仅当前账号读写，团队职务不授予他人日程访问。日期仍为 `YYYY-MM-DD`，可选时间为同日 `HH:mm`；编辑/删除携带版本，旧版本返回 409，个人日程不修改项目任务。
 
 ## 3. 禁止事项
 
-- 不要实现路牌功能（AI、agent-api、gantt、sprint、portfolio、templates）——只在 `docs/ROADMAP.md` 留条目。
+- AI 本轮仅做用户确认的对话界面与本地草稿（foundation 共享 UI），明确模型未接入；不接入 AI SDK、不生成模拟回答、不自动读写任务。模型执行、agent-api、gantt、sprint、portfolio、templates 只在 `docs/ROADMAP.md` 留条目。
 - 不要引入 AI SDK、MSW、重型状态库、CSS 框架以外的 UI 套件。
 - 不要写多段 docstring / 注释块；注释只写非显而易见的 WHY。
 - 不要为不可能的分支加 fallback；不要留半成品抽象。
@@ -77,6 +84,7 @@ npm run build     # Windows 上零改动通过
 - 改了 `index.ts` 导出 → 同步 [docs/TEAM.md](docs/TEAM.md) 对应契约节。
 - 只包含本模块相关文件；不顺手重构别人的目录。
 - 体验改动按 [docs/UX.md](docs/UX.md) 检查空状态、姓名指派、取消/失败、角色权限、键盘操作与窄屏；看板/表格切换保留 URL 筛选。
+- 每轮完成验收的集成迭代递增版本，同步 `package.json`、`package-lock.json` 根与根包版本、README 及 `CHANGELOG.md`。候选版递增 `rc` 序号，合入主分支并重新验证后才标正式版；只为本轮版本创建对应 tag，不覆盖历史 tag。规则见 [docs/WORKFLOW.md](docs/WORKFLOW.md#9-迭代版本与发布)。
 
 ## 5. 测试约定
 
@@ -109,3 +117,9 @@ npm run clean      # 清 .next / coverage
 - 队长仅管理实验室/竞赛项目与指派；验收保持管理员/指导老师权限。按钮、拖动和服务端共享能力及转移规则。
 - schema 只追加，已有库升级运行 `node scripts/migrate-identity.mjs`，不得通过清空历史数据消除约束差异。
 - 调整身份/职务/状态行为时同步 [docs/IDENTITY.md](docs/IDENTITY.md) 与契约测试；PR 来源与取舍记录在 [docs/PR-RESEARCH.md](docs/PR-RESEARCH.md)。
+
+## 8. 可选外部连接
+
+- 平台账号、资料、团队权限、任务和验收独立于飞书；外部资料仅在本人确认后采用，不自动覆盖姓名、头像或身份。
+- 连接摘要不暴露 openId、密码或应用密钥；解绑只允许会话本人，校验当前绑定版本并保留可用登录方式。历史 `@feishu.local` 占位邮箱账号当前禁止解绑。
+- 尚未接入业务投递的飞书私信不显示启用开关或成功承诺；实际能力与联调范围同步 [docs/FEISHU.md](docs/FEISHU.md)。公共验证归 foundation，成员模块继续按 Owner 协作。

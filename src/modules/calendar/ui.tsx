@@ -1,386 +1,403 @@
 "use client";
+export { CalendarWorkspace, MonthGrid, AgendaList, EventChip } from "./project-ui";
 
-import Link from "next/link";
-import { CalendarDays, ChevronLeft, ChevronRight, ListChecks } from "lucide-react";
-import { Badge, StatusPill, PriorityPill } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import {
-  WEEKDAY_LABELS,
-  currentYearMonth,
-  eventIsDone,
-  eventIsOverdue,
-  shiftMonth,
-  type AgendaDay,
-  type CalendarCell,
-  type CalendarEvent,
-  type CalendarFilters,
-  type CalendarView,
-} from "./model";
+  useActionState,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
+import { useRouter } from "next/navigation";
+import * as Dialog from "@radix-ui/react-dialog";
+import { CalendarPlus, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { FormFeedback, useFeedback } from "@/components/ui/feedback";
+import { Input, Label, Select, Textarea } from "@/components/ui/input";
+import {
+  calendarUrl,
+  PRIORITY_META,
+  type CalendarQuery,
+  type ScheduleDTO,
+} from "./client";
+import { deleteScheduleAction, saveScheduleAction } from "./actions";
 
-const STATUS_BG: Record<string, string> = {
-  unclaimed: "bg-slate-100 text-slate-700",
-  in_progress: "bg-blue-50 text-blue-700",
-  submitted: "bg-amber-50 text-amber-800",
-  accepted: "bg-emerald-50 text-emerald-700",
-  rejected: "bg-red-50 text-red-700",
-};
+const dialogClass =
+  "dialog-surface fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-xl";
 
-const MILESTONE_BG = "bg-[color:var(--terracotta-soft)] text-[color:var(--terracotta)]";
-
-export function EventChip({
-  projectId,
-  event,
-  today,
-  className,
+function ScheduleForm({
+  schedule,
+  date,
+  onSaved,
+  onCancel,
+  onPendingChange,
 }: {
-  projectId: string;
-  event: CalendarEvent;
-  today: string;
-  className?: string;
+  schedule?: ScheduleDTO;
+  date: string;
+  onSaved: (saved: ScheduleDTO) => void;
+  onCancel: () => void;
+  onPendingChange: (pending: boolean) => void;
 }) {
-  const overdue = eventIsOverdue(event, today);
-  const done = eventIsDone(event);
+  const [state, formAction, pending] = useActionState(saveScheduleAction, null);
+  const [title, setTitle] = useState(schedule?.title ?? "");
+  const [description, setDescription] = useState(schedule?.description ?? "");
+  const [scheduleDate, setScheduleDate] = useState(
+    schedule?.scheduleDate ?? date,
+  );
+  const [allDay, setAllDay] = useState(!schedule?.startTime);
+  const [startTime, setStartTime] = useState(schedule?.startTime ?? "09:00");
+  const [endTime, setEndTime] = useState(schedule?.endTime ?? "10:00");
+  const [priority, setPriority] = useState(schedule?.priority ?? 0);
+  const fieldId = useId();
+  useEffect(() => {
+    onPendingChange(pending);
+    return () => onPendingChange(false);
+  }, [pending, onPendingChange]);
+  useEffect(() => {
+    if (state?.saved) onSaved(state.saved);
+  }, [state, onSaved]);
   return (
-    <Link
-      href={
-        event.kind === "milestone"
-          ? `/p/${projectId}/milestones`
-          : `/p/${projectId}/tasks/${event.id}`
-      }
-      title={`${event.title}${event.spanDays > 1 ? `（跨 ${event.spanDays} 天）` : ""}`}
-      className={cn(
-        "block truncate rounded px-1 py-0.5 text-[10px] leading-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        event.kind === "milestone"
-          ? MILESTONE_BG
-          : STATUS_BG[event.taskStatus ?? "unclaimed"],
-        done && "line-through opacity-70",
-        overdue && "ring-1 ring-destructive/60",
-        className,
+    <form action={formAction} className="mt-5 space-y-4">
+      {schedule && (
+        <>
+          <input type="hidden" name="scheduleId" value={schedule.id} />
+          <input type="hidden" name="version" value={schedule.version} />
+        </>
       )}
-    >
-      {event.kind === "milestone" ? "◆ " : ""}
-      {event.title}
-    </Link>
-  );
-}
-
-export function MonthGrid({
-  projectId,
-  cells,
-  today,
-  maxPerCell = 3,
-}: {
-  projectId: string;
-  cells: CalendarCell[];
-  today: string;
-  maxPerCell?: number;
-}) {
-  return (
-    <div className="grid grid-cols-7 gap-1">
-      {cells.map((cell) => {
-        const extra = cell.events.length - maxPerCell;
-        return (
-          <div
-            key={cell.iso}
-            className={cn(
-              "min-h-[88px] rounded-md border border-border p-1.5",
-              cell.inMonth ? "bg-card" : "bg-muted/40 opacity-60",
-              cell.isWeekend && cell.inMonth && "bg-secondary/40",
-              cell.iso === today && "border-brand/60 ring-1 ring-brand/30",
-            )}
-          >
-            <div className="mb-1 flex items-center justify-between">
-              <span
-                className={cn(
-                  "text-[11px] text-muted-foreground",
-                  cell.iso === today && "font-semibold text-brand",
-                )}
-              >
-                {Number(cell.iso.slice(8, 10))}
-              </span>
-              {cell.events.length > 0 && (
-                <span className="text-[10px] text-muted-foreground">
-                  {cell.events.length}
-                </span>
-              )}
-            </div>
-            <div className="space-y-1">
-              {cell.events.slice(0, maxPerCell).map((event) => (
-                <EventChip
-                  key={`${event.kind}-${event.id}-${event.date}`}
-                  projectId={projectId}
-                  event={event}
-                  today={today}
-                />
-              ))}
-              {extra > 0 && (
-                <p className="px-1 text-[10px] text-muted-foreground">+{extra} 项</p>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-export function AgendaList({
-  projectId,
-  days,
-  today,
-  emptyText = "这段时间没有排期。",
-}: {
-  projectId: string;
-  days: AgendaDay[];
-  today: string;
-  emptyText?: string;
-}) {
-  if (days.length === 0) {
-    return <p className="px-1 py-6 text-sm text-muted-foreground">{emptyText}</p>;
-  }
-  return (
-    <ol className="space-y-3">
-      {days.map((day) => (
-        <li key={day.iso} className="rounded-lg border border-border bg-card">
-          <div
-            className={cn(
-              "flex items-center gap-2 rounded-t-lg border-b border-border px-3 py-1.5 text-xs",
-              day.isToday ? "bg-accent text-accent-foreground" : "bg-muted/50",
-            )}
-          >
-            <span className="font-medium">{day.iso}</span>
-            <span className="text-muted-foreground">{day.weekday}</span>
-            {day.isToday && <Badge>今天</Badge>}
-            <span className="ml-auto text-muted-foreground">{day.items.length} 项</span>
-          </div>
-          <ul className="divide-y divide-border">
-            {day.items.map((event) => {
-              const overdue = eventIsOverdue(event, today);
-              const done = eventIsDone(event);
-              return (
-                <li
-                  key={`${event.kind}-${event.id}-${event.date}`}
-                  className="flex items-center gap-2 px-3 py-2 text-sm"
-                >
-                  <Link
-                    href={
-                      event.kind === "milestone"
-                        ? `/p/${projectId}/milestones`
-                        : `/p/${projectId}/tasks/${event.id}`
-                    }
-                    className={cn(
-                      "min-w-0 flex-1 truncate hover:underline",
-                      done && "text-muted-foreground line-through",
-                    )}
-                  >
-                    {event.kind === "milestone" && (
-                      <span className="mr-1 text-[color:var(--terracotta)]">◆</span>
-                    )}
-                    {event.title}
-                  </Link>
-                  {event.spanDays > 1 && (
-                    <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">
-                      {event.endsToday ? `跨 ${event.spanDays} 天 · 今天截止` : `跨 ${event.spanDays} 天`}
-                    </span>
-                  )}
-                  {event.assigneeName && (
-                    <span className="hidden shrink-0 text-xs text-muted-foreground md:inline">
-                      {event.assigneeName}
-                    </span>
-                  )}
-                  {overdue && <Badge variant="destructive">逾期</Badge>}
-                  {event.kind === "milestone" ? (
-                    <Badge variant="secondary">里程碑</Badge>
-                  ) : (
-                    <>
-                      {event.priority && <PriorityPill priority={event.priority} />}
-                      <StatusPill status={event.taskStatus ?? "unclaimed"} />
-                    </>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-export function CalendarWorkspace({
-  projectId,
-  year,
-  month,
-  view,
-  today,
-  cells,
-  days,
-  filters,
-  canReview,
-}: {
-  projectId: string;
-  year: number;
-  month: number;
-  view: CalendarView;
-  today: string;
-  cells: CalendarCell[];
-  days: AgendaDay[];
-  filters: CalendarFilters;
-  canReview: boolean;
-}) {
-  const prev = shiftMonth(year, month, -1);
-  const next = shiftMonth(year, month, 1);
-  const now = currentYearMonth(today);
-  const buildHref = (input: {
-    year?: number;
-    month?: number;
-    view?: CalendarView;
-    risk?: boolean;
-  }) => {
-    const p = new URLSearchParams();
-    p.set("year", String(input.year ?? year));
-    p.set("month", String(input.month ?? month));
-    if ((input.view ?? view) === "agenda") p.set("view", "agenda");
-    for (const s of filters.status ?? []) p.append("status", s);
-    if (filters.assigneeId) p.set("assigneeId", filters.assigneeId);
-    if (filters.milestoneId) p.set("milestoneId", filters.milestoneId);
-    if (input.risk ?? filters.riskOnly) p.set("risk", "1");
-    return `/p/${projectId}/calendar?${p.toString()}`;
-  };
-
-  const shown = filters.riskOnly
-    ? days
-        .map((day) => ({
-          ...day,
-          items: day.items.filter(
-            (event) =>
-              event.kind === "task" &&
-              !eventIsDone(event) &&
-              !!event.dueDate &&
-              event.dueDate <= today,
-          ),
-        }))
-        .filter((day) => day.items.length > 0)
-    : days;
-
-  const monthEvents = cells.reduce((sum, cell) => sum + cell.events.length, 0);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1">
-          <Link
-            href={buildHref({ ...prev, view })}
-            aria-label="上一个月"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border hover:bg-accent"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Link>
-          <span className="w-32 text-center text-sm font-medium">
-            {year} 年 {month} 月
-          </span>
-          <Link
-            href={buildHref({ ...next, view })}
-            aria-label="下一个月"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border hover:bg-accent"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Link>
+      <fieldset disabled={pending} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor={`${fieldId}-title`}>日程标题</Label>
+          <Input
+            id={`${fieldId}-title`}
+            name="title"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            required
+            maxLength={100}
+            placeholder="例如：课题组讨论会"
+            autoComplete="off"
+          />
         </div>
-
-        {(year !== now.year || month !== now.month) && (
-          <Link
-            href={buildHref({ year: now.year, month: now.month, view })}
-            className="text-xs text-brand hover:underline"
-          >
-            回到本月
-          </Link>
-        )}
-
-        <nav className="ml-auto flex gap-1 rounded-md bg-muted p-0.5 text-xs">
-          <Link
-            href={buildHref({ view: "month" })}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded px-2.5 py-1 font-medium transition-colors",
-              view === "month"
-                ? "bg-card text-foreground shadow-xs"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <CalendarDays className="h-3.5 w-3.5" />
-            月视图
-          </Link>
-          <Link
-            href={buildHref({ view: "agenda" })}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded px-2.5 py-1 font-medium transition-colors",
-              view === "agenda"
-                ? "bg-card text-foreground shadow-xs"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <ListChecks className="h-3.5 w-3.5" />
-            日程表
-          </Link>
-          <Link
-            href={buildHref({ view: "agenda", risk: !filters.riskOnly })}
-            className={cn(
-              "rounded px-2.5 py-1 font-medium transition-colors",
-              filters.riskOnly
-                ? "bg-destructive/10 text-destructive"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            逾期风险
-          </Link>
-        </nav>
-      </div>
-
-      <p className="text-xs text-muted-foreground">
-        {view === "month"
-          ? `单日任务按截止日落格，跨天任务在区间内每天出现；本月 ${monthEvents} 个落格事件。`
-          : "按日期列出排期：任务按起止区间展开，里程碑按目标日。"}
-      </p>
-
-      {view === "month" ? (
-        <div className="space-y-4">
-          <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground">
-            {WEEKDAY_LABELS.map((label) => (
-              <div key={label} className="py-1">
-                {label}
-              </div>
-            ))}
-          </div>
-          <MonthGrid projectId={projectId} cells={cells} today={today} />
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle>近两周日程</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <AgendaList projectId={projectId} days={shown} today={today} />
-            </CardContent>
-          </Card>
-        </div>
-      ) : (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle>{filters.riskOnly ? "逾期风险" : `${month} 月日程`}</CardTitle>
-            {canReview && (
-              <p className="text-xs text-muted-foreground">
-                验收台可批量处理待验收任务。
-              </p>
-            )}
-          </CardHeader>
-          <CardContent>
-            <AgendaList
-              projectId={projectId}
-              days={shown}
-              today={today}
-              emptyText={filters.riskOnly ? "没有逾期或今天到期的任务。" : "本月没有排期。"}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label htmlFor={`${fieldId}-date`}>日期</Label>
+            <Input
+              id={`${fieldId}-date`}
+              name="scheduleDate"
+              type="date"
+              min="1900-01-01"
+              max="2100-12-31"
+              required
+              value={scheduleDate}
+              onChange={(event) => setScheduleDate(event.target.value)}
+              onInput={(event) => setScheduleDate(event.currentTarget.value)}
             />
-          </CardContent>
-        </Card>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`${fieldId}-priority`}>优先级</Label>
+            <Select
+              id={`${fieldId}-priority`}
+              name="priority"
+              value={priority}
+              onChange={(event) =>
+                setPriority(Number(event.target.value) as 0 | 1 | 2)
+              }
+            >
+              {([0, 1, 2] as const).map((value) => (
+                <option key={value} value={value}>
+                  {PRIORITY_META[value].label}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            name="allDay"
+            type="checkbox"
+            checked={allDay}
+            onChange={(event) => setAllDay(event.target.checked)}
+            className="h-4 w-4 accent-brand"
+          />
+          全天安排
+        </label>
+        {!allDay && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor={`${fieldId}-start`}>开始时间</Label>
+              <Input
+                id={`${fieldId}-start`}
+                name="startTime"
+                type="time"
+                required
+                value={startTime}
+              onChange={(event) => setStartTime(event.target.value)}
+              onInput={(event) => setStartTime(event.currentTarget.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${fieldId}-end`}>结束时间</Label>
+              <Input
+                id={`${fieldId}-end`}
+                name="endTime"
+                type="time"
+                required
+                value={endTime}
+              onChange={(event) => setEndTime(event.target.value)}
+              onInput={(event) => setEndTime(event.currentTarget.value)}
+              />
+            </div>
+          </div>
+        )}
+        <div className="space-y-2">
+          <Label htmlFor={`${fieldId}-description`}>说明</Label>
+          <Textarea
+            id={`${fieldId}-description`}
+            name="description"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            maxLength={500}
+            rows={3}
+            placeholder="地点、准备事项或讨论内容"
+          />
+          <p className="text-right text-xs text-muted-foreground">
+            {description.length}/500
+          </p>
+        </div>
+      </fieldset>
+      <FormFeedback message={state?.error} />
+      <p className="text-xs leading-5 text-muted-foreground">
+        时间按日程当天的本地钟表时间记录。保存个人安排不会创建或改变项目任务。
+      </p>
+      <div className="flex justify-end gap-2 border-t border-border pt-4">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={pending}
+          onClick={onCancel}
+          data-dialog-cancel
+        >
+          取消
+        </Button>
+        <Button type="submit" disabled={pending} loading={pending}>
+          {pending ? "保存中…" : "保存日程"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function DeleteForm({
+  schedule,
+  onDeleted,
+  onCancel,
+  onPendingChange,
+}: {
+  schedule: ScheduleDTO;
+  onDeleted: () => void;
+  onCancel: () => void;
+  onPendingChange: (pending: boolean) => void;
+}) {
+  const [state, formAction, pending] = useActionState(
+    deleteScheduleAction,
+    null,
+  );
+  useEffect(() => {
+    onPendingChange(pending);
+    return () => onPendingChange(false);
+  }, [pending, onPendingChange]);
+  useEffect(() => {
+    if (state?.deleted) onDeleted();
+  }, [state, onDeleted]);
+  return (
+    <form action={formAction} className="mt-5 space-y-4">
+      <input type="hidden" name="scheduleId" value={schedule.id} />
+      <input type="hidden" name="version" value={schedule.version} />
+      <FormFeedback message={state?.error} />
+      <div className="flex justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={pending}
+          onClick={onCancel}
+          data-dialog-cancel
+        >
+          取消
+        </Button>
+        <Button type="submit" variant="destructive" disabled={pending} loading={pending}>
+          {pending ? "删除中…" : "确认删除"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+export function ScheduleControls({
+  query,
+  schedule,
+  mode,
+  compact = false,
+}: {
+  query: CalendarQuery;
+  schedule?: ScheduleDTO;
+  mode: "create" | "manage";
+  compact?: boolean;
+}) {
+  const router = useRouter();
+  const notify = useFeedback();
+  const [dialog, setDialog] = useState<"save" | "delete" | null>(null);
+  const [busy, setBusy] = useState(false);
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  function openDialog(kind: "save" | "delete", trigger: HTMLElement) {
+    returnFocus.current = trigger;
+    setDialog(kind);
+  }
+  const saved = useCallback(
+    (item: ScheduleDTO) => {
+      setDialog(null);
+      notify("日程已保存");
+      router.push(
+        calendarUrl(query, {
+          date: item.scheduleDate,
+          year: Number(item.scheduleDate.slice(0, 4)),
+          month: Number(item.scheduleDate.slice(5, 7)),
+          q: "",
+          priority: null,
+        }),
+      );
+      router.refresh();
+    },
+    [query, router, notify],
+  );
+  const deleted = useCallback(() => {
+    notify("日程已删除");
+    setDialog(null);
+    router.refresh();
+  }, [router, notify]);
+  return (
+    <div
+      className={mode === "manage" ? "mt-3 border-t border-border pt-3" : ""}
+    >
+      {mode === "create" ? (
+        <Button
+          variant={compact ? "ghost" : "default"}
+          size={compact ? "icon" : "default"}
+          aria-label={compact ? "添加当日日程" : "新建日程"}
+          onClick={(event) => openDialog("save", event.currentTarget)}
+        >
+          {compact ? (
+            <Plus className="h-4 w-4" />
+          ) : (
+            <>
+              <CalendarPlus className="h-4 w-4" />
+              新建日程
+            </>
+          )}
+        </Button>
+      ) : (
+        schedule && (
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label={`编辑日程：${schedule.title}`}
+              onClick={(event) => openDialog("save", event.currentTarget)}
+            >
+              <Pencil className="h-3 w-3" />
+              编辑
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-destructive"
+              aria-label={`删除日程：${schedule.title}`}
+              onClick={(event) => openDialog("delete", event.currentTarget)}
+            >
+              <Trash2 className="h-3 w-3" />
+              删除
+            </Button>
+          </div>
+        )
+      )}
+      {dialog && (
+        <Dialog.Root
+          open
+          onOpenChange={(open) => {
+            if (!open && !busy) setDialog(null);
+          }}
+        >
+          <Dialog.Portal>
+            <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-black/35" />
+            <Dialog.Content
+              ref={contentRef}
+              className={dialogClass}
+              onOpenAutoFocus={(event) => {
+                event.preventDefault();
+                contentRef.current
+                  ?.querySelector<HTMLElement>(
+                    dialog === "save"
+                      ? 'input[name="title"]'
+                      : "button[data-dialog-cancel]",
+                  )
+                  ?.focus();
+              }}
+              onEscapeKeyDown={(event) => {
+                if (busy) event.preventDefault();
+              }}
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                if (returnFocus.current?.isConnected)
+                  returnFocus.current.focus();
+                else document.getElementById("daily-schedule-title")?.focus();
+              }}
+              onInteractOutside={(event) => event.preventDefault()}
+            >
+              <Dialog.Title className="text-lg font-semibold">
+                {dialog === "delete"
+                  ? "确认删除日程？"
+                  : schedule
+                    ? "编辑日程"
+                    : "新建日程"}
+              </Dialog.Title>
+              <Dialog.Description className="mt-2 text-sm leading-6 text-muted-foreground">
+                {dialog === "delete"
+                  ? `“${schedule?.title}”将被删除，此操作无法撤销。`
+                  : "日程仅本人可见，可安排全天事项或当天的起止时间。"}
+              </Dialog.Description>
+              <Dialog.Close asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={busy}
+                  className="absolute right-3 top-3"
+                  aria-label="关闭日程弹窗"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </Dialog.Close>
+              {dialog === "save" ? (
+                <ScheduleForm
+                  schedule={schedule}
+                  date={query.date}
+                  onSaved={saved}
+                  onCancel={() => setDialog(null)}
+                  onPendingChange={setBusy}
+                />
+              ) : (
+                schedule && (
+                  <DeleteForm
+                    schedule={schedule}
+                    onDeleted={deleted}
+                    onCancel={() => setDialog(null)}
+                    onPendingChange={setBusy}
+                  />
+                )
+              )}
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
       )}
     </div>
   );

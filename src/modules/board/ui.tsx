@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useFeedback } from "@/components/ui/feedback";
 import { StatusPill, PriorityPill } from "@/components/ui/badge";
 import {
   TASK_STATUSES,
@@ -210,10 +211,12 @@ export function ProjectWorkspace(props: WorkspaceProps) {
     view,
   } = props;
   const router = useRouter();
+  const notify = useFeedback();
   const id = useId();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [openedId, setOpenedId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createBusy, setCreateBusy] = useState(false);
   const detailReturnFocus = useRef<HTMLElement | null>(null);
   const createReturnFocus = useRef<HTMLElement | null>(null);
   const [dialog, setDialog] = useState<{
@@ -270,7 +273,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
     startTransition(async () => {
       const result = await moveTaskAction(task.id, { status: target });
       setNotice(result);
-      if (!result.error) router.refresh();
+      if (!result.error) { notify(result.ok || "任务状态已更新"); router.refresh(); }
     });
   }
 
@@ -286,7 +289,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
           </h1>
           <p className="mt-2 text-xs text-muted-foreground">
             {view === "board"
-              ? "拖动卡片推进状态，点击标题查看详情与下一步。"
+              ? "按状态查看任务，拖动卡片可调整状态。"
               : "集中查看负责人、状态与排期，点击任务查看操作。"}
           </p>
         </div>
@@ -319,7 +322,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
       </div>
       <details className="rounded-xl border border-border bg-card p-3">
         <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
-          查看五态流转路径与角色分工
+          查看任务流程与权限
         </summary>
         <div className="mt-3">
           <TaskWorkflow />
@@ -507,11 +510,11 @@ export function ProjectWorkspace(props: WorkspaceProps) {
       {tasks.length === 0 ? (
         <section className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
           <LayoutGrid className="mx-auto mb-3 h-8 w-8 text-brand" />
-          <h2 className="text-lg font-semibold">从第一个任务开始</h2>
+          <h2 className="text-lg font-semibold">暂无任务</h2>
           <p className="mb-5 mt-2 text-sm text-muted-foreground">
-            将项目目标拆成可交付的小任务，成员认领后就能开始协作。
+            创建任务并设置负责人、优先级和截止日期。
           </p>
-          <Button onClick={() => setCreateOpen(true)}>创建第一个任务</Button>
+          <Button onClick={() => setCreateOpen(true)}>新建任务</Button>
         </section>
       ) : (
         <>
@@ -646,7 +649,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
         }}
       >
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-40 bg-black/35" />
+          <Dialog.Overlay className="dialog-overlay fixed inset-0 z-40 bg-black/35" />
           <Dialog.Content
             onOpenAutoFocus={() => {
               detailReturnFocus.current =
@@ -658,7 +661,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
               event.preventDefault();
               detailReturnFocus.current?.focus();
             }}
-            className="fixed inset-y-0 right-0 z-40 w-full max-w-2xl overflow-y-auto border-l border-border bg-card p-5 shadow-xl sm:p-7"
+            className="dialog-surface fixed inset-y-0 right-0 z-40 w-full max-w-2xl overflow-y-auto border-l border-border bg-card p-5 shadow-xl sm:p-7"
           >
             {openedTask && (
               <>
@@ -708,7 +711,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
                   </p>
                 )}
                 <section className="mt-5 space-y-3">
-                  <h2 className="text-sm font-semibold">下一步操作</h2>
+                  <h2 className="text-sm font-semibold">任务操作</h2>
                   <TaskActions
                     key={`${openedTask.id}-${openedTask.status}-${openedTask.assigneeId}`}
                     task={openedTask}
@@ -728,33 +731,38 @@ export function ProjectWorkspace(props: WorkspaceProps) {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
-      <Dialog.Root open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog.Root open={createOpen} onOpenChange={(value) => { if (!createBusy) setCreateOpen(value); }}>
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/35" />
+          <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-black/35" />
           <Dialog.Content
-            onOpenAutoFocus={() => {
+            onEscapeKeyDown={(event) => { if (createBusy) event.preventDefault(); }}
+            onPointerDownOutside={(event) => { if (createBusy) event.preventDefault(); }}
+            onOpenAutoFocus={(event) => {
               createReturnFocus.current =
                 document.activeElement instanceof HTMLElement
                   ? document.activeElement
                   : null;
+              event.preventDefault();
+              if (event.target instanceof HTMLElement) event.target.querySelector<HTMLInputElement>('input[name="title"]')?.focus();
             }}
             onCloseAutoFocus={(event) => {
               event.preventDefault();
               createReturnFocus.current?.focus();
             }}
-            className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-card p-5 shadow-xl"
+            className="dialog-surface fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-card p-5 shadow-xl"
           >
             <Dialog.Title className="mb-2 text-lg font-semibold">
               创建项目任务
             </Dialog.Title>
             <Dialog.Description className="mb-4 text-xs text-muted-foreground">
-              先创建到待认领任务池，再由成员认领或教师指派。
+              任务创建后进入任务池，可由成员认领或按权限指派。
             </Dialog.Description>
             <Dialog.Close asChild>
               <Button
                 variant="ghost"
                 size="icon"
                 aria-label="关闭创建任务"
+                disabled={createBusy}
                 className="absolute right-3 top-3"
               >
                 <X className="h-4 w-4" />
@@ -762,6 +770,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
             </Dialog.Close>
             <CreateTaskForm
               projectId={projectId}
+              onPendingChange={setCreateBusy}
               onCreated={() => {
                 setCreateOpen(false);
                 router.refresh();

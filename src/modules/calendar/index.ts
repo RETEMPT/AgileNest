@@ -10,4 +10,19 @@ export {
   serializeCalendarQuery,
   type CalendarTask,
 } from "./service";
-export { CalendarWorkspaceView } from "./views";
+export type { CalendarCell } from "./service";
+export { CalendarWorkspaceView } from "./project-view";
+export {
+  listMySchedules,
+  createSchedule,
+  updateSchedule,
+  deleteSchedule,
+} from "./schedule-service";
+export {
+  projectCalendarGET,
+  schedulesGET,
+  schedulesPOST,
+  schedulePUT,
+  scheduleDELETE,
+} from "./api";
+export type { ScheduleDTO, ScheduleInput, SchedulePriority } from "./client";

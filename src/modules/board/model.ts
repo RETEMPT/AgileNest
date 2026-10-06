@@ -99,7 +99,15 @@ export function getMoveTransition(
   );
 }
 
-export function deriveColumns(tasks: TaskDTO[], groupBy: GroupBy): ColumnDef[] {
+export function deriveColumns(
+  unsortedTasks: TaskDTO[],
+  groupBy: GroupBy,
+): ColumnDef[] {
+  const tasks = [...unsortedTasks].sort(
+    (a, b) =>
+      a.sortOrder - b.sortOrder ||
+      a.createdAt.getTime() - b.createdAt.getTime(),
+  );
   if (groupBy === "status") {
     return TASK_STATUSES.map((s) => ({
       id: s,

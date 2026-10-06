@@ -14,6 +14,7 @@ import { db, type DbTx } from "@/db";
 import {
   taskAcceptanceEvents,
   tasks,
+  milestones,
   teamMembers,
   memberPositions,
   users,
@@ -36,6 +37,7 @@ import {
   notifySubmitted,
 } from "@/modules/notify";
 import { availableTransitions, findTransition } from "./states";
+import { taskCreateSchema, taskPatchSchema, assertTaskDates } from "./schema";
 import {
   capabilitiesFor,
   positionsFromRole,
@@ -223,6 +225,37 @@ export async function getTaskDetail(
   return { ...toActorDTO(row, access.capabilities.task), subtasks };
 }
 
+async function validateTaskLinks(
+  tx: DbTx,
+  projectId: string,
+  milestoneId?: string | null,
+  parentId?: string | null,
+) {
+  if (milestoneId) {
+    const [milestone] = await tx
+      .select({ projectId: milestones.projectId })
+      .from(milestones)
+      .where(eq(milestones.id, milestoneId));
+    if (!milestone || milestone.projectId !== projectId)
+      throw new AppError("请选择当前项目的里程碑");
+  }
+  if (parentId) {
+    const [parent] = await tx
+      .select()
+      .from(tasks)
+      .where(eq(tasks.id, parentId))
+      .for("update");
+    if (!parent || parent.projectId !== projectId)
+      throw new AppError("父任务必须属于当前项目");
+    if (parent.parentTaskId)
+      throw new ConflictError("子任务不能继续拆分，请在顶层任务中添加");
+    if (["submitted", "accepted"].includes(parent.status))
+      throw new ConflictError(
+        "待验收或已完成的任务不能新增子任务，请先打回或重新打开",
+      );
+  }
+}
+
 export async function createTask(
   actorId: string,
   projectId: string,
@@ -239,6 +272,9 @@ export async function createTask(
   },
 ): Promise<TaskDTO> {
   const access = await assertRole(actorId, projectId, "create");
+  const parsed = taskCreateSchema.safeParse(input);
+  if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
+  assertTaskDates(parsed.data);
   const title = input.title?.trim();
   if (!title) throw new AppError("标题不能为空");
   assertISODate(input.startDate, "开始日期");
@@ -277,28 +313,45 @@ export async function createTask(
       throw new AppError("请选择有队员、队长或管理员职务的成员作为负责人");
   }
 
-  const [row] = await db
-    .insert(tasks)
-    .values({
+  const row = await db.transaction(async (tx) => {
+    await validateTaskLinks(
+      tx,
       projectId,
-      title,
-      description: input.description ?? null,
-      assigneeId: input.assigneeId ?? null,
-      createdById: actorId,
-      milestoneId: input.milestoneId ?? null,
-      parentTaskId: input.parentTaskId ?? null,
-      startDate: input.startDate ?? null,
-      dueDate: input.dueDate ?? null,
-      estimatedMinutes: input.estimatedMinutes ?? null,
-      priority: input.priority ?? "medium",
-      status: input.assigneeId ? "in_progress" : "unclaimed",
-      claimedAt: input.assigneeId ? new Date() : null,
-    })
-    .returning();
+      input.milestoneId,
+      input.parentTaskId,
+    );
+    const [created] = await tx
+      .insert(tasks)
+      .values({
+        projectId,
+        title,
+        description: input.description ?? null,
+        assigneeId: input.assigneeId ?? null,
+        createdById: actorId,
+        milestoneId: input.milestoneId ?? null,
+        parentTaskId: input.parentTaskId ?? null,
+        startDate: input.startDate ?? null,
+        dueDate: input.dueDate ?? null,
+        estimatedMinutes: input.estimatedMinutes ?? null,
+        priority: input.priority ?? "medium",
+        status: input.assigneeId ? "in_progress" : "unclaimed",
+        claimedAt: input.assigneeId ? new Date() : null,
+      })
+      .returning();
+    await tx
+      .insert(taskAcceptanceEvents)
+      .values({ taskId: created.id, actorId, action: "create" });
+    if (input.assigneeId)
+      await tx.insert(taskAcceptanceEvents).values({
+        taskId: created.id,
+        actorId,
+        action: "assign",
+        note: input.assigneeId,
+      });
+    return created;
+  });
 
-  await recordEvent(row.id, actorId, "create");
   if (input.assigneeId) {
-    await recordEvent(row.id, actorId, "assign", input.assigneeId);
     await fireNotify(() => notifyAssigned(row.id));
   }
   return toActorDTO({ ...row, assigneeName: null }, access.capabilities.task);
@@ -311,35 +364,61 @@ export async function updateTask(
 ): Promise<TaskDTO> {
   const row = await loadTaskRow(taskId);
   const access = await assertRole(actorId, row.projectId, "update");
+  const parsed = taskPatchSchema.safeParse(patch);
+  if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
+  patch = parsed.data;
+  if (
+    patch.parentTaskId !== undefined &&
+    patch.parentTaskId !== row.parentTaskId
+  )
+    throw new ConflictError("创建后不能更换父任务，请在目标任务中添加子任务");
   assertISODate(patch.startDate, "开始日期");
   assertISODate(patch.dueDate, "截止日期");
 
-  const [updated] = await db
-    .update(tasks)
-    .set({
-      ...(patch.title !== undefined && { title: patch.title.trim() }),
-      ...(patch.description !== undefined && {
-        description: patch.description,
-      }),
-      ...(patch.milestoneId !== undefined && {
-        milestoneId: patch.milestoneId,
-      }),
-      ...(patch.parentTaskId !== undefined && {
-        parentTaskId: patch.parentTaskId,
-      }),
-      ...(patch.startDate !== undefined && { startDate: patch.startDate }),
-      ...(patch.dueDate !== undefined && { dueDate: patch.dueDate }),
-      ...(patch.estimatedMinutes !== undefined && {
-        estimatedMinutes: patch.estimatedMinutes,
-      }),
-      ...(patch.priority !== undefined && { priority: patch.priority }),
-      ...(patch.sortOrder !== undefined && { sortOrder: patch.sortOrder }),
-      updatedAt: new Date(),
-    })
-    .where(eq(tasks.id, taskId))
-    .returning();
-
-  await recordEvent(taskId, actorId, "update");
+  const updated = await db.transaction(async (tx) => {
+    if (row.parentTaskId)
+      await tx
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(eq(tasks.id, row.parentTaskId))
+        .for("update");
+    const [current] = await tx
+      .select()
+      .from(tasks)
+      .where(eq(tasks.id, taskId))
+      .for("update");
+    if (!current) throw new NotFoundError("任务不存在");
+    assertTaskDates({ ...current, ...patch });
+    await validateTaskLinks(tx, row.projectId, patch.milestoneId);
+    const [changed] = await tx
+      .update(tasks)
+      .set({
+        ...(patch.title !== undefined && { title: patch.title.trim() }),
+        ...(patch.description !== undefined && {
+          description: patch.description,
+        }),
+        ...(patch.milestoneId !== undefined && {
+          milestoneId: patch.milestoneId,
+        }),
+        ...(patch.parentTaskId !== undefined && {
+          parentTaskId: patch.parentTaskId,
+        }),
+        ...(patch.startDate !== undefined && { startDate: patch.startDate }),
+        ...(patch.dueDate !== undefined && { dueDate: patch.dueDate }),
+        ...(patch.estimatedMinutes !== undefined && {
+          estimatedMinutes: patch.estimatedMinutes,
+        }),
+        ...(patch.priority !== undefined && { priority: patch.priority }),
+        ...(patch.sortOrder !== undefined && { sortOrder: patch.sortOrder }),
+        updatedAt: new Date(),
+      })
+      .where(eq(tasks.id, taskId))
+      .returning();
+    await tx
+      .insert(taskAcceptanceEvents)
+      .values({ taskId, actorId, action: "update", note: "更新任务信息" });
+    return changed;
+  });
   return toActorDTO(
     { ...updated, assigneeName: row.assigneeName },
     access.capabilities.task,
@@ -366,6 +445,15 @@ export async function transitionTask(
   const access = await assertRole(actorId, initial.projectId, action);
   const note = input?.note?.trim() || null;
   const result = await db.transaction(async (tx) => {
+    if (initial.parentTaskId) {
+      const [parent] = await tx
+        .select()
+        .from(tasks)
+        .where(eq(tasks.id, initial.parentTaskId))
+        .for("update");
+      if (parent?.status === "accepted" && action === "reopen")
+        throw new ConflictError("请先重新打开父任务，再调整子任务");
+    }
     await tx
       .select({ id: tasks.id })
       .from(tasks)
@@ -385,6 +473,15 @@ export async function transitionTask(
     }
 
     if (rule.noteRequired && !note) throw new AppError("请填写说明");
+    if (note && note.length > 5000) throw new AppError("说明最多 5000 字");
+    if (action === "accept") {
+      const children = await tx
+        .select({ status: tasks.status })
+        .from(tasks)
+        .where(eq(tasks.parentTaskId, taskId));
+      if (children.some((child) => child.status !== "accepted"))
+        throw new ConflictError("请先验收全部子任务，再验收父任务");
+    }
 
     let nextAssignee = row.assigneeId;
     if (action === "claim") nextAssignee = actorId;
@@ -496,14 +593,21 @@ export async function transitionTask(
 export async function createSubtask(
   actorId: string,
   parentTaskId: string,
-  input: { title: string; description?: string; dueDate?: string },
+  input: {
+    title: string;
+    description?: string;
+    dueDate?: string;
+    priority?: TaskPriority;
+  },
 ): Promise<TaskDTO> {
   const parent = await loadTaskRow(parentTaskId);
+  await requireProjectForUser(actorId, parent.projectId);
   if (parent.parentTaskId) throw new AppError("不能再嵌套子任务");
   return createTask(actorId, parent.projectId, {
     title: input.title,
     description: input.description,
     dueDate: input.dueDate,
+    priority: input.priority,
     parentTaskId,
   });
 }

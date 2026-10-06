@@ -1,5 +1,5 @@
 import type { MilestoneKind, TaskPriority, TaskStatus } from "@/db/schema";
-import { todayISO } from "@/modules/core/dates";
+import { daysBetween, isValidISODate, todayISO } from "@/modules/core/dates";
 import type { MilestoneDTO } from "@/modules/milestone";
 
 /**
@@ -125,7 +125,15 @@ export function calendarRange(
   from: string,
   to: string,
 ): string[] {
-  return taskDates(event).filter((iso) => iso >= from && iso <= to);
+  const start = event.startDate ?? event.dueDate;
+  const end = event.dueDate ?? event.startDate;
+  if (!start || !end || !isValidISODate(start) || !isValidISODate(end)) return [];
+  if (start > end) return end >= from && end <= to ? [end] : [];
+  const clippedStart = start > from ? start : from;
+  const clippedEnd = end < to ? end : to;
+  const dates: string[] = [];
+  for (let iso = clippedStart; iso <= clippedEnd; iso = stepDay(iso)) dates.push(iso);
+  return dates;
 }
 
 export function milestoneToEvent(milestone: MilestoneDTO): CalendarEvent | null {
@@ -150,8 +158,11 @@ export function milestoneToEvent(milestone: MilestoneDTO): CalendarEvent | null 
 
 /** 跨天任务在日历上每一天都出现，最后一天标记 endsToday。 */
 export function taskEventsForDate(task: DatedTask, iso: string): CalendarEvent | null {
-  const dates = taskDates(task);
-  if (!dates.includes(iso)) return null;
+  const start = task.startDate ?? task.dueDate;
+  const end = task.dueDate ?? task.startDate;
+  if (!start || !end || !isValidISODate(start) || !isValidISODate(end)) return null;
+  const from = start <= end ? start : end;
+  if (iso < from || iso > end) return null;
   return {
     id: task.id,
     kind: "task",
@@ -165,8 +176,8 @@ export function taskEventsForDate(task: DatedTask, iso: string): CalendarEvent |
     priority: task.priority ?? null,
     milestoneId: task.milestoneId ?? null,
     date: iso,
-    spanDays: dates.length,
-    endsToday: iso === dates[dates.length - 1],
+    spanDays: daysBetween(from, end) + 1,
+    endsToday: iso === end,
   };
 }
 
@@ -234,7 +245,7 @@ export function monthBounds(year: number, month: number): { from: string; to: st
 }
 
 export function isValidYearMonth(year: number, month: number): boolean {
-  return Number.isInteger(year) && year >= 1970 && year <= 9999 && Number.isInteger(month) && month >= 1 && month <= 12;
+  return Number.isInteger(year) && year >= 1900 && year <= 2100 && Number.isInteger(month) && month >= 1 && month <= 12;
 }
 
 export function shapeEvents(

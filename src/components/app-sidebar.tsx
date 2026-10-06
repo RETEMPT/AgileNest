@@ -1,11 +1,15 @@
 "use client";
 
+import { version } from "../../package.json";
+
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { UserAvatar } from "./ui/user-avatar";
 import {
   LogoIcon,
   WorkbenchIcon,
+  AiChatIcon,
   TeamIcon,
   TasksIcon,
   BoardIcon,
@@ -37,6 +41,7 @@ type AppSidebarProps = {
     id: string;
     name?: string | null;
     email?: string | null;
+    avatarUrl?: string | null;
   };
   projects: ProjectSummary[];
   onSignOut: () => Promise<void>;
@@ -70,51 +75,46 @@ export function AppSidebar({
   const isHomeActive = pathname === "/home" || pathname.startsWith("/home/");
   const isTeamActive = pathname === "/t" || pathname.startsWith("/t/");
   const isSettingsActive = pathname === "/settings";
+  const isAiActive = pathname === "/ai";
+  const isCalendarActive = pathname === "/calendar";
 
   // 项目各独立系统的入口配置
   const projectNavItems = activeProjectId
     ? [
         {
           href: `/p/${activeProjectId}/tasks`,
-          label: "任务池 (状态机)",
+          label: "任务池",
           icon: TasksIcon,
-          tag: "tasks",
         },
         {
           href: `/p/${activeProjectId}/board`,
-          label: "多维看板",
+          label: "任务看板",
           icon: BoardIcon,
-          tag: "board",
         },
         {
           href: `/p/${activeProjectId}/table`,
-          label: "结构表格",
+          label: "任务表格",
           icon: TableIcon,
-          tag: "table",
         },
         {
           href: `/p/${activeProjectId}/calendar`,
-          label: "教学日程",
+          label: "项目日历",
           icon: CalendarIcon,
-          tag: "calendar",
         },
         {
           href: `/p/${activeProjectId}/milestones`,
-          label: "教学里程碑",
+          label: "项目里程碑",
           icon: MilestoneIcon,
-          tag: "milestone",
         },
         {
           href: `/p/${activeProjectId}/review`,
-          label: "验收审核台",
+          label: "验收台",
           icon: ReviewIcon,
-          tag: "review",
         },
         {
           href: `/p/${activeProjectId}/stats`,
           label: "工时与贡献",
           icon: StatsIcon,
-          tag: "stats",
         },
       ]
     : [];
@@ -123,14 +123,17 @@ export function AppSidebar({
     <>
       {/* 移动端顶部轻量栏 */}
       <div className="flex h-14 items-center justify-between border-b border-border bg-card px-4 md:hidden">
-        <Link href="/home" className="flex items-center gap-2 font-display text-base font-bold">
+        <Link
+          href="/home"
+          className="flex items-center gap-2 font-display text-base font-bold"
+        >
           <LogoIcon size={20} />
           <span>AgileNest</span>
         </Link>
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
           className="rounded-lg p-2 text-muted-foreground hover:bg-accent"
-          aria-label="Toggle Navigation"
+          aria-label="切换导航菜单"
         >
           <MenuIcon size={20} />
         </button>
@@ -146,7 +149,7 @@ export function AppSidebar({
 
       {/* 侧栏主体 (支持可折叠桌面侧栏 & 移动端全宽滑出) */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 flex flex-col border-r border-border bg-card transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] md:translate-x-0 will-change-transform ${
+        className={`sidebar-surface fixed top-0 bottom-0 left-0 z-50 flex flex-col border-r border-border bg-card transition-[width,transform] duration-200 ease-out md:translate-x-0 ${
           isCollapsed ? "md:w-18" : "md:w-64"
         } ${mobileOpen ? "translate-x-0 w-64" : "-translate-x-full w-64"}`}
       >
@@ -159,7 +162,7 @@ export function AppSidebar({
                 <button
                   onClick={onToggleCollapse}
                   title="展开侧栏 (Ctrl+B)"
-                  className="group relative flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50/70 text-blue-600 hover:bg-blue-100 hover:text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/60 transition shadow-2xs"
+                  className="group relative flex h-9 w-9 items-center justify-center rounded-lg bg-brand-soft/70 text-brand hover:bg-brand-soft hover:text-brand-hover dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/60 transition shadow-2xs"
                 >
                   <span className="group-hover:hidden transition-transform">
                     <LogoIcon size={20} />
@@ -171,7 +174,7 @@ export function AppSidebar({
               ) : (
                 <Link
                   href="/home"
-                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50/70 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-soft/70 text-brand dark:bg-blue-950/40 dark:text-blue-400"
                   title="AgileNest 首页"
                 >
                   <LogoIcon size={20} />
@@ -191,7 +194,7 @@ export function AppSidebar({
               className="flex items-center gap-2.5 font-display text-lg font-bold tracking-tight text-foreground truncate"
               title="AgileNest 首页"
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand dark:bg-blue-950/40 dark:text-blue-400">
                 <LogoIcon size={20} />
               </div>
               <span className="truncate">AgileNest</span>
@@ -199,7 +202,7 @@ export function AppSidebar({
 
             <div className="flex items-center gap-1.5">
               <span className="rounded-md border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                v0.2
+                v{version}
               </span>
               {onToggleCollapse && (
                 <button
@@ -219,8 +222,10 @@ export function AppSidebar({
           {isCollapsed ? (
             <button
               onClick={() => setSwitcherOpen(!switcherOpen)}
-              title={activeProject ? `当前项目: ${activeProject.name}` : "选择项目"}
-              className="hidden md:flex mx-auto h-9 w-9 items-center justify-center rounded-lg border border-border/80 bg-background hover:bg-accent text-blue-600 transition"
+              title={
+                activeProject ? `当前项目: ${activeProject.name}` : "选择项目"
+              }
+              className="hidden md:flex mx-auto h-9 w-9 items-center justify-center rounded-lg border border-border/80 bg-background hover:bg-accent text-brand transition"
             >
               <ProjectFolderIcon size={16} />
             </button>
@@ -230,13 +235,15 @@ export function AppSidebar({
               className="flex w-full items-center justify-between gap-2 rounded-lg border border-border/70 bg-background px-3 py-2 text-left text-xs transition hover:bg-accent/60"
             >
               <div className="flex items-center gap-2 truncate">
-                <ProjectFolderIcon size={16} className="shrink-0 text-blue-600" />
+                <ProjectFolderIcon size={16} className="shrink-0 text-brand" />
                 <div className="truncate">
                   <p className="truncate font-semibold text-foreground">
                     {activeProject ? activeProject.name : "未选择项目"}
                   </p>
                   <p className="truncate text-[10px] text-muted-foreground">
-                    {activeProject ? activeProject.teamName : "点击切换项目上下文"}
+                    {activeProject
+                      ? activeProject.teamName
+                      : "点击切换项目上下文"}
                   </p>
                 </div>
               </div>
@@ -256,13 +263,15 @@ export function AppSidebar({
               className="flex w-full items-center justify-between gap-2 rounded-lg border border-border/70 bg-background px-3 py-2 text-left text-xs transition hover:bg-accent/60"
             >
               <div className="flex items-center gap-2 truncate">
-                <ProjectFolderIcon size={16} className="shrink-0 text-blue-600" />
+                <ProjectFolderIcon size={16} className="shrink-0 text-brand" />
                 <div className="truncate">
                   <p className="truncate font-semibold text-foreground">
                     {activeProject ? activeProject.name : "未选择项目"}
                   </p>
                   <p className="truncate text-[10px] text-muted-foreground">
-                    {activeProject ? activeProject.teamName : "点击切换项目上下文"}
+                    {activeProject
+                      ? activeProject.teamName
+                      : "点击切换项目上下文"}
                   </p>
                 </div>
               </div>
@@ -301,7 +310,9 @@ export function AppSidebar({
                     }`}
                   >
                     <span className="truncate">{p.name}</span>
-                    <span className="text-[10px] text-muted-foreground">{p.teamName}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {p.teamName}
+                    </span>
                   </Link>
                 ))
               )}
@@ -312,7 +323,7 @@ export function AppSidebar({
                   setSwitcherOpen(false);
                   setMobileOpen(false);
                 }}
-                className="block rounded-lg px-2.5 py-1.5 text-xs text-blue-600 hover:bg-blue-50/60 dark:hover:bg-blue-950/30"
+                className="block rounded-lg px-2.5 py-1.5 text-xs text-brand hover:bg-brand-soft/60 dark:hover:bg-blue-950/30"
               >
                 + 管理与新建团队项目 →
               </Link>
@@ -329,13 +340,13 @@ export function AppSidebar({
                 isCollapsed ? "md:hidden" : ""
               }`}
             >
-              核心工作台
+              工作空间
             </div>
             <nav className="space-y-0.5">
               <Link
                 href="/home"
                 onClick={() => setMobileOpen(false)}
-                title={isCollapsed ? "今日工作台" : undefined}
+                title={isCollapsed ? "工作台" : undefined}
                 className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition ${
                   isHomeActive
                     ? "bg-foreground text-background"
@@ -344,9 +355,9 @@ export function AppSidebar({
               >
                 <WorkbenchIcon
                   size={16}
-                  className={isHomeActive ? "text-background" : "text-blue-600"}
+                  className={isHomeActive ? "text-background" : "text-brand"}
                 />
-                <span className={isCollapsed ? "md:hidden" : ""}>今日工作台</span>
+                <span className={isCollapsed ? "md:hidden" : ""}>工作台</span>
               </Link>
               <Link
                 href="/t"
@@ -360,9 +371,45 @@ export function AppSidebar({
               >
                 <TeamIcon
                   size={16}
-                  className={isTeamActive ? "text-background" : "text-blue-600"}
+                  className={isTeamActive ? "text-background" : "text-brand"}
                 />
                 <span className={isCollapsed ? "md:hidden" : ""}>团队空间</span>
+              </Link>
+              <Link
+                href="/ai"
+                onClick={() => setMobileOpen(false)}
+                aria-label="AI 对话"
+                aria-current={isAiActive ? "page" : undefined}
+                title={isCollapsed ? "AI 对话" : undefined}
+                className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  isAiActive
+                    ? "bg-foreground text-background"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                } ${isCollapsed ? "md:justify-center md:px-0" : ""}`}
+              >
+                <AiChatIcon
+                  size={16}
+                  aria-hidden="true"
+                  className={isAiActive ? "text-background" : "text-brand"}
+                />
+                <span className={isCollapsed ? "md:hidden" : ""}>AI 对话</span>
+              </Link>
+              <Link
+                href="/calendar"
+                onClick={() => setMobileOpen(false)}
+                aria-label="个人日历"
+                aria-current={isCalendarActive ? "page" : undefined}
+                title={isCollapsed ? "个人日历" : undefined}
+                className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${isCalendarActive ? "bg-foreground text-background" : "text-muted-foreground hover:bg-accent hover:text-foreground"} ${isCollapsed ? "md:justify-center md:px-0" : ""}`}
+              >
+                <CalendarIcon
+                  size={16}
+                  aria-hidden="true"
+                  className={
+                    isCalendarActive ? "text-background" : "text-brand"
+                  }
+                />
+                <span className={isCollapsed ? "md:hidden" : ""}>个人日历</span>
               </Link>
             </nav>
           </div>
@@ -374,7 +421,7 @@ export function AppSidebar({
                 isCollapsed ? "md:hidden" : ""
               }`}
             >
-              <span>项目系统</span>
+              <span>当前项目</span>
               {activeProject && (
                 <span className="max-w-[100px] truncate text-[10px] font-normal text-muted-foreground">
                   {activeProject.name}
@@ -394,7 +441,9 @@ export function AppSidebar({
               <nav className="space-y-0.5">
                 {projectNavItems.map((item) => {
                   const Icon = item.icon;
-                  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  const isActive =
+                    pathname === item.href ||
+                    pathname.startsWith(`${item.href}/`);
                   return (
                     <Link
                       key={item.href}
@@ -410,25 +459,16 @@ export function AppSidebar({
                       <div className="flex items-center gap-2.5 truncate">
                         <Icon
                           size={16}
-                          className={isActive ? "text-background" : "text-blue-600"}
+                          className={
+                            isActive ? "text-background" : "text-brand"
+                          }
                         />
-                        <span className={`truncate ${isCollapsed ? "md:hidden" : ""}`}>
+                        <span
+                          className={`truncate ${isCollapsed ? "md:hidden" : ""}`}
+                        >
                           {item.label}
                         </span>
                       </div>
-                      {item.tag && (
-                        <span
-                          className={`rounded px-1.5 py-0.2 text-[9px] uppercase tracking-wide ${
-                            isCollapsed ? "md:hidden" : ""
-                          } ${
-                            isActive
-                              ? "bg-background/20 text-background"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          {item.tag}
-                        </span>
-                      )}
                     </Link>
                   );
                 })}
@@ -447,25 +487,29 @@ export function AppSidebar({
             </div>
             <nav className="space-y-0.5">
               <Link
-                href="/settings"
+                href="/notifications"
                 onClick={() => setMobileOpen(false)}
-                title={isCollapsed ? "消息与飞书集成" : undefined}
+                title={isCollapsed ? "消息中心" : undefined}
                 className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition ${
-                  isSettingsActive
+                  pathname === "/notifications"
                     ? "bg-foreground text-background"
                     : "text-muted-foreground hover:bg-accent hover:text-foreground"
                 } ${isCollapsed ? "md:justify-center md:px-0" : ""}`}
               >
                 <NotifyIcon
                   size={16}
-                  className={isSettingsActive ? "text-background" : "text-blue-600"}
+                  className={
+                    pathname === "/notifications"
+                      ? "text-background"
+                      : "text-brand"
+                  }
                 />
-                <span className={isCollapsed ? "md:hidden" : ""}>消息与飞书集成</span>
+                <span className={isCollapsed ? "md:hidden" : ""}>消息中心</span>
               </Link>
               <Link
                 href="/settings"
                 onClick={() => setMobileOpen(false)}
-                title={isCollapsed ? "系统偏好设置" : undefined}
+                title={isCollapsed ? "个人中心" : undefined}
                 className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition ${
                   isSettingsActive
                     ? "bg-foreground text-background"
@@ -474,9 +518,11 @@ export function AppSidebar({
               >
                 <SettingsIcon
                   size={16}
-                  className={isSettingsActive ? "text-background" : "text-blue-600"}
+                  className={
+                    isSettingsActive ? "text-background" : "text-brand"
+                  }
                 />
-                <span className={isCollapsed ? "md:hidden" : ""}>系统偏好设置</span>
+                <span className={isCollapsed ? "md:hidden" : ""}>个人中心</span>
               </Link>
             </nav>
           </div>
@@ -495,13 +541,23 @@ export function AppSidebar({
               }`}
               title={`${displayName} (${displayEmail})`}
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-foreground text-xs font-bold text-background">
-                {displayName.slice(0, 1).toUpperCase()}
-              </div>
-              <div className={`truncate text-left ${isCollapsed ? "md:hidden" : ""}`}>
-                <p className="truncate text-xs font-semibold text-foreground">{displayName}</p>
+              <Link href="/settings" title="编辑个人资料">
+                <UserAvatar
+                  name={displayName}
+                  src={user.avatarUrl}
+                  className="h-8 w-8 text-xs"
+                />
+              </Link>
+              <div
+                className={`truncate text-left ${isCollapsed ? "md:hidden" : ""}`}
+              >
+                <p className="truncate text-xs font-semibold text-foreground">
+                  {displayName}
+                </p>
                 {displayEmail && (
-                  <p className="truncate text-[10px] text-muted-foreground">{displayEmail}</p>
+                  <p className="truncate text-[10px] text-muted-foreground">
+                    {displayEmail}
+                  </p>
                 )}
               </div>
             </div>

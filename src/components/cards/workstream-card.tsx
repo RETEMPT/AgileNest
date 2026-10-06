@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useState, memo } from "react";
-import Link from "next/link";
 import type { TaskDTO } from "@/modules/tasks";
 import type { TeamRole } from "@/db/schema";
 import { StatusPill, PriorityPill } from "@/components/ui/badge";
 import { TaskActions } from "@/modules/tasks/ui";
 import { TaskDrawer } from "./task-drawer";
+import { FormFeedback, useFeedback } from "@/components/ui/feedback";
+import { todayISO } from "@/modules/core/dates";
 
 type WorkstreamCardProps = {
   task: TaskDTO & {
@@ -30,26 +31,26 @@ export const WorkstreamCard = memo(function WorkstreamCard({
   projectName,
   variant = "default",
 }: WorkstreamCardProps) {
-  const [copied, setCopied] = useState(false);
+  const notify = useFeedback();
+  const [copyError, setCopyError] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const shortId = task.id ? `#${task.id.slice(0, 6)}` : "";
   const effectiveProjectName = projectName || task.projectName;
 
   // 截止日期状态计算
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const isOverdue =
     task.dueDate &&
     task.dueDate < today &&
     task.status !== "accepted";
   const isDueToday = task.dueDate && task.dueDate === today;
 
-  const handleCopyId = (e: React.MouseEvent) => {
+  const handleCopyId = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (task.id) {
-      navigator.clipboard.writeText(task.id);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      try { await navigator.clipboard.writeText(task.id); setCopyError(""); notify("任务编号已复制"); }
+      catch { setCopyError("复制失败，请在任务详情页查看编号。"); }
     }
   };
 
@@ -136,7 +137,7 @@ export const WorkstreamCard = memo(function WorkstreamCard({
                 title="点击复制完整任务 ID"
                 className="font-mono text-[11px] font-medium text-muted-foreground hover:text-foreground transition"
               >
-                {copied ? "已复制" : shortId}
+                {shortId}
               </button>
             )}
 
@@ -187,7 +188,7 @@ export const WorkstreamCard = memo(function WorkstreamCard({
           )}
         </div>
 
-        {/* 3. 核心工作流情境呼应条 (Contextual Stream Callout) */}
+        <FormFeedback message={copyError} className="mt-2" />
         {task.status === "submitted" && (
           <div className="my-2.5 rounded-xl border border-amber-200/70 bg-amber-50/50 p-2.5 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">
             <span className="font-semibold block mb-0.5">📝 待验收完成说明：</span>

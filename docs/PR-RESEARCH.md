@@ -1,4 +1,4 @@
-# GitHub PR 调研与落地 · 2026-10-03
+# GitHub PR 调研与落地
 
 核对了本仓开放 PR，以及 Plane、OpenProject 的相关 PR 详情与差异。这里记录采用的设计思路；本轮实现使用仓库现有组件和契约，没有移植外部项目代码或增加依赖。开放/关闭状态是本次观察时的快照，不表示开放 PR 已得到上游认可。
 
@@ -16,3 +16,54 @@
 [OpenProject 角色权限文档](https://www.openproject.org/docs/system-admin-guide/users-permissions/roles-permissions/)支持同一用户承担多个角色和按项目授予权限。本项目结合高校场景，将本科/硕士/博士/老师留作资料，将管理员/指导老师/队长/队员留作团队职务；权限按项目种类计算。飞书的多视图、成员选择和侧边任务详情取舍见 [UX.md](UX.md)。
 
 没有采用通用软件“提交即完成”的语义，只有验收通过才是已完成；没有引入自定义工作流、Sprint、甘特、AI、学籍认证或实验数据文件库。规则与升级说明见 [IDENTITY.md](IDENTITY.md)。
+
+## 成员 PR 选择性集成 · 2026-10-04
+
+用户授权提取新成员 PR 的有效内容合并到本轮集成分支。核对 #1/#2 同源提交 `b4520a8732f6742d51362451756a5c1e7f8ea0dd`，以及 [#5](https://github.com/RETEMPT/AgileNest/pull/5) 的提交 `6a536e23a48c3d35a5d7f92b49a41dbc393cb5b5`。以下为已落地的选择性集成，不表示原 PR 已整单合并或关闭。
+
+| 来源 | 采用内容 | 适配结果 |
+|---|---|---|
+| #2 `board/service.ts` | 组内按 sortOrder，再按 createdAt 稳定排序 | 加入当前纯函数 model，切换任何分组保持排序，不修改输入；新增排序契约 |
+| #5 `tasks/actions.ts` | 独立子任务创建动作、成功后刷新父任务与任务池 | 复用创建输入校验，父任务归属与页面刷新由服务结果决定；额外刷新概览、工作台和看板 |
+| #5 `tasks/ui.tsx` / `views.tsx` | 任务详情提供编辑与子任务入口，保留错误时的输入，按能力显示 | 整合成可取消的 Radix 编辑弹窗；增加开始/截止日期、预计工时及里程碑，复用创建表单，避免重复组件 |
+| #5 教师入口 | 只为有验收权限的团队加载待验收任务，避免混合身份时 500 | 统一工作台按每个项目的当前职务计算权限；兼任队员的事项仍显示在“我负责的”；新增两个团队不同身份的回归用例 |
+
+未采用 #1/#2 中收窄管理员执行权限的三态白名单、手写角色按钮表、prompt 说明弹窗和无事务状态写入，它们与已确认的叠加职务及原子流转规则冲突。#5 的锁文件清理属于另一独立变更，不纳入本轮功能集成。全量集成在 `codex/collaboration-completion`，不向其他 Owner 分支直接覆盖文件。
+
+## 产品体验补充调研 · 2026-10-04
+
+核对 [Linear My issues](https://linear.app/docs/my-issues) 和[飞书项目工作台](https://www.feishu.cn/content/3c6y1qwl)官方文档。采用个人事项分类、优先事项排序、项目与日期筛选，以及从事项直接进入操作的设计思路。工作台合并重复计数区，新增 URL 搜索/项目/日期筛选；逾期优先，其次优先级和截止日期。筛选仅消费原有 ACL 限定的队列。
+
+团队、项目、任务、个人资料与消息入口统一为功能名称及客观状态说明；移除姓名问候、鼓励式标语和无实际信息的卡片副标题。新手流程集中在空状态或可展开区域，不占据已有数据的主要操作空间。沿用现有品牌色、组件和五态验收规则，没有引入外部代码、依赖或路牌功能。
+
+## 公共基础补充 · 2026-10-04
+
+按用户确认的轻量接入边界，飞书保留既有 OAuth 登录与绑定，只提供本人连接摘要和手动采用姓名；平台身份、职务、头像与协作继续独立管理。检查现有实现发现私信发送封装未被业务调用，移除页面的自动私信承诺，并明确尚未联调。连接 UI 归 identity，解绑增加事务版本校验及占位邮箱登录保护。
+
+公共验证参考 [GitHub PostgreSQL 服务容器](https://docs.github.com/en/actions/tutorials/use-containerized-services/create-postgresql-service-containers)、官方 [checkout v7.0.1](https://github.com/actions/checkout/releases/tag/v7.0.1) 与 [setup-node v7.0.0](https://github.com/actions/setup-node/releases/tag/v7.0.0)。工作流固定已核对的提交 SHA，使用现有锁文件、Node 22、隔离测试库和 Windows 构建，凭据仅为临时测试值。
+
+页面验收中发现开发工具浮标遮挡折叠侧栏的退出按钮；依照 [Next devIndicators](https://nextjs.org/docs/app/api-reference/config/next-config-js/devIndicators) 及本仓已安装的配置类型关闭浮标，保留正常错误反馈。
+
+首次 CI 在 npm ci 阶段发现 Vitest/esbuild 平台锁项未标可选，Windows/Linux 均尝试安装 AIX 组件。按 [npm 锁文件格式](https://docs.npmjs.com/cli/v11/configuring-npm/package-lock-json/) 在隔离目录用 CI 对应的 npm 10 重新生成依赖图，恢复 optional/dev/peer 标记、补全原有 Tailwind WASM 的包内置可选记录；核对保留条目的版本未变，未修改依赖声明。npm 10 与 11 分别验证全新安装，独立于开发目录已有 node_modules。
+
+## AI 页面设计调研 · 2026-10-05
+
+按用户指定方向核对 [DeepSeek Harness 的 ui-chat](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/client/ui-chat/README.md)、[Harnss](https://github.com/OpenSource03/harnss) 与 [Open WebUI](https://github.com/open-webui/open-webui) 的公开仓库说明。采用清晰的主区/输入区、可收起的会话列表、标题/内容搜索与移动抽屉。Harnss 当前自述处于早期开发并将重写，作为交互参考，不作稳定运行时依赖；没有声称此为官方 DeepSeek Chat 的源代码。
+
+本仓仍采用既有品牌色、字体、SVG 线宽与共享 UI，自行实现，未复制外部代码或图形。用户已确认先做界面与本地草稿，模型调用与三级 Agent 不在本轮；空回复、推理过程、工具进度和历史对话不填演示内容。新建的验收草稿均标为本地界面验收，不写入团队任务。能力、存储限制与后续接入边界见 [AI.md](AI.md)。
+
+## 用户提供个人日程资料 · 2026-10-05
+
+完整核对 `schedule.docx`（Java/MyBatis 实体）、`script.js.docx`（月查询/增删改请求封装）、`路由注测.docx`（Vue 登录后日历路由）和 `数据库建表.docx`（MySQL schedule 表与用户/日期索引）。四份文档无图片、表格、批注或修订内容；原文件只读且不放进仓库。
+
+采用个人归属、标题/说明、日期与起止时间、三级优先级、按月 CRUD、登录后入口和复合索引。按现有技术栈改为独立的 `personal_schedules` 追加表、UUID、当前会话归属、真实日期/同日时间校验和版本条件写入；本人日历与项目任务截止/里程碑分开，避免个人安排被团队管理员读取或被当成任务完成记录。没有移植 Java/Vue/MySQL 运行时，没有引入依赖。
+
+本轮 E 在 `codex/calendar-schedules` 开发，foundation 仅配合共享导航；通过公开 `calendar`、`client`、`ui`、`views` 契约集成到 `codex/collaboration-completion`，不修改其他成员分支。具体输入、权限、并发和可重复迁移见 [SCHEDULES.md](SCHEDULES.md)。
+
+## PR #7 日历排期整合 · 2026-10-06
+
+核对 [PR #7](https://github.com/RETEMPT/AgileNest/pull/7)（已由主分支接受），采用项目 42 格月历、跨天任务事件、日程列表、负责人/状态/里程碑筛选和对应 51 条契约用例。个人日历使用既有个人日程表和版本保护，项目事件不写入个人安排，统一外部入口并保留旧月格 DTO。
+
+整合时修复日程页查询固定从今天开始造成历史月份遗漏、月格与日程未共用筛选、完整任务跨度先展开再裁剪的性能问题，以及非法日期边界。新增六条集成用例和六条 HTTP 用例；API 路由只转发模块入口。配色转换为既有品牌 tokens，没有采用额外 UI 包、跨天个人日程或绕过任务状态机的改动。
+
+便携包遵循 Next.js standalone 静态资源说明；Node 校验官方 SHA256，数据库来自官方推荐的 EDB Windows 二进制。运行环境来源、版本与版权在 [RELEASE.md](RELEASE.md) 和包内 licenses 留档。

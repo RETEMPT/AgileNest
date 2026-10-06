@@ -62,6 +62,11 @@ describe("identity 契约导出", () => {
       "listTeamProjects",
       "updateProject",
       "listMyProjects",
+      "getAccountProfile",
+      "saveAccountProfile",
+      "getAvatar",
+      "getFeishuConnection",
+      "disconnectFeishu",
     ]) {
       expect(identity, `identity 缺少 ${name}`).toHaveProperty(name);
     }
@@ -117,7 +122,21 @@ describe("业务模块契约导出（stub 期）", () => {
         "memberContribution",
       ],
     ],
-    ["calendar", calendar, ["monthView"]],
+    [
+      "calendar",
+      calendar,
+      [
+        "monthView",
+        "listMySchedules",
+        "createSchedule",
+        "updateSchedule",
+        "deleteSchedule",
+        "schedulesGET",
+        "schedulesPOST",
+        "schedulePUT",
+        "scheduleDELETE",
+      ],
+    ],
     [
       "milestone",
       milestone,

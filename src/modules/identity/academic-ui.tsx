@@ -4,6 +4,7 @@ import { useActionState, useId, useState } from "react";
 import { GraduationCap, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FormFeedback } from "@/components/ui/feedback";
 import {
   ACADEMIC_IDENTITIES,
   ACADEMIC_LABELS,
@@ -21,16 +22,7 @@ import {
 } from "./actions";
 
 function Result({ state }: { state: IdentityFormState }) {
-  return (
-    state && (
-      <p
-        role={state.error ? "alert" : "status"}
-        className={`text-xs ${state.error ? "text-destructive" : "text-brand"}`}
-      >
-        {state.error || state.ok}
-      </p>
-    )
-  );
+  return <FormFeedback message={state?.error || state?.ok} tone={state?.error ? "error" : "success"} className="text-xs" />;
 }
 
 export function AcademicProfileForm({
@@ -133,7 +125,7 @@ export function AcademicProfileForm({
         />
       </div>
       <Result state={state} />
-      <Button disabled={pending}>{pending ? "保存中…" : "保存身份信息"}</Button>
+      <Button disabled={pending} loading={pending}>{pending ? "保存中…" : "保存身份信息"}</Button>
     </form>
   );
 }
@@ -190,7 +182,7 @@ export function MemberPositionsForm({
         size="sm"
         variant="outline"
         disabled={pending || selected.length === 0}
-      >
+       loading={pending}>
         {pending ? "保存中…" : "保存团队职务"}
       </Button>
     </form>
@@ -215,7 +207,7 @@ export function ConfirmIdentityButton({
       <input type="hidden" name="teamId" value={teamId} />
       <input type="hidden" name="userId" value={userId} />
       <input type="hidden" name="version" value={version} />
-      <Button size="sm" variant="outline" disabled={pending}>
+      <Button size="sm" variant="outline" disabled={pending} loading={pending}>
         <ShieldCheck className="h-3.5 w-3.5" />
         {pending ? "确认中…" : "核对并确认身份"}
       </Button>
@@ -332,7 +324,7 @@ export function ProjectSettingsForm({
         </select>
       </div>
       <Result state={state} />
-      <Button disabled={pending}>{pending ? "保存中…" : "保存项目设置"}</Button>
+      <Button disabled={pending} loading={pending}>{pending ? "保存中…" : "保存项目设置"}</Button>
     </form>
   );
 }

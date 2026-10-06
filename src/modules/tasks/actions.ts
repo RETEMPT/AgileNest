@@ -9,12 +9,45 @@ import {
   transitionTask,
   updateTask,
   getTaskDetail,
+  createSubtask,
 } from "@/modules/tasks";
 import { listTeamMembers } from "@/modules/identity";
 import { addWorklog } from "@/modules/worklog";
 import { createMilestone } from "@/modules/milestone";
 
 export type FormState = { error: string; ok?: string } | null;
+
+export async function editTaskAction(
+  _prev: FormState,
+  data: FormData,
+): Promise<FormState> {
+  const user = await requireUser();
+  const taskId = z.uuid().safeParse(data.get("taskId"));
+  if (!taskId.success) return { error: "任务无效" };
+  try {
+    const priority = z
+      .enum(["low", "medium", "high"])
+      .safeParse(data.get("priority"));
+    if (!priority.success) return { error: "请选择优先级" };
+    const updated = await updateTask(user.id, taskId.data, {
+      title: String(data.get("title") ?? ""),
+      description: String(data.get("description") ?? ""),
+      startDate: String(data.get("startDate") ?? "") || null,
+      dueDate: String(data.get("dueDate") ?? "") || null,
+      milestoneId: String(data.get("milestoneId") ?? "") || null,
+      estimatedMinutes: data.get("estimatedMinutes")
+        ? Number(data.get("estimatedMinutes"))
+        : null,
+      priority: priority.data,
+    });
+    revalidatePath(`/p/${updated.projectId}`, "layout");
+    revalidatePath("/home", "layout");
+    revalidatePath("/t", "layout");
+    return { error: "", ok: "任务信息已保存" };
+  } catch (error) {
+    return fail(error);
+  }
+}
 
 function fail(e: unknown): FormState {
   if (e instanceof AppError) return { error: e.message };
@@ -42,12 +75,13 @@ export async function createTaskAction(
   const parsed = createSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   try {
-    await createTask(user.id, parsed.data.projectId, {
+    const input = {
       title: parsed.data.title,
       description: parsed.data.description || undefined,
       dueDate: parsed.data.dueDate || undefined,
       priority: parsed.data.priority,
-    });
+    };
+    await createTask(user.id, parsed.data.projectId, input);
   } catch (e) {
     return fail(e);
   }
@@ -55,6 +89,33 @@ export async function createTaskAction(
   revalidatePath("/home", "layout");
   revalidatePath("/t");
   return { error: "", ok: "已创建" };
+}
+
+const subtaskSchema = createSchema
+  .omit({ projectId: true })
+  .extend({ parentTaskId: z.uuid("父任务无效") });
+
+export async function createSubtaskAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const user = await requireUser();
+  const parsed = subtaskSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  try {
+    const sub = await createSubtask(user.id, parsed.data.parentTaskId, {
+      title: parsed.data.title,
+      description: parsed.data.description || undefined,
+      dueDate: parsed.data.dueDate || undefined,
+      priority: parsed.data.priority,
+    });
+    revalidatePath(`/p/${sub.projectId}`, "layout");
+    revalidatePath("/home", "layout");
+    revalidatePath("/t", "layout");
+  } catch (error) {
+    return fail(error);
+  }
+  return { error: "", ok: "已创建子任务" };
 }
 
 const transitionSchema = z.object({
@@ -97,8 +158,7 @@ export async function transitionAction(
   }
   revalidatePath(`/p/${projectId}`, "layout");
   revalidatePath(`/t`);
-  revalidatePath(`/home/student`);
-  revalidatePath(`/home/teacher`);
+  revalidatePath("/home", "layout");
   return { error: "", ok: "已更新" };
 }
 
@@ -144,15 +204,17 @@ export async function deleteTaskAction(
 ): Promise<FormState> {
   const user = await requireUser();
   const taskId = String(formData.get("taskId") ?? "");
-  const projectId = String(formData.get("projectId") ?? "");
+  let projectId: string;
   if (!taskId) return { error: "缺少任务" };
   try {
+    projectId = (await getTaskDetail(user.id, taskId)).projectId;
     await deleteTask(user.id, taskId);
   } catch (e) {
     return fail(e);
   }
-  revalidatePath(`/p/${projectId}/tasks`);
-  revalidatePath(`/p/${projectId}/board`);
+  revalidatePath(`/p/${projectId}`, "layout");
+  revalidatePath("/home", "layout");
+  revalidatePath("/t", "layout");
   return { error: "", ok: "已删除" };
 }
 

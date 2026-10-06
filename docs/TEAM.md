@@ -16,9 +16,9 @@ src/modules/
   board/       看板 + 表格 · 筛选 · 拖拽               B
   review/      双端工作台 · 验收台 · 活动流            C
   worklog/     工时 · 完成度 · 贡献（含原 stats）      D
-  calendar/    月视图 + 日程表（任务排期 + 里程碑）     E
+  calendar/    项目月历/跨天排期 · 本人日程 CRUD       E
   milestone/   开题/中期/结题/答辩节点                 E
-  notify/      站内消息 + 飞书私信 + cron              E
+  notify/      站内消息 + cron；可选飞书私信待接入      E
 ```
 
 每个模块目录：
@@ -56,11 +56,13 @@ main  ──  可部署
 | 人 | 分支 | 模块 | 路由 |
 |---|---|---|---|
 | foundation | `chore/foundation` | core · identity · ui · lib | `/login` `/register` `/t/*` `/settings` `/api/auth/**` |
+| foundation（本轮 AI 界面） | `codex/collaboration-completion` | 共享 AI UI · 浏览器草稿 | `/ai`，仅界面与本地存储 |
 | A | `feature/tasks-status` | tasks | `/p/[id]/tasks/**` |
 | B | `feature/board-views` | board | `/p/[id]/board` `/p/[id]/table` |
 | C | `feature/review-portal` | review | `/home/student` `/home/teacher` `/p/[id]/review` |
 | D | `feature/worklog-stats` | worklog | `/p/[id]/stats`（工时面板嵌任务详情） |
 | E | `feature/calendar-notify` | calendar · milestone · notify | `/p/[id]/{calendar,milestones}` `/api/cron/**` |
+| E（本轮个人日程） | `codex/calendar-schedules` → 集成分支 | calendar · 日程表/迁移；导航由 foundation 配合 | `/calendar` `/api/v1/calendar/schedules/**` |
 
 ### 冲突面规则
 
@@ -112,6 +114,12 @@ updateMemberPositions(actorId, teamId, targetUserId, positions: TeamPosition[])
 getAcademicProfile(actorId)
 saveAcademicProfile(actorId, { identity, institution?, department?, researchFocus? })
 confirmAcademicIdentity(actorId, teamId, targetUserId, profileVersion)
+getAccountProfile(actorId)               // 本人最新姓名、邮箱、简介、头像 URL
+saveAccountProfile(actorId, { name, bio?, avatar? })
+getAvatar(actorId, targetId)             // 本人或同团队；返回 PNG bytes / hash
+avatarGET(request, context)             // session → service → private PNG / 304
+getFeishuConnection(actorId)            // 本人连接摘要；不返回 openId 或凭据
+disconnectFeishu(actorId, { bindingVersion }) // 事务锁定本人账号，校验连接版本与登录方式
 createProject(actorId, teamId, input)
 listTeamProjects(actorId, teamId)
 updateProject(actorId, projectId, patch)
@@ -164,6 +172,7 @@ listUnclaimedPool(actorId, projectId)
 listPendingReview(actorId, projectId)
 listOverdueRisks(actorId, projectId)
 listTaskEvents(actorId, taskId)
+getWorkbench(actorId) // { mine, review, pool }，附项目名与当前操作者权限
 ```
 
 ### `@/modules/worklog`（D，含 stats）
@@ -178,34 +187,23 @@ memberContribution(actorId, projectId)
 ### `@/modules/calendar`（E）
 
 ```ts
-// 公开入口 1：`@/modules/calendar`（service，服务端）
-monthView(actorId, projectId, year, month)            // 42 格；单日按截止日，跨天在区间内每天落格
-listAgenda(actorId, projectId, { from?, to?, filters? })   // 默认今天起 14 天
-listAgendaDays(actorId, projectId, range?)            // 按天聚合，空日不返回
-calendarBoard(actorId, projectId, { year, month, horizonDays? })  // 一次读库同时给月网格 + 日程
+monthView(actorId, projectId, year, month)   // 42 格；兼容 tasks/milestones，追加 events/isWeekend
+listAgenda(actorId, projectId, { from?, to?, filters? }) / listAgendaDays(actorId, projectId, range?)
+calendarBoard(actorId, projectId, { year, month, horizonDays?, range?, filters? })
 parseCalendarFilters(params) / parseCalendarQuery(params, today?) / serializeCalendarQuery(query)
-agendaWindow(query, today?)                           // 月视图看近两周，日程视图看整月
-
-// 公开入口 2：`@/modules/calendar/client`（浏览器安全纯函数/类型，不含 db）
-type CalendarView / CalendarFilters / CalendarQuery / CalendarEvent / CalendarCell / AgendaDay
-taskDates(task) / calendarRange(event, from, to)      // 任务占用的每一天（起止区间展开）
-taskEventsForDate(task, iso) / milestoneToEvent(milestone)
-eventIsDone / eventIsOverdue / eventIsAtRisk
-groupByDay(events, today?) / compareEvents(a, b)
-shiftMonth(y, m, delta) / monthGridRange(y, m) / monthBounds(y, m) / monthKey(y, m)
-isValidYearMonth(y, m) / weekdayLabel(iso) / isWeekendISO(iso) / addDays(iso, days) / WEEKDAY_LABELS
-
-// 公开入口 3：`@/modules/calendar/ui`（客户端组件）
-CalendarWorkspace / MonthGrid / AgendaList / EventChip
-
-// 服务端页面组合：`@/modules/calendar/views`
-CalendarWorkspaceView({ projectId, query })           // 路由壳只调它
+agendaWindow(query, today?)
+listMySchedules(actorId, year, month)       // 本人自然月，YYYY-MM-DD / HH:mm
+createSchedule(actorId, input: ScheduleInput): Promise<ScheduleDTO>
+updateSchedule(actorId, scheduleId, version, input: ScheduleInput): Promise<ScheduleDTO>
+deleteSchedule(actorId, scheduleId, version): Promise<void>
+schedulesGET(request) / schedulesPOST(request)
+projectCalendarGET(request): Promise<Response>
+schedulePUT(request, { params }) / scheduleDELETE(request, { params })
 ```
 
-URL 契约：`?year=&month=&view=month|agenda&status=&assigneeId=&milestoneId=&risk=1`。
-状态 / 负责人 / 里程碑三个筛选与看板同词表（`status` 复用 `TASK_STATUSES`），命中任务类筛选时里程碑不参与。
-`risk=1` 只看逾期未完成与今天到期，默认窗口自动往回看 90 天（否则历史逾期会被 14 天窗口排掉）。
-`/api/v1/calendar` 返回 `{ cells: [{ iso, inMonth, isWeekend, tasks, milestones }] }`，带 `view=agenda` 时附 `days`（同一套筛选参数）。
+个人日程表 `personal_schedules` 归 calendar（E）。UI 公开 `calendar/views.PersonalCalendarView/ProjectCalendarView/CalendarWorkspaceView`，路由只做壳；`calendar/ui.ScheduleControls` 提供个人日程弹窗，另公开 `CalendarWorkspace/MonthGrid/AgendaList/EventChip` 项目组件。`calendar/client` 公开 DTO、`ScheduleInput`、优先级元数据、输入/月校验、个人日程的 `parseCalendarQuery/calendarUrl/selectSchedules/scheduleTimeLabel`，另公开项目 `ProjectCalendarQuery/CalendarEvent/CalendarCell/CalendarFilters/AgendaDay` 与 model 纯日期、事件、筛选函数，不加载 DB/session。根入口 `parseCalendarQuery` 用于项目 URL，兼容 `year/month/view/status/assigneeId/milestoneId/risk`；个人 URL 使用 `y/m/date/q/priority`，两种查询不混用。
+
+服务只通过当前 actorId 管理本人日程，职务与身份不扩展权限；更新/删除以版本条件写入，404 不泄露他人记录，409 防旧页面覆盖。项目日历来自 PR #7，保留项目 ACL、跨天任务和里程碑；`calendarBoard` 用同一批任务/节点生成月格和所选日程窗口，支持历史月份和一致筛选，长跨度仅展开可见窗口。年份统一 1900–2100，窗口天数 1–366。日期范围、HTTP 输入、追加迁移及源文件取舍见 [SCHEDULES.md](SCHEDULES.md)。
 
 ### `@/modules/milestone`（E）
 
@@ -233,7 +231,60 @@ listMyNotifications(actorId, opts?) / markRead(actorId, id)
 - [ ] 契约测试 ≥ 6 条（happy + 越权 + 非法状态转移）
 - [ ] Windows：`npm test` + `npm run build` 绿
 - [ ] 未改不属于自己的目录
+- [ ] 本轮集成版本递增，包与锁文件版本、README、CHANGELOG、PR 和对应 tag 一致；候选/正式状态准确，正式版已合入主分支并验证
 
 Commit 用 Conventional Commits：`feat(tasks): 五态状态机` · `fix(board): 非法拖拽回滚` · `test(review): 越权矩阵`
 
 身份补充：`listTeamMembers` 追加 `positions/profile/confirmedVersion/confirmedAt/identityConfirmed/canExecute`；`listTeamSpaces` 追加 `positions`。`updateMemberRole` 兼容旧调用，同时同步唯一对应职务；新 UI 使用 `updateMemberPositions`。成员设置变更应刷新团队、项目、工作台入口。身份确认、职务并集和迁移细节见 [IDENTITY.md](IDENTITY.md)。身份、职务和项目编辑客户端组件在 `academic-ui` 内部，由公开 `views` 组合，不作为新的跨模块深链入口。
+
+## 5. 协作闭环集成 · 2026-10-04
+
+用户授权的集成范围：foundation 负责 identity、个人资料与共享 UI；A 负责任务编辑/拆分与校验；B 负责排序；C 负责工作台；D 负责验收口径/工时；E 负责消息收件箱。登录与 core 保持既有契约。
+
+identity 根入口新增 `getAccountProfile(actorId)`、`saveAccountProfile(actorId, { name, bio?, avatar? })`、`getAvatar(actorId, targetId)`、API 薄壳 `avatarGET(request, context)`。`avatar` 省略表示保留，`remove` 表示移除，上传为客户端处理的 256×256 PNG data URL；返回资料只含头像 URL，不含图片内容。头像仅本人或同团队成员可读。成员 DTO 追加 `bio/avatarUrl/avatarHash`。保存姓名使学术资料版本增加，旧确认失效。
+
+tasks 的 `createSubtask` 输入追加 `priority?`。创建与更新校验真实日期、起止顺序、标题、预计工时和当前项目的里程碑；父任务只能在创建时关联，不允许继续嵌套。父任务验收需全部子任务通过；已提交/完成的父任务不能追加子任务，重开已完成子任务需先重开父任务。`tasks/ui` 内提供 `CreateTaskForm({ projectId, parentTaskId?, onCreated?, onPendingChange? })`；编辑表单是模块内实现，由 `tasks/views` 调用，仍使用统一任务服务。
+
+review 的 `getWorkbench` 用成员关联查询进行访问隔离，按项目能力分类，归档项目不进入当前队列。公开 `review/views` 提供 `WorkbenchView`，兼容原 student/teacher 路由；纯队员在教师入口看到空验收视图，不报错。DTO 直接带权限快照，避免每张卡再请求权限。
+
+`projectCompletion` 的 `{ done, total, ratio }` 为已验收顶层任务数/顶层总数，单次聚合查询；`completionRatio` 在有子任务时为已验收子任务数/直接子任务总数，两者在 UI 明确标识。工时仅执行职务且当前负责人可记；`tasks/ui.WorklogForm` 接收 `{ taskId, projectId, defaultDate }`，默认日期由服务端的 `todayISO` 提供。公开 `worklog/views` 提供 `StatsView`。
+
+notify 公开 `notify/views` 的 `NotificationsView` 和 `notify/ui` 的 `MarkReadButton`，收件箱按 actorId 隔离，展示最近 100 条，可筛选未读并进入对应任务。标记他人消息返回 NotFoundError，不暴露消息存在性。
+
+## 6. 工作台与产品文案迭代 · 2026-10-04
+
+本轮范围及 Owner：foundation（identity、共享导航），A（任务流程入口文案），B（看板文案），C（工作台筛选与排序），E（系统通知）。沿用集成分支，不调整 core、登录、数据结构或依赖。
+
+## 交互反馈与阶段发布 · 2026-10-06
+
+用户授权优化操作反馈并发布一键运行版本。foundation 负责共享 Button 的 `loading?`、FeedbackProvider/useFeedback/FormFeedback、侧栏与任务详情抽屉、个人设置及 Windows 发布工具；A 负责任务创建/编辑/流转反馈，B 负责看板拖动与创建弹窗，E 负责日程交互和 PR #7 项目日历集成。任务创建入口 `onPendingChange?` 让外层弹窗共享等待状态，提交期间阻止关闭；完成提示放在 AppShell，表单失败保留输入。
+
+`projectCalendarGET` 是项目日历 HTTP 薄壳的模块入口。月格保留 tasks/milestones 的既有 DTO 数组并追加 events；日程按所选月份默认读取，两处应用同一筛选。运行包不新增依赖、业务表或登录逻辑，初始化使用既有 SQL 与独立迁移记录，后续启动不重置记录。阶段边界和使用方式见 [RELEASE.md](RELEASE.md)。
+
+## 公共基础与可选连接补充 · 2026-10-04
+
+用户确认本轮限于公共基础、个人中心和飞书轻量接入；Owner 为 foundation。范围为 identity、个人设置壳下旧组件移除、公共 Next 配置、契约测试、文档、锁文件元数据和 `.github/workflows/verify.yml`，不接管成员模块分支。沿用集成分支，不修改 core、锁定登录文件、数据库结构或业务依赖声明。
+
+`identity/client` 追加浏览器安全的 `FeishuConnection` 类型：`connected/configured/name/boundAt/bindingVersion/canDisconnect`。设置页面通过本人 service 取摘要，连接 UI 与 action 归 identity 内部，由公开 `identity/views.SettingsView` 组合；不从路由目录反向导入业务组件。配置状态只检查应用 ID、密钥及回调地址是否填写，不等同于飞书联调成功。
+
+解绑的 `actorId` 仅来自会话，输入不接受目标用户 ID。连接版本是开放标识与绑定时间的摘要，事务中锁定账号后比较；旧页面不能清除新绑定。历史飞书创建的 `@feishu.local` 占位邮箱没有用户可用的本地密码，保守禁止解绑。其余账号可确认解绑，重复提交幂等；资料、团队职务、学术确认和任务记录保留。
+
+个人资料 action 成功返回已保存的姓名、简介和头像 URL，客户端以此更新还原基线、清空头像上传草稿；无修改时不重复提交。飞书姓名只填入本地表单草稿，沿用本人保存、姓名变更使旧身份确认失效的规则。飞书私信投递仍由 E 的后续独立实现负责，当前仅站内消息可用，参见 [FEISHU.md](FEISHU.md)。
+
+公共 CI 的首次全新安装暴露历史锁文件中 Vitest/esbuild 平台项缺少可选标记。foundation 用 Node 22 对应的 npm 10 重新计算锁文件，恢复 optional/dev/peer 标记并补全既有 Tailwind WASM 包内置的可选依赖记录，同步已更名的包名；`package.json` 依赖声明与保留的包版本、来源和完整性值保持不变。Windows npm 10/11 全新安装均验证，避免仅按本机 npm 11 生成而遗漏 npm 10 所需的可选 peer 图。此为依赖图修复，不新增业务依赖。PR 触发检查全部分支，push 只检查 main/develop，避免同一 PR 推送重复运行。
+
+公开 `review/client` 为浏览器安全的纯函数入口，导出 `WorkbenchQuery`、`WorkbenchSearchParams`、`parseWorkbenchQuery(params)`、`workbenchUrl(query, changes?)` 与 `selectWorkbenchItems(items, query, today)`，仅使用 Zod 和纯日期函数，不引入 DB/session/service。工作台 `view/q/projectId/due` 保存在 URL，分类切换保留筛选；`soon` 为今天至第六天，逾期不含今天。任务按逾期、优先级、截止日期、sortOrder、createdAt、id 排序，筛选和排序不修改输入，不扩大 `getWorkbench` 的权限范围。
+
+## AI 对话界面 · 2026-10-05
+
+用户确认本轮先做侧栏图标、对话页面与本地草稿，Owner 为 foundation；沿用 `codex/collaboration-completion` 集成分支。范围仅 `src/components/ai/*`、共享导航/图标、`/ai` 壳、foundation 草稿测试和文档；不修改成员模块、core、登录文件、数据库或依赖声明。
+
+`@/components/ai/view.AiWorkspaceView` 是共享 UI 的服务端组合入口，调用公开 `core.requireUser()`，只把当前会话 userId 传入客户端，不接受 URL 指定的用户。`workspace.tsx` 负责 UI；`drafts.ts` 提供 Zod 边界与草稿纯函数，`draft-store.ts` 提供浏览器存储适配，均不导入 session/DB/service。没有新增业务模块、公开业务签名或模型 API。草稿按账号命名，服务端不保存；本地浏览器存储不等同于服务端 ACL。
+
+正式测试仅扫描 `tests/**/*.test.ts`，避免 `.tools` 内的本地安装验证副本重复执行。新增草稿用例覆盖恢复、账号隔离、损坏数据保护、拒绝存储、写入失败/恢复、删除后的选择、容量/长度/索引约束与搜索；页面覆盖刷新水合、名称保留和取消操作。细节见 [AI.md](AI.md)。
+
+系统指派/验收通知使用客观状态说明。旧版这两类通知的固定文案在 DTO 展示时兼容转换，历史数据和成员填写的成果说明、修改意见不变。
+
+## 迭代版本管理 · 2026-10-05
+
+用户要求每轮迭代有递增版本号。foundation 在 `feature/core-patch/iteration-version` 仅调整包与锁文件的本项目版本元数据、README、更新日志、Agent/协作约束、工作流和 PR 模板；验证后快速合入 `codex/collaboration-completion`。当前候选版为 `0.3.0-rc.1`，不更改依赖、模块契约、数据库、core 或登录文件。版本统一由集成人维护，成员模块分支不独立抢占下一版本；候选版和正式版的规则见 [WORKFLOW.md](WORKFLOW.md#9-迭代版本与发布)。

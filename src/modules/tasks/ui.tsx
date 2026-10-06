@@ -1,15 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useId, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { ArrowRight, RotateCcw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FormFeedback, useFeedback } from "@/components/ui/feedback";
 import {
   addWorklogAction,
   createMilestoneAction,
   createTaskAction,
+  createSubtaskAction,
   deleteTaskAction,
   setDueDateAction,
   transitionAction,
@@ -33,24 +36,23 @@ import {
   type TaskPermissions,
 } from "@/modules/identity/client";
 
-const btn =
-  "rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50 transition active:scale-95";
-const btnPrimary =
-  "rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-brand-hover disabled:opacity-50 transition active:scale-95";
-
 function ErrorLine({ state }: { state: FormState }) {
-  if (!state?.error) return null;
-  return <p className="text-xs text-destructive">{state.error}</p>;
+  return <FormFeedback message={state?.error} className="text-xs" />;
 }
 
 export function CreateTaskForm({
   projectId,
   onCreated,
+  parentTaskId,
+  onPendingChange,
 }: {
   projectId: string;
   onCreated?: () => void;
+  parentTaskId?: string;
+  onPendingChange?: (pending: boolean) => void;
 }) {
   const id = useId();
+  const notify = useFeedback();
   const [fields, setFields] = useState({
     title: "",
     description: "",
@@ -59,8 +61,11 @@ export function CreateTaskForm({
   });
   const [state, formAction, pending] = useActionState<FormState, FormData>(
     async (prev, data) => {
-      const result = await createTaskAction(prev, data);
+      const result = await (parentTaskId
+        ? createSubtaskAction(prev, data)
+        : createTaskAction(prev, data));
       if (result?.ok) {
+        notify(result.ok);
         setFields({
           title: "",
           description: "",
@@ -73,13 +78,22 @@ export function CreateTaskForm({
     },
     null,
   );
+  useEffect(() => {
+    onPendingChange?.(pending);
+    return () => onPendingChange?.(false);
+  }, [pending, onPendingChange]);
   return (
     <form
       action={formAction}
       onReset={(event) => event.preventDefault()}
       className="space-y-3 rounded-xl border border-border bg-card p-4"
     >
-      <h2 className="font-display text-sm font-semibold">新建任务</h2>
+      <h2 className="font-display text-sm font-semibold">
+        {parentTaskId ? "拆分子任务" : "新建任务"}
+      </h2>
+      {parentTaskId && (
+        <input type="hidden" name="parentTaskId" value={parentTaskId} />
+      )}
       <input type="hidden" name="projectId" value={projectId} />
       <label htmlFor={`${id}-title`} className="block text-xs font-medium">
         任务标题
@@ -92,6 +106,7 @@ export function CreateTaskForm({
           setFields({ ...fields, title: event.target.value })
         }
         maxLength={200}
+        disabled={pending}
         placeholder="任务标题"
         required
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -105,6 +120,7 @@ export function CreateTaskForm({
         }
         placeholder="描述（可选）"
         rows={2}
+        disabled={pending}
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
       />
       <div className="flex flex-wrap gap-2">
@@ -113,6 +129,7 @@ export function CreateTaskForm({
           type="date"
           name="dueDate"
           value={fields.dueDate}
+          disabled={pending}
           onChange={(event) =>
             setFields({ ...fields, dueDate: event.target.value })
           }
@@ -122,6 +139,7 @@ export function CreateTaskForm({
           aria-label="任务优先级"
           name="priority"
           value={fields.priority}
+          disabled={pending}
           onChange={(event) =>
             setFields({ ...fields, priority: event.target.value })
           }
@@ -131,12 +149,11 @@ export function CreateTaskForm({
           <option value="medium">中优先</option>
           <option value="high">高优先</option>
         </select>
-        <button disabled={pending} className={btnPrimary}>
+        <Button size="sm" disabled={pending} loading={pending}>
           {pending ? "创建中…" : "创建"}
-        </button>
+        </Button>
       </div>
       <ErrorLine state={state} />
-      {state?.ok && <p className="text-xs text-emerald-600">{state.ok}</p>}
     </form>
   );
 }
@@ -162,9 +179,9 @@ export function TaskWorkflow({ status }: { status?: TaskDTO["status"] }) {
       className="rounded-xl border border-border bg-card p-4"
     >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">从认领到验收</h2>
+        <h2 className="text-sm font-semibold">任务流程</h2>
         <span className="text-xs text-muted-foreground">
-          学生推进 · 教师验收
+          任务执行 · 成果验收
         </span>
       </div>
       <ol className="grid gap-2 sm:grid-cols-4">
@@ -221,10 +238,12 @@ export function TransitionDialog({
   const [note, setNote] = useState("");
   const returnFocus = useRef<HTMLElement | null>(null);
   const parentDialog = useRef<HTMLElement | null>(null);
+  const notify = useFeedback();
   const [state, formAction, pending] = useActionState<FormState, FormData>(
     async (prev, data) => {
       const result = await transitionAction(prev, data);
       if (result?.ok) {
+        notify(result.ok);
         onSuccess?.();
         onClose();
       }
@@ -240,7 +259,7 @@ export function TransitionDialog({
       }}
     >
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/35" />
+        <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-black/35" />
         <Dialog.Content
           onOpenAutoFocus={() => {
             returnFocus.current =
@@ -262,7 +281,7 @@ export function TransitionDialog({
           onPointerDownOutside={(event) => {
             if (pending) event.preventDefault();
           }}
-          className="fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-xl"
+          className="dialog-surface fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-xl"
         >
           <Dialog.Title className="pr-8 text-lg font-semibold">
             {rule.label}任务
@@ -361,7 +380,7 @@ export function TransitionDialog({
                   rows={4}
                   placeholder={
                     rule.action === "reject"
-                      ? "具体指出需要修改的内容，让同学知道下一步怎么做"
+                      ? "填写需要修改的内容与验收要求"
                       : "说明完成内容、验证结果，可附成果链接"
                   }
                   className="w-full rounded-md border border-input bg-background p-3 text-sm"
@@ -385,7 +404,7 @@ export function TransitionDialog({
                 disabled={
                   pending || (rule.setsAssignee && members.length === 0)
                 }
-              >
+               loading={pending}>
                 {pending ? "处理中…" : `确认${rule.label}`}
               </Button>
             </div>
@@ -407,8 +426,15 @@ export function TaskActions({
   actorId: string;
   members?: AssigneeOption[];
 }) {
+  const notify = useFeedback();
+  const [acting, setActing] = useState("");
   const [state, formAction, pending] = useActionState<FormState, FormData>(
-    transitionAction,
+    async (prev, data) => {
+      setActing(String(data.get("action") ?? ""));
+      const result = await transitionAction(prev, data);
+      if (result?.ok) notify(result.ok);
+      return result;
+    },
     null,
   );
   const [selected, setSelected] = useState<TransitionRule | null>(null);
@@ -459,7 +485,7 @@ export function TaskActions({
     return (
       <p className="text-xs text-muted-foreground">
         {task.status === "submitted"
-          ? "等待教师验收"
+          ? "等待管理员或指导老师验收"
           : task.status === "accepted"
             ? "任务已验收完成"
             : "由负责人推进任务"}
@@ -468,15 +494,19 @@ export function TaskActions({
 
   async function openDialog(rule: TransitionRule) {
     setLoadError("");
+    setActing(rule.action);
     if (rule.setsAssignee && options.length === 0) {
       setLoading(true);
-      const result = await loadTaskAssigneesAction(task.id);
-      setLoading(false);
-      if (result.error) {
-        setLoadError(result.error);
+      try {
+        const result = await loadTaskAssigneesAction(task.id);
+        if (result.error) { setLoadError(result.error); return; }
+        setOptions(result.members);
+      } catch {
+        setLoadError("成员加载失败，请稍后重试");
         return;
+      } finally {
+        setLoading(false);
       }
-      setOptions(result.members);
     }
     setSelected(rule);
   }
@@ -515,14 +545,13 @@ export function TaskActions({
                 ? () => void openDialog(rule)
                 : undefined
             }
-          >
-            {pending || loading ? "处理中…" : rule.label}
+           loading={(pending || loading) && acting === rule.action}>
+            {(pending || loading) && acting === rule.action ? "处理中…" : rule.label}
           </Button>
         ))}
       </form>
       <div aria-live="polite">
         <ErrorLine state={state} />
-        {state?.ok && <p className="text-xs text-emerald-700">{state.ok}</p>}
         {loadError && (
           <p role="alert" className="text-xs text-destructive">
             {loadError}
@@ -622,10 +651,10 @@ export function TaskCard({
       {task.status === "rejected" && (
         <div className="rounded-xl border border-red-200/70 bg-red-50/50 p-2.5 text-xs text-red-900 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300">
           <span className="font-semibold block mb-0.5">
-            ⚠️ 教师打回修改意见：
+            修改意见：
           </span>
           <p className="text-[11px] leading-relaxed">
-            {task.rejectReason || "请与指导教师沟通后修改重交"}
+            {task.rejectReason || "请联系验收人确认修改要求"}
           </p>
         </div>
       )}
@@ -679,18 +708,63 @@ export function DeleteTaskButton({
   taskId: string;
   projectId: string;
 }) {
-  const [, formAction, pending] = useActionState<FormState, FormData>(
-    deleteTaskAction,
+  const router = useRouter();
+  const notify = useFeedback();
+  const [open, setOpen] = useState(false);
+  const [state, formAction, pending] = useActionState<FormState, FormData>(
+    async (prev, data) => {
+      const result = await deleteTaskAction(prev, data);
+      if (result?.ok) {
+        notify(result.ok);
+        setOpen(false);
+        router.push(`/p/${projectId}/tasks`);
+      }
+      return result;
+    },
     null,
   );
   return (
-    <form action={formAction}>
-      <input type="hidden" name="taskId" value={taskId} />
-      <input type="hidden" name="projectId" value={projectId} />
-      <button disabled={pending} className={`${btn} text-destructive`}>
-        {pending ? "删除中…" : "删除任务"}
-      </button>
-    </form>
+    <Dialog.Root
+      open={open}
+      onOpenChange={(value) => {
+        if (!pending) setOpen(value);
+      }}
+    >
+      <Dialog.Trigger asChild>
+        <Button size="sm" variant="ghost" className="text-destructive">
+          删除任务
+        </Button>
+      </Dialog.Trigger>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-black/35" />
+        <Dialog.Content className="dialog-surface fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-card p-6 shadow-xl">
+          <Dialog.Title className="text-lg font-semibold">
+            确认删除任务？
+          </Dialog.Title>
+          <Dialog.Description className="mt-3 text-sm leading-6 text-muted-foreground">
+            任务及其子任务、工时和活动记录将一并删除。此操作无法撤销。
+          </Dialog.Description>
+          <form action={formAction} className="mt-5 space-y-3">
+            <input type="hidden" name="taskId" value={taskId} />
+            <input type="hidden" name="projectId" value={projectId} />
+            <ErrorLine state={state} />
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={pending}
+                onClick={() => setOpen(false)}
+              >
+                取消
+              </Button>
+              <Button variant="destructive" disabled={pending} loading={pending}>
+                {pending ? "删除中…" : "确认删除"}
+              </Button>
+            </div>
+          </form>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
@@ -699,45 +773,96 @@ export { canDeleteTask };
 export function WorklogForm({
   taskId,
   projectId,
+  defaultDate,
 }: {
   taskId: string;
   projectId: string;
+  defaultDate: string;
 }) {
+  const id = useId();
+  const [fields, setFields] = useState({
+    workDate: defaultDate,
+    minutes: "",
+    note: "",
+  });
   const [state, formAction, pending] = useActionState<FormState, FormData>(
-    addWorklogAction,
+    async (prev, data) => {
+      const result = await addWorklogAction(prev, data);
+      if (result?.ok)
+        setFields((current) => ({ ...current, minutes: "", note: "" }));
+      return result;
+    },
     null,
   );
   return (
-    <form action={formAction} className="space-y-2">
+    <form
+      action={formAction}
+      onReset={(event) => event.preventDefault()}
+      className="space-y-3 rounded-xl border border-border bg-card p-4"
+    >
       <input type="hidden" name="taskId" value={taskId} />
       <input type="hidden" name="projectId" value={projectId} />
-      <div className="flex flex-wrap gap-2">
-        <input
-          type="date"
-          name="workDate"
-          required
-          defaultValue={new Date().toISOString().slice(0, 10)}
-          className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-        />
-        <input
-          type="number"
-          name="minutes"
-          required
-          min={1}
-          placeholder="分钟"
-          className="w-24 rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-        />
-        <input
-          name="note"
-          placeholder="备注"
-          className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-        />
-        <button disabled={pending} className={btnPrimary}>
-          {pending ? "记录中…" : "记工时"}
-        </button>
-      </div>
+      <fieldset
+        disabled={pending}
+        className="grid items-end gap-3 sm:grid-cols-[170px_130px_1fr_auto]"
+      >
+        <div className="space-y-1.5">
+          <label htmlFor={`${id}-date`} className="text-xs font-medium">
+            投入日期
+          </label>
+          <Input
+            id={`${id}-date`}
+            type="date"
+            name="workDate"
+            required
+            value={fields.workDate}
+            onChange={(event) =>
+              setFields({ ...fields, workDate: event.target.value })
+            }
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label htmlFor={`${id}-minutes`} className="text-xs font-medium">
+            投入分钟
+          </label>
+          <Input
+            id={`${id}-minutes`}
+            type="number"
+            name="minutes"
+            required
+            min={1}
+            max={1440}
+            step={1}
+            value={fields.minutes}
+            onChange={(event) =>
+              setFields({ ...fields, minutes: event.target.value })
+            }
+            placeholder="例如 30"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label htmlFor={`${id}-note`} className="text-xs font-medium">
+            工作说明（选填）
+          </label>
+          <Input
+            id={`${id}-note`}
+            name="note"
+            value={fields.note}
+            onChange={(event) =>
+              setFields({ ...fields, note: event.target.value })
+            }
+            maxLength={2000}
+            placeholder="这次完成了什么…"
+          />
+        </div>
+        <Button type="submit" loading={pending}>{pending ? "记录中…" : "记工时"}</Button>
+      </fieldset>
       <ErrorLine state={state} />
-      {state?.ok && <p className="text-xs text-emerald-600">{state.ok}</p>}
+      {state?.ok && (
+        <p role="status" className="text-xs text-brand">
+          {state.ok}
+        </p>
+      )}
     </form>
   );
 }
@@ -765,9 +890,9 @@ export function DueDateForm({
         defaultValue={dueDate ?? ""}
         className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
       />
-      <button disabled={pending} className={btn}>
+      <Button size="sm" variant="outline" disabled={pending} loading={pending}>
         {pending ? "修改中…" : "改截止"}
-      </button>
+      </Button>
       <ErrorLine state={state} />
     </form>
   );
@@ -808,9 +933,9 @@ export function MilestoneForm({ projectId }: { projectId: string }) {
           name="targetDate"
           className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
         />
-        <button disabled={pending} className={btnPrimary}>
+        <Button size="sm" disabled={pending} loading={pending}>
           {pending ? "创建中…" : "创建"}
-        </button>
+        </Button>
       </div>
       <ErrorLine state={state} />
       {state?.ok && <p className="text-xs text-emerald-600">{state.ok}</p>}

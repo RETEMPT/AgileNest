@@ -2,7 +2,7 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { notifications, projects, tasks, teamMembers, users } from "@/db/schema";
 import { NotFoundError } from "@/modules/core/errors";
-import { addDaysISO, isDueSoon, isOverdue, todayISO } from "@/modules/core/dates";
+import { isDueSoon, isOverdue, todayISO } from "@/modules/core/dates";
 
 export type NotificationDTO = {
   id: string;
@@ -16,12 +16,20 @@ export type NotificationDTO = {
 };
 
 function toDTO(row: typeof notifications.$inferSelect): NotificationDTO {
+  let body = row.body;
+  // 兼容旧版自动通知的固定文案，保留成员填写的成果说明与修改意见。
+  if (row.type === "task_assigned" && body === "你被指派/认领了任务，尽快开工") {
+    body = "任务已分配给你。";
+  }
+  if (row.type === "task_accepted" && body === "验收通过，干得漂亮") {
+    body = "任务已验收通过。";
+  }
   return {
     id: row.id,
     userId: row.userId,
     type: row.type,
     title: row.title,
-    body: row.body,
+    body,
     link: row.link,
     readAt: row.readAt,
     createdAt: row.createdAt,
@@ -70,7 +78,7 @@ export async function notifyAssigned(taskId: string): Promise<void> {
     [task.assigneeId],
     "task_assigned",
     `新任务：${task.title}`,
-    "你被指派/认领了任务，尽快开工",
+    "任务已分配给你。",
     link,
   );
 }
@@ -81,7 +89,7 @@ export async function notifySubmitted(taskId: string): Promise<void> {
     reviewers,
     "task_submitted",
     `待验收：${task.title}`,
-    task.completionNote ?? "学生已提交，请验收",
+    task.completionNote ?? "任务已提交，等待验收。",
     link,
   );
 }
@@ -93,7 +101,7 @@ export async function notifyAccepted(taskId: string): Promise<void> {
     [task.assigneeId],
     "task_accepted",
     `已通过：${task.title}`,
-    "验收通过，干得漂亮",
+    "任务已验收通过。",
     link,
   );
 }
