@@ -2,6 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { AppSidebar, type ProjectSummary } from "./app-sidebar";
+import { FeedbackProvider } from "./ui/feedback";
 
 const preferenceKey = "agilenest_sidebar_collapsed";
 const preferenceEvent = "agilenest:sidebar-preference";
@@ -70,6 +71,7 @@ export function AppShell({
   }, []);
 
   return (
+    <FeedbackProvider>
     <div className="min-h-screen bg-background">
       {/* 统一全局可伸缩侧栏 */}
       <AppSidebar
@@ -82,7 +84,7 @@ export function AppShell({
 
       {/* 主界面区域：随侧栏展开/收起平滑阻尼过渡 */}
       <div
-        className={`flex flex-col min-h-screen transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+        className={`app-panel flex flex-col min-h-screen transition-[padding] duration-200 ease-out ${
           collapsed ? "md:pl-18" : "md:pl-64"
         }`}
       >
@@ -91,5 +93,6 @@ export function AppShell({
         </main>
       </div>
     </div>
+    </FeedbackProvider>
   );
 }

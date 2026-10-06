@@ -2,7 +2,7 @@
 
 > 未来功能**只写在这里**，不在 `src/modules/` 建空目录。
 
-## 本期（v0.2 框架）· 核心刚需
+## 本期（v0.3 协作框架）· 核心刚需
 
 - [x] 登录 / 注册 / 飞书绑定
 - [x] 团队 / 成员 / 角色 / 项目
@@ -16,7 +16,9 @@
 - [x] 工时登记 + 验收完成度 %（D）
 - [x] 个人资料、头像与简介编辑（foundation）
 - [x] AI 对话侧栏入口、统一风格界面与按账号区分的浏览器草稿（foundation）；模型未接入
-- [ ] 日历 + 里程碑（E）
+- [x] 项目月历、跨天排期、日程视图 + 里程碑；本人日历（E）
+- [x] 操作加载、完成提示、表单错误与轻量动效（foundation / A / B / E）
+- [x] Windows 便携发布包与保留数据的一键启动/停止（foundation）
 - [ ] 截止提醒（cron + 飞书私信）（E）
 
 ## 下期 · 重要
@@ -43,7 +45,8 @@
 - [x] `tests/contract/identity/spaces.test.ts` — 成员查询 ACL / 日期校验 / 最后管理员保护
 - [x] `tests/contract/review/**` — 混合团队身份与叠加职务越权矩阵
 - [x] `tests/contract/worklog/**` — 工时权限 / 汇总 / 顶层验收与子任务口径
-- [ ] `tests/contract/{calendar,milestone}/**`
+- [x] `tests/contract/calendar/**` — 项目排期、个人日程、HTTP、权限、版本冲突与历史月份
+- [ ] `tests/contract/milestone/**`
 - [ ] `tests/contract/notify/**` — cron 扫描
 
 ## 后续体验完善（不在本次范围）

@@ -7,6 +7,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { ArrowRight, RotateCcw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FormFeedback, useFeedback } from "@/components/ui/feedback";
 import {
   addWorklogAction,
   createMilestoneAction,
@@ -35,30 +36,23 @@ import {
   type TaskPermissions,
 } from "@/modules/identity/client";
 
-const btn =
-  "rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50 transition active:scale-95";
-const btnPrimary =
-  "rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-brand-hover disabled:opacity-50 transition active:scale-95";
-
 function ErrorLine({ state }: { state: FormState }) {
-  if (!state?.error) return null;
-  return (
-    <p role="alert" className="text-xs text-destructive">
-      {state.error}
-    </p>
-  );
+  return <FormFeedback message={state?.error} className="text-xs" />;
 }
 
 export function CreateTaskForm({
   projectId,
   onCreated,
   parentTaskId,
+  onPendingChange,
 }: {
   projectId: string;
   onCreated?: () => void;
   parentTaskId?: string;
+  onPendingChange?: (pending: boolean) => void;
 }) {
   const id = useId();
+  const notify = useFeedback();
   const [fields, setFields] = useState({
     title: "",
     description: "",
@@ -71,6 +65,7 @@ export function CreateTaskForm({
         ? createSubtaskAction(prev, data)
         : createTaskAction(prev, data));
       if (result?.ok) {
+        notify(result.ok);
         setFields({
           title: "",
           description: "",
@@ -83,6 +78,10 @@ export function CreateTaskForm({
     },
     null,
   );
+  useEffect(() => {
+    onPendingChange?.(pending);
+    return () => onPendingChange?.(false);
+  }, [pending, onPendingChange]);
   return (
     <form
       action={formAction}
@@ -107,6 +106,7 @@ export function CreateTaskForm({
           setFields({ ...fields, title: event.target.value })
         }
         maxLength={200}
+        disabled={pending}
         placeholder="任务标题"
         required
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -120,6 +120,7 @@ export function CreateTaskForm({
         }
         placeholder="描述（可选）"
         rows={2}
+        disabled={pending}
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
       />
       <div className="flex flex-wrap gap-2">
@@ -128,6 +129,7 @@ export function CreateTaskForm({
           type="date"
           name="dueDate"
           value={fields.dueDate}
+          disabled={pending}
           onChange={(event) =>
             setFields({ ...fields, dueDate: event.target.value })
           }
@@ -137,6 +139,7 @@ export function CreateTaskForm({
           aria-label="任务优先级"
           name="priority"
           value={fields.priority}
+          disabled={pending}
           onChange={(event) =>
             setFields({ ...fields, priority: event.target.value })
           }
@@ -146,12 +149,11 @@ export function CreateTaskForm({
           <option value="medium">中优先</option>
           <option value="high">高优先</option>
         </select>
-        <button disabled={pending} className={btnPrimary}>
+        <Button size="sm" disabled={pending} loading={pending}>
           {pending ? "创建中…" : "创建"}
-        </button>
+        </Button>
       </div>
       <ErrorLine state={state} />
-      {state?.ok && <p className="text-xs text-emerald-600">{state.ok}</p>}
     </form>
   );
 }
@@ -236,10 +238,12 @@ export function TransitionDialog({
   const [note, setNote] = useState("");
   const returnFocus = useRef<HTMLElement | null>(null);
   const parentDialog = useRef<HTMLElement | null>(null);
+  const notify = useFeedback();
   const [state, formAction, pending] = useActionState<FormState, FormData>(
     async (prev, data) => {
       const result = await transitionAction(prev, data);
       if (result?.ok) {
+        notify(result.ok);
         onSuccess?.();
         onClose();
       }
@@ -255,7 +259,7 @@ export function TransitionDialog({
       }}
     >
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/35" />
+        <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-black/35" />
         <Dialog.Content
           onOpenAutoFocus={() => {
             returnFocus.current =
@@ -277,7 +281,7 @@ export function TransitionDialog({
           onPointerDownOutside={(event) => {
             if (pending) event.preventDefault();
           }}
-          className="fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-xl"
+          className="dialog-surface fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-xl"
         >
           <Dialog.Title className="pr-8 text-lg font-semibold">
             {rule.label}任务
@@ -400,7 +404,7 @@ export function TransitionDialog({
                 disabled={
                   pending || (rule.setsAssignee && members.length === 0)
                 }
-              >
+               loading={pending}>
                 {pending ? "处理中…" : `确认${rule.label}`}
               </Button>
             </div>
@@ -422,8 +426,15 @@ export function TaskActions({
   actorId: string;
   members?: AssigneeOption[];
 }) {
+  const notify = useFeedback();
+  const [acting, setActing] = useState("");
   const [state, formAction, pending] = useActionState<FormState, FormData>(
-    transitionAction,
+    async (prev, data) => {
+      setActing(String(data.get("action") ?? ""));
+      const result = await transitionAction(prev, data);
+      if (result?.ok) notify(result.ok);
+      return result;
+    },
     null,
   );
   const [selected, setSelected] = useState<TransitionRule | null>(null);
@@ -483,15 +494,19 @@ export function TaskActions({
 
   async function openDialog(rule: TransitionRule) {
     setLoadError("");
+    setActing(rule.action);
     if (rule.setsAssignee && options.length === 0) {
       setLoading(true);
-      const result = await loadTaskAssigneesAction(task.id);
-      setLoading(false);
-      if (result.error) {
-        setLoadError(result.error);
+      try {
+        const result = await loadTaskAssigneesAction(task.id);
+        if (result.error) { setLoadError(result.error); return; }
+        setOptions(result.members);
+      } catch {
+        setLoadError("成员加载失败，请稍后重试");
         return;
+      } finally {
+        setLoading(false);
       }
-      setOptions(result.members);
     }
     setSelected(rule);
   }
@@ -530,14 +545,13 @@ export function TaskActions({
                 ? () => void openDialog(rule)
                 : undefined
             }
-          >
-            {pending || loading ? "处理中…" : rule.label}
+           loading={(pending || loading) && acting === rule.action}>
+            {(pending || loading) && acting === rule.action ? "处理中…" : rule.label}
           </Button>
         ))}
       </form>
       <div aria-live="polite">
         <ErrorLine state={state} />
-        {state?.ok && <p className="text-xs text-emerald-700">{state.ok}</p>}
         {loadError && (
           <p role="alert" className="text-xs text-destructive">
             {loadError}
@@ -695,11 +709,13 @@ export function DeleteTaskButton({
   projectId: string;
 }) {
   const router = useRouter();
+  const notify = useFeedback();
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState<FormState, FormData>(
     async (prev, data) => {
       const result = await deleteTaskAction(prev, data);
       if (result?.ok) {
+        notify(result.ok);
         setOpen(false);
         router.push(`/p/${projectId}/tasks`);
       }
@@ -720,8 +736,8 @@ export function DeleteTaskButton({
         </Button>
       </Dialog.Trigger>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/35" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-card p-6 shadow-xl">
+        <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-black/35" />
+        <Dialog.Content className="dialog-surface fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-card p-6 shadow-xl">
           <Dialog.Title className="text-lg font-semibold">
             确认删除任务？
           </Dialog.Title>
@@ -741,7 +757,7 @@ export function DeleteTaskButton({
               >
                 取消
               </Button>
-              <Button variant="destructive" disabled={pending}>
+              <Button variant="destructive" disabled={pending} loading={pending}>
                 {pending ? "删除中…" : "确认删除"}
               </Button>
             </div>
@@ -839,7 +855,7 @@ export function WorklogForm({
             placeholder="这次完成了什么…"
           />
         </div>
-        <Button type="submit">{pending ? "记录中…" : "记工时"}</Button>
+        <Button type="submit" loading={pending}>{pending ? "记录中…" : "记工时"}</Button>
       </fieldset>
       <ErrorLine state={state} />
       {state?.ok && (
@@ -874,9 +890,9 @@ export function DueDateForm({
         defaultValue={dueDate ?? ""}
         className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
       />
-      <button disabled={pending} className={btn}>
+      <Button size="sm" variant="outline" disabled={pending} loading={pending}>
         {pending ? "修改中…" : "改截止"}
-      </button>
+      </Button>
       <ErrorLine state={state} />
     </form>
   );
@@ -917,9 +933,9 @@ export function MilestoneForm({ projectId }: { projectId: string }) {
           name="targetDate"
           className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
         />
-        <button disabled={pending} className={btnPrimary}>
+        <Button size="sm" disabled={pending} loading={pending}>
           {pending ? "创建中…" : "创建"}
-        </button>
+        </Button>
       </div>
       <ErrorLine state={state} />
       {state?.ok && <p className="text-xs text-emerald-600">{state.ok}</p>}

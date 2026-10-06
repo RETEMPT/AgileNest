@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FormFeedback } from "@/components/ui/feedback";
 import type { ProjectKind } from "@/db/schema";
 import {
   createTeamAction,
@@ -49,16 +50,7 @@ export const SPACE_KINDS = [
 ] as const;
 
 function Feedback({ state }: { state: IdentityFormState }) {
-  return (
-    <div aria-live="polite">
-      {state?.error && (
-        <p role="alert" className="text-sm text-destructive">
-          {state.error}
-        </p>
-      )}
-      {state?.ok && <p className="text-sm text-emerald-700">{state.ok}</p>}
-    </div>
-  );
+  return <FormFeedback message={state?.error || state?.ok} tone={state?.error ? "error" : "success"} />;
 }
 
 function FormDialog({
@@ -76,8 +68,8 @@ function FormDialog({
     <Dialog.Root>
       <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/35" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl sm:p-7">
+        <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-black/35" />
+        <Dialog.Content className="dialog-surface fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl sm:p-7">
           <Dialog.Title className="pr-8 text-xl font-semibold">
             {title}
           </Dialog.Title>
@@ -163,7 +155,7 @@ export function CreateTeamForm() {
         建立项目
       </div>
       <Feedback state={state} />
-      <Button disabled={pending} className="w-full">
+      <Button disabled={pending} className="w-full" loading={pending}>
         {pending ? "创建中…" : "创建团队，继续建立项目"}
         <ArrowRight className="h-4 w-4" />
       </Button>
@@ -200,7 +192,7 @@ export function JoinTeamForm() {
         </p>
       </div>
       <Feedback state={state} />
-      <Button disabled={pending} className="w-full">
+      <Button disabled={pending} className="w-full" loading={pending}>
         {pending ? "加入中…" : "加入并查看团队项目"}
         <ArrowRight className="h-4 w-4" />
       </Button>
@@ -390,7 +382,7 @@ export function ProjectForm({
         创建后进入任务看板。管理员或指导老师可验收；实验室和竞赛队长可指派任务。
       </p>
       <Feedback state={state} />
-      <Button disabled={pending} className="w-full">
+      <Button disabled={pending} className="w-full" loading={pending}>
         {pending ? "创建中…" : "创建项目并进入看板"}
         <ArrowRight className="h-4 w-4" />
       </Button>

@@ -1,5 +1,15 @@
 import { z } from "zod";
 import { isValidISODate } from "@/modules/core/dates";
+export {
+  WEEKDAY_LABELS, addDays, calendarRange, compareEvents, currentYearMonth,
+  eventIsAtRisk, eventIsDone, eventIsOverdue, groupByDay, isValidYearMonth,
+  isWeekendISO, milestoneToEvent, monthBounds, monthGridRange, monthKey,
+  shapeEvents, shiftMonth, taskDates, taskEventsForDate, weekdayLabel,
+} from "./model";
+export type {
+  AgendaDay, CalendarCell, CalendarEvent, CalendarFilters, CalendarView,
+  CalendarQuery as ProjectCalendarQuery,
+} from "./model";
 
 export const SCHEDULE_PRIORITIES = [0, 1, 2] as const;
 export type SchedulePriority = (typeof SCHEDULE_PRIORITIES)[number];

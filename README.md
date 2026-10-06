@@ -2,7 +2,7 @@
 
 面向课程设计、实验室课题和竞赛团队。核心链路是：团队空间 → 成员与角色 → 项目目标 → 任务协作 → 教师验收。
 
-本分支版本：**0.3.0-rc.1**（候选版）。版本以 `package.json` 为准，每轮完成验收的集成迭代递增；更新内容与升级要求见 [CHANGELOG.md](CHANGELOG.md)，发布规则见 [开发工作流](docs/WORKFLOW.md#9-迭代版本与发布)。
+本分支版本：**0.3.0-rc.2**（候选版）。版本以 `package.json` 为准，每轮完成验收的集成迭代递增；更新内容与升级要求见 [CHANGELOG.md](CHANGELOG.md)，发布规则见 [开发工作流](docs/WORKFLOW.md#9-迭代版本与发布)。
 
 ## 这版体验更新
 
@@ -21,6 +21,8 @@
 详细设计与手动验收见 [docs/UX.md](docs/UX.md)。本期实验室管理覆盖成员、课题和任务，不包含实验数据、文件或设备台账。
 
 ## Windows 快速开始
+
+使用编译好的 Windows 发布包时，下载 Release ZIP、完整解压后双击 **start.bat** 即可；自带运行环境、示例数据与停止脚本。[发布包说明与阶段汇总](docs/RELEASE.md)。下面是源码开发方式。
 
 ```powershell
 .\setup.bat

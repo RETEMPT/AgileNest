@@ -1,4 +1,5 @@
 "use client";
+export { CalendarWorkspace, MonthGrid, AgendaList, EventChip } from "./project-ui";
 
 import {
   useActionState,
@@ -12,6 +13,7 @@ import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import { CalendarPlus, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { FormFeedback, useFeedback } from "@/components/ui/feedback";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import {
   calendarUrl,
@@ -22,7 +24,7 @@ import {
 import { deleteScheduleAction, saveScheduleAction } from "./actions";
 
 const dialogClass =
-  "fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-xl";
+  "dialog-surface fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-xl";
 
 function ScheduleForm({
   schedule,
@@ -164,14 +166,7 @@ function ScheduleForm({
           </p>
         </div>
       </fieldset>
-      {state?.error && (
-        <p
-          role="alert"
-          className="rounded-lg bg-red-50 px-3 py-2 text-sm text-destructive"
-        >
-          {state.error}
-        </p>
-      )}
+      <FormFeedback message={state?.error} />
       <p className="text-xs leading-5 text-muted-foreground">
         时间按日程当天的本地钟表时间记录。保存个人安排不会创建或改变项目任务。
       </p>
@@ -185,7 +180,7 @@ function ScheduleForm({
         >
           取消
         </Button>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending} loading={pending}>
           {pending ? "保存中…" : "保存日程"}
         </Button>
       </div>
@@ -219,11 +214,7 @@ function DeleteForm({
     <form action={formAction} className="mt-5 space-y-4">
       <input type="hidden" name="scheduleId" value={schedule.id} />
       <input type="hidden" name="version" value={schedule.version} />
-      {state?.error && (
-        <p role="alert" className="text-sm text-destructive">
-          {state.error}
-        </p>
-      )}
+      <FormFeedback message={state?.error} />
       <div className="flex justify-end gap-2">
         <Button
           type="button"
@@ -234,7 +225,7 @@ function DeleteForm({
         >
           取消
         </Button>
-        <Button type="submit" variant="destructive" disabled={pending}>
+        <Button type="submit" variant="destructive" disabled={pending} loading={pending}>
           {pending ? "删除中…" : "确认删除"}
         </Button>
       </div>
@@ -254,20 +245,19 @@ export function ScheduleControls({
   compact?: boolean;
 }) {
   const router = useRouter();
+  const notify = useFeedback();
   const [dialog, setDialog] = useState<"save" | "delete" | null>(null);
-  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const returnFocus = useRef<HTMLElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   function openDialog(kind: "save" | "delete", trigger: HTMLElement) {
     returnFocus.current = trigger;
-    setNotice("");
     setDialog(kind);
   }
   const saved = useCallback(
     (item: ScheduleDTO) => {
       setDialog(null);
-      setNotice("日程已保存");
+      notify("日程已保存");
       router.push(
         calendarUrl(query, {
           date: item.scheduleDate,
@@ -279,12 +269,13 @@ export function ScheduleControls({
       );
       router.refresh();
     },
-    [query, router],
+    [query, router, notify],
   );
   const deleted = useCallback(() => {
+    notify("日程已删除");
     setDialog(null);
     router.refresh();
-  }, [router]);
+  }, [router, notify]);
   return (
     <div
       className={mode === "manage" ? "mt-3 border-t border-border pt-3" : ""}
@@ -330,11 +321,6 @@ export function ScheduleControls({
           </div>
         )
       )}
-      {notice && (
-        <p role="status" className="mt-2 text-xs text-brand">
-          {notice}
-        </p>
-      )}
       {dialog && (
         <Dialog.Root
           open
@@ -343,7 +329,7 @@ export function ScheduleControls({
           }}
         >
           <Dialog.Portal>
-            <Dialog.Overlay className="fixed inset-0 z-50 bg-black/35" />
+            <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-black/35" />
             <Dialog.Content
               ref={contentRef}
               className={dialogClass}

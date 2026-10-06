@@ -1,5 +1,7 @@
 "use client";
 
+import { version } from "../../package.json";
+
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -147,7 +149,7 @@ export function AppSidebar({
 
       {/* 侧栏主体 (支持可折叠桌面侧栏 & 移动端全宽滑出) */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 flex flex-col border-r border-border bg-card transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] md:translate-x-0 will-change-transform ${
+        className={`sidebar-surface fixed top-0 bottom-0 left-0 z-50 flex flex-col border-r border-border bg-card transition-[width,transform] duration-200 ease-out md:translate-x-0 ${
           isCollapsed ? "md:w-18" : "md:w-64"
         } ${mobileOpen ? "translate-x-0 w-64" : "-translate-x-full w-64"}`}
       >
@@ -200,7 +202,7 @@ export function AppSidebar({
 
             <div className="flex items-center gap-1.5">
               <span className="rounded-md border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                v0.2
+                v{version}
               </span>
               {onToggleCollapse && (
                 <button

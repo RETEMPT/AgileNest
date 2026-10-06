@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useId, useState } from "react";
+import { useActionState, useEffect, useId, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Pencil, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FormFeedback, useFeedback } from "@/components/ui/feedback";
 import type { TaskDTO } from "./service";
 import { editTaskAction } from "./actions";
 
@@ -16,8 +17,9 @@ export function EditTaskButton({
   milestones: { id: string; title: string }[];
 }) {
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
+    <Dialog.Root open={open} onOpenChange={(value) => { if (!busy) setOpen(value); }}>
       <Dialog.Trigger asChild>
         <Button size="sm" variant="outline">
           <Pencil className="h-4 w-4" />
@@ -25,8 +27,8 @@ export function EditTaskButton({
         </Button>
       </Dialog.Trigger>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/35 backdrop-blur-xs" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-2xl border border-border bg-card p-5 shadow-xl sm:p-6">
+        <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-black/35 backdrop-blur-xs" />
+        <Dialog.Content onEscapeKeyDown={(event) => { if (busy) event.preventDefault(); }} onPointerDownOutside={(event) => { if (busy) event.preventDefault(); }} className="dialog-surface fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-2xl border border-border bg-card p-5 shadow-xl sm:p-6">
           <div className="mb-5 flex justify-between gap-4">
             <div>
               <Dialog.Title className="text-xl font-semibold">
@@ -37,7 +39,7 @@ export function EditTaskButton({
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
-              <Button size="icon" variant="ghost" aria-label="关闭编辑">
+              <Button size="icon" variant="ghost" aria-label="关闭编辑" disabled={busy}>
                 <X className="h-4 w-4" />
               </Button>
             </Dialog.Close>
@@ -46,6 +48,7 @@ export function EditTaskButton({
             task={task}
             milestones={milestones}
             onClose={() => setOpen(false)}
+            onPendingChange={setBusy}
           />
         </Dialog.Content>
       </Dialog.Portal>
@@ -57,23 +60,30 @@ function EditTaskForm({
   task,
   milestones,
   onClose,
+  onPendingChange,
 }: {
   task: TaskDTO;
   milestones: { id: string; title: string }[];
   onClose: () => void;
+  onPendingChange: (pending: boolean) => void;
 }) {
   const id = useId();
+  const notify = useFeedback();
   const [state, action, pending] = useActionState(
     async (
       prev: Awaited<ReturnType<typeof editTaskAction>>,
       data: FormData,
     ) => {
       const result = await editTaskAction(prev, data);
-      if (result?.ok) onClose();
+      if (result?.ok) { notify(result.ok); onClose(); }
       return result;
     },
     null,
   );
+  useEffect(() => {
+    onPendingChange(pending);
+    return () => onPendingChange(false);
+  }, [pending, onPendingChange]);
   const field = "space-y-1.5 text-sm";
   const select =
     "w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
@@ -168,16 +178,12 @@ function EditTaskForm({
             ))}
           </select>
         </div>
-        {state?.error && (
-          <p role="alert" className="text-sm text-destructive">
-            {state.error}
-          </p>
-        )}
+        <FormFeedback message={state?.error} />
         <div className="flex justify-end gap-2 border-t border-border pt-4">
           <Button variant="ghost" type="button" onClick={onClose}>
             取消
           </Button>
-          <Button type="submit">{pending ? "保存中…" : "保存修改"}</Button>
+          <Button type="submit" loading={pending}>{pending ? "保存中…" : "保存修改"}</Button>
         </div>
       </fieldset>
     </form>

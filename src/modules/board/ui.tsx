@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useFeedback } from "@/components/ui/feedback";
 import { StatusPill, PriorityPill } from "@/components/ui/badge";
 import {
   TASK_STATUSES,
@@ -210,10 +211,12 @@ export function ProjectWorkspace(props: WorkspaceProps) {
     view,
   } = props;
   const router = useRouter();
+  const notify = useFeedback();
   const id = useId();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [openedId, setOpenedId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createBusy, setCreateBusy] = useState(false);
   const detailReturnFocus = useRef<HTMLElement | null>(null);
   const createReturnFocus = useRef<HTMLElement | null>(null);
   const [dialog, setDialog] = useState<{
@@ -270,7 +273,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
     startTransition(async () => {
       const result = await moveTaskAction(task.id, { status: target });
       setNotice(result);
-      if (!result.error) router.refresh();
+      if (!result.error) { notify(result.ok || "任务状态已更新"); router.refresh(); }
     });
   }
 
@@ -646,7 +649,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
         }}
       >
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-40 bg-black/35" />
+          <Dialog.Overlay className="dialog-overlay fixed inset-0 z-40 bg-black/35" />
           <Dialog.Content
             onOpenAutoFocus={() => {
               detailReturnFocus.current =
@@ -658,7 +661,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
               event.preventDefault();
               detailReturnFocus.current?.focus();
             }}
-            className="fixed inset-y-0 right-0 z-40 w-full max-w-2xl overflow-y-auto border-l border-border bg-card p-5 shadow-xl sm:p-7"
+            className="dialog-surface fixed inset-y-0 right-0 z-40 w-full max-w-2xl overflow-y-auto border-l border-border bg-card p-5 shadow-xl sm:p-7"
           >
             {openedTask && (
               <>
@@ -728,21 +731,25 @@ export function ProjectWorkspace(props: WorkspaceProps) {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
-      <Dialog.Root open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog.Root open={createOpen} onOpenChange={(value) => { if (!createBusy) setCreateOpen(value); }}>
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/35" />
+          <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-black/35" />
           <Dialog.Content
-            onOpenAutoFocus={() => {
+            onEscapeKeyDown={(event) => { if (createBusy) event.preventDefault(); }}
+            onPointerDownOutside={(event) => { if (createBusy) event.preventDefault(); }}
+            onOpenAutoFocus={(event) => {
               createReturnFocus.current =
                 document.activeElement instanceof HTMLElement
                   ? document.activeElement
                   : null;
+              event.preventDefault();
+              if (event.target instanceof HTMLElement) event.target.querySelector<HTMLInputElement>('input[name="title"]')?.focus();
             }}
             onCloseAutoFocus={(event) => {
               event.preventDefault();
               createReturnFocus.current?.focus();
             }}
-            className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-card p-5 shadow-xl"
+            className="dialog-surface fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-card p-5 shadow-xl"
           >
             <Dialog.Title className="mb-2 text-lg font-semibold">
               创建项目任务
@@ -755,6 +762,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
                 variant="ghost"
                 size="icon"
                 aria-label="关闭创建任务"
+                disabled={createBusy}
                 className="absolute right-3 top-3"
               >
                 <X className="h-4 w-4" />
@@ -762,6 +770,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
             </Dialog.Close>
             <CreateTaskForm
               projectId={projectId}
+              onPendingChange={setCreateBusy}
               onCreated={() => {
                 setCreateOpen(false);
                 router.refresh();

@@ -8,7 +8,7 @@ export function MarkReadButton({ id }: { id: string }) {
   return (
     <form action={action}>
       <input type="hidden" name="id" value={id} />
-      <Button size="sm" variant="ghost" disabled={pending}>
+      <Button size="sm" variant="ghost" disabled={pending} loading={pending}>
         {pending ? "更新中…" : "标为已读"}
       </Button>
       {state?.error && (

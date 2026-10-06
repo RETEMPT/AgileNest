@@ -16,7 +16,7 @@ src/modules/
   board/       看板 + 表格 · 筛选 · 拖拽               B
   review/      双端工作台 · 验收台 · 活动流            C
   worklog/     工时 · 完成度 · 贡献（含原 stats）      D
-  calendar/    项目月视图 · 本人日程 CRUD              E
+  calendar/    项目月历/跨天排期 · 本人日程 CRUD       E
   milestone/   开题/中期/结题/答辩节点                 E
   notify/      站内消息 + cron；可选飞书私信待接入      E
 ```
@@ -187,16 +187,23 @@ memberContribution(actorId, projectId)
 ### `@/modules/calendar`（E）
 
 ```ts
-monthView(actorId, projectId, year, month)   // month: 1-12
+monthView(actorId, projectId, year, month)   // 42 格；兼容 tasks/milestones，追加 events/isWeekend
+listAgenda(actorId, projectId, { from?, to?, filters? }) / listAgendaDays(actorId, projectId, range?)
+calendarBoard(actorId, projectId, { year, month, horizonDays?, range?, filters? })
+parseCalendarFilters(params) / parseCalendarQuery(params, today?) / serializeCalendarQuery(query)
+agendaWindow(query, today?)
 listMySchedules(actorId, year, month)       // 本人自然月，YYYY-MM-DD / HH:mm
 createSchedule(actorId, input: ScheduleInput): Promise<ScheduleDTO>
 updateSchedule(actorId, scheduleId, version, input: ScheduleInput): Promise<ScheduleDTO>
 deleteSchedule(actorId, scheduleId, version): Promise<void>
 schedulesGET(request) / schedulesPOST(request)
+projectCalendarGET(request): Promise<Response>
 schedulePUT(request, { params }) / scheduleDELETE(request, { params })
 ```
 
-个人日程表 `personal_schedules` 归 calendar（E）。UI 公开 `calendar/views.PersonalCalendarView/ProjectCalendarView`，路由只做壳；`calendar/ui.ScheduleControls` 提供日程弹窗，`calendar/client` 公开 DTO、`ScheduleInput`、优先级元数据、输入/月校验、`parseCalendarQuery/calendarUrl/selectSchedules/scheduleTimeLabel`，均为浏览器安全的纯实现。服务只通过当前 actorId 管理本人记录，职务与身份不扩展权限；更新/删除以版本条件写入，404 不泄露他人记录，409 防旧页面覆盖。日期范围、HTTP 输入、追加迁移及源文件取舍见 [SCHEDULES.md](SCHEDULES.md)。原项目月视图返回结构和 ACL 保留，新增年月边界校验。
+个人日程表 `personal_schedules` 归 calendar（E）。UI 公开 `calendar/views.PersonalCalendarView/ProjectCalendarView/CalendarWorkspaceView`，路由只做壳；`calendar/ui.ScheduleControls` 提供个人日程弹窗，另公开 `CalendarWorkspace/MonthGrid/AgendaList/EventChip` 项目组件。`calendar/client` 公开 DTO、`ScheduleInput`、优先级元数据、输入/月校验、个人日程的 `parseCalendarQuery/calendarUrl/selectSchedules/scheduleTimeLabel`，另公开项目 `ProjectCalendarQuery/CalendarEvent/CalendarCell/CalendarFilters/AgendaDay` 与 model 纯日期、事件、筛选函数，不加载 DB/session。根入口 `parseCalendarQuery` 用于项目 URL，兼容 `year/month/view/status/assigneeId/milestoneId/risk`；个人 URL 使用 `y/m/date/q/priority`，两种查询不混用。
+
+服务只通过当前 actorId 管理本人日程，职务与身份不扩展权限；更新/删除以版本条件写入，404 不泄露他人记录，409 防旧页面覆盖。项目日历来自 PR #7，保留项目 ACL、跨天任务和里程碑；`calendarBoard` 用同一批任务/节点生成月格和所选日程窗口，支持历史月份和一致筛选，长跨度仅展开可见窗口。年份统一 1900–2100，窗口天数 1–366。日期范围、HTTP 输入、追加迁移及源文件取舍见 [SCHEDULES.md](SCHEDULES.md)。
 
 ### `@/modules/milestone`（E）
 
@@ -236,7 +243,7 @@ Commit 用 Conventional Commits：`feat(tasks): 五态状态机` · `fix(board):
 
 identity 根入口新增 `getAccountProfile(actorId)`、`saveAccountProfile(actorId, { name, bio?, avatar? })`、`getAvatar(actorId, targetId)`、API 薄壳 `avatarGET(request, context)`。`avatar` 省略表示保留，`remove` 表示移除，上传为客户端处理的 256×256 PNG data URL；返回资料只含头像 URL，不含图片内容。头像仅本人或同团队成员可读。成员 DTO 追加 `bio/avatarUrl/avatarHash`。保存姓名使学术资料版本增加，旧确认失效。
 
-tasks 的 `createSubtask` 输入追加 `priority?`。创建与更新校验真实日期、起止顺序、标题、预计工时和当前项目的里程碑；父任务只能在创建时关联，不允许继续嵌套。父任务验收需全部子任务通过；已提交/完成的父任务不能追加子任务，重开已完成子任务需先重开父任务。`tasks/ui` 内提供 `CreateTaskForm({ projectId, parentTaskId?, onCreated? })`；编辑表单是模块内实现，由 `tasks/views` 调用，仍使用统一任务服务。
+tasks 的 `createSubtask` 输入追加 `priority?`。创建与更新校验真实日期、起止顺序、标题、预计工时和当前项目的里程碑；父任务只能在创建时关联，不允许继续嵌套。父任务验收需全部子任务通过；已提交/完成的父任务不能追加子任务，重开已完成子任务需先重开父任务。`tasks/ui` 内提供 `CreateTaskForm({ projectId, parentTaskId?, onCreated?, onPendingChange? })`；编辑表单是模块内实现，由 `tasks/views` 调用，仍使用统一任务服务。
 
 review 的 `getWorkbench` 用成员关联查询进行访问隔离，按项目能力分类，归档项目不进入当前队列。公开 `review/views` 提供 `WorkbenchView`，兼容原 student/teacher 路由；纯队员在教师入口看到空验收视图，不报错。DTO 直接带权限快照，避免每张卡再请求权限。
 
@@ -247,6 +254,12 @@ notify 公开 `notify/views` 的 `NotificationsView` 和 `notify/ui` 的 `MarkRe
 ## 6. 工作台与产品文案迭代 · 2026-10-04
 
 本轮范围及 Owner：foundation（identity、共享导航），A（任务流程入口文案），B（看板文案），C（工作台筛选与排序），E（系统通知）。沿用集成分支，不调整 core、登录、数据结构或依赖。
+
+## 交互反馈与阶段发布 · 2026-10-06
+
+用户授权优化操作反馈并发布一键运行版本。foundation 负责共享 Button 的 `loading?`、FeedbackProvider/useFeedback/FormFeedback、侧栏与任务详情抽屉、个人设置及 Windows 发布工具；A 负责任务创建/编辑/流转反馈，B 负责看板拖动与创建弹窗，E 负责日程交互和 PR #7 项目日历集成。任务创建入口 `onPendingChange?` 让外层弹窗共享等待状态，提交期间阻止关闭；完成提示放在 AppShell，表单失败保留输入。
+
+`projectCalendarGET` 是项目日历 HTTP 薄壳的模块入口。月格保留 tasks/milestones 的既有 DTO 数组并追加 events；日程按所选月份默认读取，两处应用同一筛选。运行包不新增依赖、业务表或登录逻辑，初始化使用既有 SQL 与独立迁移记录，后续启动不重置记录。阶段边界和使用方式见 [RELEASE.md](RELEASE.md)。
 
 ## 公共基础与可选连接补充 · 2026-10-04
 

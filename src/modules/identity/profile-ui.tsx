@@ -4,6 +4,7 @@ import { useActionState, useId, useRef, useState } from "react";
 import { Camera, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FormFeedback } from "@/components/ui/feedback";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { saveAccountProfileAction, type AccountFormState } from "./actions";
 
@@ -108,7 +109,7 @@ export function AccountProfileForm({
                 variant="outline"
                 size="sm"
                 onClick={() => fileRef.current?.click()}
-              >
+               loading={processing}>
                 <Camera className="h-4 w-4" />
                 {processing ? "处理图片中…" : "选择头像"}
               </Button>
@@ -252,19 +253,14 @@ export function AccountProfileForm({
             >
               还原修改
             </Button>
-            <Button type="submit" disabled={!dirty}>
+            <Button type="submit" disabled={!dirty} loading={pending}>
               {pending ? "保存中…" : "保存个人资料"}
             </Button>
           </div>
         </div>
       </fieldset>
       {state && showFeedback && (
-        <p
-          role={state.error ? "alert" : "status"}
-          className={`px-6 pb-5 text-sm ${state.error ? "text-destructive" : "text-brand"}`}
-        >
-          {state.error || state.ok}
-        </p>
+        <FormFeedback message={state.error || state.ok} tone={state.error ? "error" : "success"} className="mx-5 mb-5 sm:mx-6" />
       )}
     </form>
   );

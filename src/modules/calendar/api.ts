@@ -14,6 +14,8 @@ import {
   listMySchedules,
   updateSchedule,
 } from "./schedule-service";
+import { calendarBoard, parseCalendarFilters } from "./service";
+import { monthBounds } from "./model";
 
 type ScheduleContext = { params: Promise<{ scheduleId: string }> };
 const monthQuerySchema = z
@@ -25,6 +27,24 @@ const updateSchema = z.strictObject({
 });
 const deleteSchema = z.strictObject({ version: scheduleVersionSchema });
 const headers = { "Cache-Control": "private, no-store" };
+
+export async function projectCalendarGET(request: Request) {
+  try {
+    const user = await requireApiUser();
+    const query = new URL(request.url).searchParams;
+    const projectId = z.uuid({ error: "请选择有效项目" }).parse(query.get("projectId"));
+    const { year, month } = monthQuerySchema.parse({ year: query.get("year"), month: query.get("month") });
+    const filters = parseCalendarFilters(query);
+    const agenda = query.get("view") === "agenda";
+    const bounds = monthBounds(year, month);
+    const range = agenda ? { from: query.get("from") ?? bounds.from, to: query.get("to") ?? bounds.to } : undefined;
+    const { cells, days } = await calendarBoard(user.id, projectId, { year, month, filters, range });
+    if (agenda) {
+      return NextResponse.json({ cells, days: days.flatMap((day) => day.items) }, { headers });
+    }
+    return NextResponse.json({ cells }, { headers });
+  } catch (error) { return jsonError(error); }
+}
 
 async function readBody(request: Request): Promise<unknown> {
   try {

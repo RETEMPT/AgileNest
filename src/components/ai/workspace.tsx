@@ -563,8 +563,8 @@ export function AiWorkspace({ userId }: { userId: string }) {
                 </Button>
               </Dialog.Trigger>
               <Dialog.Portal>
-                <Dialog.Overlay className="fixed inset-0 z-60 bg-black/35" />
-                <Dialog.Content className="fixed inset-y-0 left-0 z-60 flex w-[min(320px,85vw)] flex-col border-r border-border bg-card pt-5 shadow-xl">
+                <Dialog.Overlay className="dialog-overlay fixed inset-0 z-60 bg-black/35" />
+                <Dialog.Content className="dialog-surface fixed inset-y-0 left-0 z-60 flex w-[min(320px,85vw)] flex-col border-r border-border bg-card pt-5 shadow-xl">
                   <Dialog.Title className="sr-only">对话草稿</Dialog.Title>
                   <Dialog.Description className="sr-only">
                     选择或管理保存在当前浏览器的对话草稿。
@@ -658,14 +658,14 @@ export function AiWorkspace({ userId }: { userId: string }) {
         }}
       >
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-70 bg-black/35" />
+          <Dialog.Overlay className="dialog-overlay fixed inset-0 z-70 bg-black/35" />
           <Dialog.Content
             onCloseAutoFocus={(event) => {
               event.preventDefault();
               if (returnFocus.current?.isConnected) returnFocus.current.focus();
               else document.getElementById("ai-draft-input")?.focus();
             }}
-            className="fixed top-1/2 left-1/2 z-70 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-card p-6 shadow-xl"
+            className="dialog-surface fixed top-1/2 left-1/2 z-70 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-card p-6 shadow-xl"
           >
             <Dialog.Title className="text-lg font-semibold">
               {operation?.kind === "rename" ? "重命名草稿" : "删除草稿"}
@@ -745,13 +745,13 @@ export function AiWorkspace({ userId }: { userId: string }) {
       </Dialog.Root>
       <Dialog.Root open={helpOpen} onOpenChange={setHelpOpen}>
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-70 bg-black/35" />
+          <Dialog.Overlay className="dialog-overlay fixed inset-0 z-70 bg-black/35" />
           <Dialog.Content
             onCloseAutoFocus={(event) => {
               event.preventDefault();
               helpTrigger.current?.focus();
             }}
-            className="fixed top-1/2 left-1/2 z-70 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-card p-6 shadow-xl"
+            className="dialog-surface fixed top-1/2 left-1/2 z-70 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-card p-6 shadow-xl"
           >
             <Dialog.Title className="flex items-center gap-2 text-lg font-semibold">
               <AiChatIcon size={22} className="text-brand" />

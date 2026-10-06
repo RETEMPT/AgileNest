@@ -59,3 +59,11 @@
 采用个人归属、标题/说明、日期与起止时间、三级优先级、按月 CRUD、登录后入口和复合索引。按现有技术栈改为独立的 `personal_schedules` 追加表、UUID、当前会话归属、真实日期/同日时间校验和版本条件写入；本人日历与项目任务截止/里程碑分开，避免个人安排被团队管理员读取或被当成任务完成记录。没有移植 Java/Vue/MySQL 运行时，没有引入依赖。
 
 本轮 E 在 `codex/calendar-schedules` 开发，foundation 仅配合共享导航；通过公开 `calendar`、`client`、`ui`、`views` 契约集成到 `codex/collaboration-completion`，不修改其他成员分支。具体输入、权限、并发和可重复迁移见 [SCHEDULES.md](SCHEDULES.md)。
+
+## PR #7 日历排期整合 · 2026-10-06
+
+核对 [PR #7](https://github.com/RETEMPT/AgileNest/pull/7)（已由主分支接受），采用项目 42 格月历、跨天任务事件、日程列表、负责人/状态/里程碑筛选和对应 51 条契约用例。个人日历使用既有个人日程表和版本保护，项目事件不写入个人安排，统一外部入口并保留旧月格 DTO。
+
+整合时修复日程页查询固定从今天开始造成历史月份遗漏、月格与日程未共用筛选、完整任务跨度先展开再裁剪的性能问题，以及非法日期边界。新增六条集成用例和六条 HTTP 用例；API 路由只转发模块入口。配色转换为既有品牌 tokens，没有采用额外 UI 包、跨天个人日程或绕过任务状态机的改动。
+
+便携包遵循 Next.js standalone 静态资源说明；Node 校验官方 SHA256，数据库来自官方推荐的 EDB Windows 二进制。运行环境来源、版本与版权在 [RELEASE.md](RELEASE.md) 和包内 licenses 留档。

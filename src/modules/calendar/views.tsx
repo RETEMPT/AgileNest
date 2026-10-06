@@ -20,7 +20,7 @@ import {
   type CalendarSearchParams,
 } from "./client";
 import { ScheduleControls } from "./ui";
-export { ProjectCalendarView } from "./project-view";
+export { ProjectCalendarView, CalendarWorkspaceView } from "./project-view";
 
 export async function PersonalCalendarView({
   searchParams,

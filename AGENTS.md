@@ -39,6 +39,8 @@
 
 用户提供个人日程文档并授权改进、按分支集成：E 在 `codex/calendar-schedules` 实现 calendar 服务、接口、个人日历和追加表/迁移；foundation 仅增加直接服务该功能的共享导航。验证后合入 `codex/collaboration-completion`，范围与契约见 docs/TEAM.md；不覆盖其他成员分支、不改变项目任务状态机或登录。
 
+用户授权本轮交互反馈优化、阶段汇总与一键运行 Release：沿用集成分支，foundation 负责共享反馈/动效、个人设置和 Windows 发布包；A/B/E 分别调整任务/看板/日历的直接反馈入口，E 整合已合入主分支的 PR #7 项目日程与跨天排期。范围与公开契约同步 docs/TEAM.md；不调整 core、登录或依赖声明，个人日程仍仅本人、同日时间。
+
 ## 2. 架构不变量
 
 1. **模块化单体**：`src/modules/<m>/{schema,service,actions,api,ui,index}.ts`
