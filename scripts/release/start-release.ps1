@@ -18,6 +18,56 @@ $serverFile = [IO.Path]::GetFullPath((Join-Path $releaseRoot 'app/server.js'))
 $launcherLock = $null
 $startedDatabase = $false
 $webProcess = $null
+$driveStatePath = Join-Path $dataPath 'runtime-drive.json'
+$runtimeDrive = $null
+$createdDrive = $false
+
+Add-Type -TypeDefinition @'
+using System.Runtime.InteropServices;
+using System.Text;
+public static class AgileNestDrive {
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    public static extern uint QueryDosDevice(string name, StringBuilder target, int capacity);
+}
+'@
+function Get-DriveTarget([string]$Drive) {
+    $buffer = New-Object Text.StringBuilder 4096
+    if ([AgileNestDrive]::QueryDosDevice($Drive, $buffer, $buffer.Capacity) -eq 0) { return $null }
+    return $buffer.ToString()
+}
+function Remove-OwnedDrive {
+    if ($runtimeDrive -and (Get-DriveTarget $runtimeDrive) -eq "\??\$releaseRoot") {
+        & subst.exe $runtimeDrive /d
+        if ($LASTEXITCODE -eq 0) { Remove-Item -LiteralPath $driveStatePath -ErrorAction SilentlyContinue }
+    }
+}
+function Set-DatabasePaths {
+    if ($releaseRoot -notmatch '[^\x00-\x7f]') { return }
+    # PostgreSQL's Windows bootstrap needs ASCII executable and data paths.
+    if (Test-Path -LiteralPath $driveStatePath) {
+        $previousDrive = (Get-Content -LiteralPath $driveStatePath -Raw | ConvertFrom-Json).drive
+        if ((Get-DriveTarget $previousDrive) -eq "\??\$releaseRoot") { $script:runtimeDrive = $previousDrive }
+    }
+    if (!$script:runtimeDrive -and !$Stop) {
+        foreach ($letter in @('Z', 'Y', 'X', 'W', 'V', 'U', 'T', 'S', 'R')) {
+            $candidateDrive = "$($letter):"
+            if (Get-DriveTarget $candidateDrive) { continue }
+            & subst.exe $candidateDrive $releaseRoot
+            if ($LASTEXITCODE -ne 0) { continue }
+            if ((Get-DriveTarget $candidateDrive) -ne "\??\$releaseRoot") { throw 'Temporary runtime drive does not match this package.' }
+            $script:runtimeDrive = $candidateDrive
+            $script:createdDrive = $true
+            @{ drive = $candidateDrive } | ConvertTo-Json | Set-Content -LiteralPath $driveStatePath -Encoding UTF8
+            break
+        }
+        if (!$script:runtimeDrive) { throw 'No temporary drive is available. Extract the package to an ASCII-only path.' }
+    }
+    if ($script:runtimeDrive) {
+        $script:pgBin = "$($script:runtimeDrive)\runtime\pgsql\bin"
+        $script:pgData = "$($script:runtimeDrive)\data\pgdata"
+        $script:pgCtl = Join-Path $script:pgBin 'pg_ctl.exe'
+    }
+}
 
 function New-Secret {
     $bytes = New-Object byte[] 32
@@ -64,6 +114,7 @@ try {
     New-Item -ItemType Directory -Path $logPath -Force | Out-Null
     try { $launcherLock = [IO.File]::Open((Join-Path $dataPath 'launcher.lock'), 'OpenOrCreate', 'ReadWrite', 'None') }
     catch { throw 'Another launcher is running. Please try again shortly.' }
+    Set-DatabasePaths
     $owned = Get-OwnedServer
     if ($Stop) {
         if ($owned) { Stop-Process -Id $owned.Process.Id; $owned.Process.WaitForExit(10000) | Out-Null }
@@ -72,6 +123,7 @@ try {
             if ($LASTEXITCODE -ne 0) { throw 'Database stop failed. See data\logs.' }
         }
         if (Test-Path -LiteralPath $statePath) { Remove-Item -LiteralPath $statePath }
+        Remove-OwnedDrive
         Write-Host 'AgileNest stopped. Your records are preserved in data.'
         exit 0
     }
@@ -90,8 +142,9 @@ try {
         $passwordFile = Join-Path $dataPath 'init-password.tmp'
         [IO.File]::WriteAllText($passwordFile, $config.dbPassword, (New-Object Text.UTF8Encoding($false)))
         try {
-            & (Join-Path $pgBin 'initdb.exe') -D $pgData -U agilenest --encoding=UTF8 --locale=C --auth=scram-sha-256 "--pwfile=$passwordFile" *> (Join-Path $logPath 'initdb.log')
-            if ($LASTEXITCODE -ne 0) { throw 'Database initialization failed. See data\logs\initdb.log.' }
+            $runtimePasswordFile = if ($runtimeDrive) { "$runtimeDrive\data\init-password.tmp" } else { $passwordFile }
+            $init = Start-Process -FilePath (Join-Path $pgBin 'initdb.exe') -ArgumentList @('-D', ('"' + $pgData + '"'), '-U', 'agilenest', '--encoding=UTF8', '--locale=C', '--auth=scram-sha-256', ('--pwfile="' + $runtimePasswordFile + '"')) -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logPath 'initdb.log') -RedirectStandardError (Join-Path $logPath 'initdb-error.log') -Wait -PassThru
+            if ($init.ExitCode -ne 0) { throw 'Database initialization failed. See data\logs\initdb-error.log.' }
         } finally { Remove-Item -LiteralPath $passwordFile -ErrorAction SilentlyContinue }
     }
     if (!(Test-OwnedDatabase)) {
@@ -124,6 +177,7 @@ try {
 } catch {
     if ($webProcess -and !$webProcess.HasExited) { Stop-Process -Id $webProcess.Id -ErrorAction SilentlyContinue }
     if ($startedDatabase) { & $pgCtl -D $pgData -m fast -w stop *> $null }
+    if ($createdDrive -and !(Test-OwnedDatabase)) { Remove-OwnedDrive }
     Write-Host "Start/stop failed: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
 } finally {
