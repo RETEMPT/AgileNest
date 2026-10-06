@@ -1,5 +1,7 @@
 # AgileNest 0.3 · Windows 一键运行与阶段汇总
 
+正式版本 **0.3.0**，集成 PR [#6](https://github.com/RETEMPT/AgileNest/pull/6) 已合入主分支。[下载 Release](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0)，请选择 Windows ZIP；GitHub 自动生成的 Source code 是源码包。主分支合入后 29 个文件、283 条测试与 Windows 生产构建通过，交互和便携运行验收见 [UX.md](UX.md)。
+
 ## 运行发布包
 
 在 GitHub Releases 下载 `AgileNest-0.3.0-windows-x64.zip`，完整解压到可写的本地文件夹后双击 **start.bat**。需要 Windows 10/11 x64；自带 Node.js、PostgreSQL 和已编译网站，无需安装 npm、Docker 或数据库，首次启动也不需要联网下载依赖。请先解压，不要在压缩包里直接运行。

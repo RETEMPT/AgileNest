@@ -2,7 +2,7 @@
 
 面向课程设计、实验室课题和竞赛团队。核心链路是：团队空间 → 成员与角色 → 项目目标 → 任务协作 → 教师验收。
 
-本分支版本：**0.3.0-rc.3**（候选版）。版本以 `package.json` 为准，每轮完成验收的集成迭代递增；更新内容与升级要求见 [CHANGELOG.md](CHANGELOG.md)，发布规则见 [开发工作流](docs/WORKFLOW.md#9-迭代版本与发布)。
+当前版本：**0.3.0**。本阶段集成已合入主分支；[Windows 一键运行版](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0)自带运行环境。版本以 `package.json` 为准，每轮完成验收的集成迭代递增；更新内容与升级要求见 [CHANGELOG.md](CHANGELOG.md)，发布规则见 [开发工作流](docs/WORKFLOW.md#9-迭代版本与发布)。
 
 ## 这版体验更新
 
