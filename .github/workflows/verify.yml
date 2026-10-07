@@ -70,3 +70,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Verify Windows launcher lifetime
+        shell: powershell
+        run: .\tests\windows\launcher.ps1

@@ -41,6 +41,8 @@
 
 用户授权本轮交互反馈优化、阶段汇总与一键运行 Release：沿用集成分支，foundation 负责共享反馈/动效、个人设置和 Windows 发布包；A/B/E 分别调整任务/看板/日历的直接反馈入口，E 整合已合入主分支的 PR #7 项目日程与跨天排期。范围与公开契约同步 docs/TEAM.md；不调整 core、登录或依赖声明，个人日程仍仅本人、同日时间。
 
+用户授权仓库与单一启动入口整理：foundation 在 codex/single-launcher-cleanup 调整根目录脚本、scripts/windows、发布包生命周期、检查与文档；不改业务模块、core、登录、schema 或依赖。关闭启动窗口默认停止网站，开发数据与课设资料保留。
+
 ## 2. 架构不变量
 
 1. **模块化单体**：`src/modules/<m>/{schema,service,actions,api,ui,index}.ts`
@@ -98,8 +100,9 @@ npm run build     # Windows 上零改动通过
 ## 6. 常用命令
 
 ```powershell
-setup.bat          # 首次：起库 + .env + install + db:push + seed
-start.bat          # 开发：docker compose up + next dev
+start.bat          # 首次自动初始化，以后直接启动；关闭窗口停止网站
+start.bat -ConfigOnly # 仅生成缺失环境配置
+start.bat -Setup    # 显式安装锁定依赖 + 新库 schema + 空库示例
 npm run db:push    # schema → dev 库
 npm run db:push:test
 npm run db:seed    # 演示账号 admin@ / student@agilecampus.local

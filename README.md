@@ -1,112 +1,75 @@
 # AgileNest · 高校敏捷项目协作
 
-面向课程设计、实验室课题和竞赛团队。核心链路是：团队空间 → 成员与角色 → 项目目标 → 任务协作 → 教师验收。
+面向课程设计、实验室课题和竞赛团队，覆盖团队空间 → 成员与职务 → 项目 → 任务协作 → 教师验收。
 
-当前版本：**0.3.0**。本阶段集成已合入主分支；[Windows 一键运行版](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0)自带运行环境。版本以 `package.json` 为准，每轮完成验收的集成迭代递增；更新内容与升级要求见 [CHANGELOG.md](CHANGELOG.md)，发布规则见 [开发工作流](docs/WORKFLOW.md#9-迭代版本与发布)。
+当前源码版本：**0.3.1-rc.1**，本轮整理启动入口与仓库结构。已发布的稳定版为 [0.3.0](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0)；候选版尚未正式发布。更新与升级要求见 [CHANGELOG.md](CHANGELOG.md)。
 
-## 这版体验更新
+## 开始使用
 
-- 团队、成员和项目使用卡片管理；课程、实验室、竞赛以场景卡片选择。创建/加入成功后自动进入下一步。
-- 项目卡片展示任务状态分布与验收完成度，实验室课题可以独立筛选。
-- 五态看板支持拖动把手、任务侧边详情和等价按钮操作；提交、重交、打回需要填写说明，指派直接选择姓名。
-- 看板/表格共享 URL 筛选，支持搜索、状态、负责人、优先级、里程碑与分组。
-- 页面按钮、合法拖拽目标和服务端权限共同使用任务转移表。状态与事件在事务中提交，并发认领只会有一人成功。
-- 统一工作台按各项目职务展示本人任务、待验收成果和可认领事项，兼任队员与指导老师不会丢失待办。
-- 项目概览中的状态、个人任务与里程碑直接关联相应功能；任务详情可编辑完整信息并拆分子任务，项目完成度只统计已验收的顶层任务。
-- 个人中心可维护姓名、简介、头像与学术身份，消息中心可筛选未读并进入对应任务。
-- 飞书是可选账号连接，姓名由本人确认后采用；平台资料与权限独立维护。未配置时显示实际状态，解绑校验登录方式和当前绑定版本。
-- 侧栏可进入 AI 对话页，整理并管理按账号区分的浏览器草稿；模型尚未接入，内容不向外部服务发送。
-- 个人日历管理本人全天或定时安排，支持月历选日、搜索、优先级筛选与版本冲突保护；项目日历继续关联任务截止和里程碑。
-
-详细设计与手动验收见 [docs/UX.md](docs/UX.md)。本期实验室管理覆盖成员、课题和任务，不包含实验数据、文件或设备台账。
-
-## Windows 快速开始
-
-使用编译好的 Windows 发布包时，下载 Release ZIP、完整解压后双击 **start.bat** 即可；自带运行环境、示例数据与停止脚本。[发布包说明与阶段汇总](docs/RELEASE.md)。下面是源码开发方式。
+源码开发需要 Node.js 22 LTS，以及 Docker Desktop 或本机 PostgreSQL。双击根目录的 **start.bat**，或在项目目录执行：
 
 ```powershell
-.\setup.bat
 .\start.bat
 ```
 
-打开 <http://localhost:3000/login>。环境与便携式 Postgres 说明见 [docs/WINDOWS.md](docs/WINDOWS.md)。
+首次运行自动生成缺失的本机配置、安装锁定依赖并初始化数据库；以后直接启动网站并打开浏览器。**保持启动窗口打开，关闭窗口或按 Ctrl+C 即停止网站。** 已有配置和业务数据保留。
 
-仓库提供通用环境示例和完整启动脚本。首次初始化会生成本机 `.env` / `.env.test`，已有配置会保留；依赖、构建缓存和便携数据库由接收者在本机准备，详见 [共享说明](docs/WINDOWS.md#共享给协作者)。
+本机 PostgreSQL 用户应先运行 `.\start.bat -ConfigOnly`，填写 `.env` / `.env.test` 的连接信息，再运行 `.\start.bat -Setup`。详细要求、已有库迁移和排错见 [Windows 使用说明](docs/WINDOWS.md)。
 
-已有数据库升级本轮功能时，先运行追加迁移，再启动网站，历史数据保留：
+无需开发环境的试用者可以下载已发布的 Windows ZIP，完整解压后运行其中的 start.bat。旧版 0.3.0 仍使用独立 stop.bat；本候选版的新包采用窗口关闭即停止网站的方式。见 [发布与数据备份](docs/RELEASE.md)。
 
-```powershell
-node scripts/migrate-identity.mjs
-node scripts/migrate-profiles.mjs
-node scripts/migrate-schedules.mjs
-```
+| 演示账号 | 初始密码 | 职务 |
+|---|---|---|
+| admin@agilecampus.local | password123 | 管理员、队员 |
+| teacher@agilecampus.local | password123 | 指导老师 |
+| student@agilecampus.local | password123 | 队员 |
 
-测试库分别添加 `--test`，细节见 [数据库升级](docs/WINDOWS.md#已有数据库升级)。
+## 已实现
 
-| 团队内角色 | 演示账号 | 密码 | 主要职责 |
-|---|---|---|---|
-| 管理员 | admin@agilecampus.local | password123 | 创建项目、管理成员，并参与协作 |
-| 教师 | teacher@agilecampus.local | password123 | 指派任务、查看成果、验收与打回 |
-| 学生 | student@agilecampus.local | password123 | 认领、填工时、提交与修改重交 |
+- 团队、学术身份确认与可叠加职务，课程、实验室和竞赛项目。
+- 五态任务、子任务、姓名指派、看板拖动与表格筛选，成果提交和教师验收。
+- 工作台、工时、贡献统计、里程碑、站内消息与个人资料。
+- 个人日历、项目日历和跨天排期；个人安排仅本人可访问。
+- 可选飞书账号连接；AI 对话界面与按账号区分的浏览器草稿，模型尚未接入。
 
-角色以所属团队为准。教师通过邀请码加入后，由管理员在成员页设置教师角色；团队始终至少保留一位管理员。
+任务状态为待认领、进行中、待验收、待修改、已完成；提交后由教师验收。权限按团队职务与项目场景计算，学术身份不赋予权限。详细功能与边界见 [阶段汇总](docs/RELEASE.md) 和 [体验验收](docs/UX.md)。
 
-## 五态协作
+## 仓库导航
 
-```mermaid
-stateDiagram-v2
-  state "待认领" as unclaimed
-  state "进行中" as in_progress
-  state "待验收" as submitted
-  state "待修改" as rejected
-  state "已完成" as accepted
-  unclaimed --> in_progress: 认领 / 指派
-  in_progress --> submitted: 提交完成说明
-  submitted --> accepted: 教师验收通过
-  submitted --> rejected: 教师填写修改意见
-  rejected --> submitted: 修改后重新提交
-  in_progress --> unclaimed: 退回任务池
-  rejected --> unclaimed: 退回任务池
-  rejected --> in_progress: 教师重新指派
-  accepted --> in_progress: 教师重新打开
-```
+| 位置 | 内容 |
+|---|---|
+| `start.bat` | 唯一公开运行入口 |
+| `src/app/` | 路由与页面壳 |
+| `src/modules/` | 按 Owner 划分的业务模块 |
+| `src/components/` | 共享界面组件 |
+| `src/db/`、`drizzle/` | 数据结构与追加迁移 |
+| `scripts/windows/` | 启动、首次初始化与窗口进程管理 |
+| `scripts/release/` | Windows 发布包内部启动与打包辅助文件 |
+| `tests/` | 契约测试与 Windows 启动生命周期检查 |
+| `docs/` | 使用、协作、设计和验收文档；`opening/` 保留课设资料 |
+| `public/` | 网站静态资源 |
 
-已完成表示验收通过；学生提交后进入待验收。状态唯一真相为 [states.ts](src/modules/tasks/states.ts)，非法转移返回 409，越权操作被服务端拒绝。
+`.env`、依赖、构建缓存、本机数据库与发布产物由 Git 忽略。共享代码时保留环境示例、锁文件、迁移和必需脚本；运行包在 GitHub Releases 分发。
 
 ## 开发与验证
 
-技术栈：Next.js 16、React 19、TypeScript strict、Tailwind CSS 4、Drizzle、PostgreSQL、Zod 4。复用已有 Radix 和 dnd-kit，不添加依赖。Credentials/飞书双 provider、JWT session 与 bcrypt 登录链路保留原样。
+技术栈：Next.js 16、React 19、TypeScript strict、Tailwind CSS 4、Drizzle、PostgreSQL、Zod 4。模块通过公开契约协作，边界与 Owner 见 [TEAM.md](docs/TEAM.md)。
 
 ```powershell
 npm test
 npm run build
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\windows\launcher.ps1
 ```
 
-集成测试使用独立库 `agilecampus_test`，测试文件串行运行。无数据库时：
-
-```powershell
-npx vitest run tests/contract/exports.test.ts tests/contract/core tests/contract/identity/password.test.ts tests/contract/tasks/states.test.ts tests/contract/board/board.test.ts
-```
-
-业务通过 `@/modules/<m>` 公开契约协作；UI 的 `client`、`ui`、`views` 入口见 [docs/TEAM.md](docs/TEAM.md)，客户端不能导入数据库或会话运行时代码。路由只组合模块页面，状态更新只能走 `transitionTask()`。
-
-GitHub `Verify` 工作流在 PR 和主干/集成分支推送时运行：Linux 隔离 PostgreSQL 契约测试，以及 Windows 生产构建。只使用测试环境示例与测试凭据，不需要飞书或生产密钥。仍须在提交前完成本地 Windows 检查。
+集成测试使用独立库 `agilecampus_test`，串行执行。GitHub Verify 检查 PostgreSQL 契约、Windows 生产构建及关闭启动窗口后的进程清理。
 
 ## 文档
 
-- [体验设计与验收](docs/UX.md)
-- [数据链路与状态机](docs/DESIGN.md)
-- [模块分工与公开契约](docs/TEAM.md)
-- [开发工作流](docs/WORKFLOW.md)
-- [Windows 环境](docs/WINDOWS.md)
-- [飞书接入与边界](docs/FEISHU.md)
-- [AI 对话界面与草稿](docs/AI.md)
-- [个人日历与日程](docs/SCHEDULES.md)
-- [Agent 约束](AGENTS.md)
-- [功能路线图](docs/ROADMAP.md)
-
-产品参考：[飞书任务管理](https://www.feishu.cn/content/40gyakm8)、[Plane 工作项](https://docs.plane.so/work-items/overview)、[OpenProject 工作流](https://www.openproject.org/docs/system-admin-guide/manage-work-packages/work-package-types/workflows/)。本期继续保留高校师生验收语义；AI 模型执行、Agent API、甘特、Sprint、作品集和模板库只列路线图。
-
-## 学术身份与叠加职务
-
-已实现本科生、硕士生、博士生、老师身份信息与按团队确认；管理员、指导老师、队长、队员可叠加，权限按职务和项目场景决定。资料更新需要重新确认，队长协调实验室/竞赛，不独立验收。规则见 [身份与权限](docs/IDENTITY.md)，来源与取舍见 [PR 调研](docs/PR-RESEARCH.md)。
+| 使用与开发 | 设计与功能 |
+|---|---|
+| [Windows 快速开始](docs/WINDOWS.md) | [数据链路与状态机](docs/DESIGN.md) |
+| [发布、升级与备份](docs/RELEASE.md) | [体验设计与验收](docs/UX.md) |
+| [贡献指南](CONTRIBUTING.md) | [身份与权限](docs/IDENTITY.md) |
+| [开发工作流与版本规则](docs/WORKFLOW.md) | [日历与日程](docs/SCHEDULES.md) |
+| [模块分工与公开契约](docs/TEAM.md) | [飞书边界](docs/FEISHU.md)、[AI 草稿](docs/AI.md) |
+| [Agent 约束](AGENTS.md) | [功能路线图](docs/ROADMAP.md) |

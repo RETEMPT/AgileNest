@@ -1,7 +1,11 @@
-param([Parameter(Mandatory = $true)][string]$ProjectRoot)
+param(
+  [Parameter(Mandatory = $true)][string]$ProjectRoot,
+  [ValidateRange(1024, 65535)][int]$WebPort = 3000,
+  [switch]$NoBrowser
+)
 
 Set-Location -LiteralPath $ProjectRoot
-$webUrl = "http://localhost:3000"
+$webUrl = "http://localhost:$WebPort"
 
 function Get-PortOwnerIds([int]$Port) {
   $pattern = '^\s*TCP\s+\S+:' + $Port + '\s+\S+\s+LISTENING\s+(\d+)\s*$'
@@ -37,33 +41,9 @@ function Invoke-LocalStart {
     throw "项目依赖未安装，请先在项目目录运行 npm install。"
   }
 
-  $nextServerPath = Join-Path $ProjectRoot "node_modules\next\dist\server\lib\start-server.js"
-  $oldServers = @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object {
-    $_.CommandLine -and $_.CommandLine.IndexOf($nextServerPath, [StringComparison]::OrdinalIgnoreCase) -ge 0
-  })
-  $webOwners = @(Get-PortOwnerIds 3000)
-  foreach ($webOwner in $webOwners) {
-    if ($oldServers.ProcessId -notcontains $webOwner) {
-      throw "3000 端口被其他程序占用（PID：$webOwner），请释放端口后重试。"
-    }
-  }
-  foreach ($oldServer in $oldServers) {
-    $currentServer = Get-CimInstance Win32_Process -Filter "ProcessId = $($oldServer.ProcessId)"
-    if (-not $currentServer) { continue }
-    if ($currentServer.CreationDate -ne $oldServer.CreationDate -or
-        -not $currentServer.CommandLine -or
-        $currentServer.CommandLine.IndexOf($nextServerPath, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
-      throw "启动期间进程发生变化，请重新运行 start.bat。"
-    }
-    Write-Host "[重启] 结束当前项目的旧开发服务（PID：$($oldServer.ProcessId)）。" -ForegroundColor Yellow
-    Stop-Process -Id $oldServer.ProcessId -Force
-  }
-  for ($attempt = 0; $attempt -lt 10; $attempt++) {
-    if (@(Get-PortOwnerIds 3000).Count -eq 0) { break }
-    Start-Sleep -Milliseconds 500
-  }
-  if (@(Get-PortOwnerIds 3000).Count -gt 0) {
-    throw "3000 端口仍未释放，请检查上方进程信息后重试。"
+  $webOwners = @(Get-PortOwnerIds $WebPort)
+  if ($webOwners.Count -gt 0) {
+    throw "$WebPort 端口已被占用（PID：$($webOwners -join '、')），请关闭原启动窗口或使用 -WebPort 选择其他端口。"
   }
 
   if (-not (Test-LocalDatabase)) {
@@ -96,9 +76,23 @@ function Invoke-LocalStart {
   }
   Write-Host "[1/2] 数据库端口已就绪。" -ForegroundColor Green
   Write-Host "[2/2] 启动开发服务器：$webUrl" -ForegroundColor Cyan
-  Write-Host "按 Ctrl+C 停止前端；此窗口会保留启动错误信息。"
-  & $npmCommand.Source run dev -- --port 3000 | Out-Host
-  $webExitCode = $LASTEXITCODE
+  Write-Host "关闭此启动窗口或按 Ctrl+C 即停止网站，已有数据会保留。"
+  Add-Type -Path (Join-Path $ProjectRoot 'scripts/windows/web-process.cs')
+  $webJob = New-Object AgileNestWebJob
+  try {
+    $nextCli = Join-Path $ProjectRoot 'node_modules/next/dist/bin/next'
+    $webProcess = $webJob.Start((Get-Command node.exe).Source, ('"' + $nextCli + '" dev --port ' + $WebPort), $ProjectRoot, $null, $null)
+    $webReady = $false
+    for ($attempt = 0; $attempt -lt 60; $attempt++) {
+      if ($webProcess.HasExited) { break }
+      if (@(Get-PortOwnerIds $WebPort).Count -gt 0) { $webReady = $true; break }
+      Start-Sleep -Milliseconds 250
+    }
+    if (!$webReady -and !$webProcess.HasExited) { throw '网站启动等待超时，请查看上方错误提示。' }
+    if ($webReady -and !$NoBrowser) { Start-Process $webUrl }
+    while (!$webProcess.WaitForExit(250)) {}
+    $webExitCode = $webProcess.ExitCode
+  } finally { $webJob.Dispose() }
   if ($webExitCode -ne 0) {
     Write-Host "[ERROR] 开发服务器已退出（代码：$webExitCode），请查看上方错误。" -ForegroundColor Red
   }
