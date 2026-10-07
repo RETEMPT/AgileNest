@@ -1,9 +1,10 @@
 param(
+  [string]$ProjectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..')),
   [switch]$InitEnvOnly
 )
 
 $ErrorActionPreference = "Stop"
-Set-Location -Path $PSScriptRoot
+Set-Location -LiteralPath $ProjectRoot
 
 Write-Host "=== AgileCampus setup (PowerShell) ==="
 
@@ -17,9 +18,9 @@ if ($InitEnvOnly) {
       $randomGenerator.Dispose()
     }
     $secret = [Convert]::ToBase64String($secretBytes)
-    $environmentTemplate = [IO.File]::ReadAllText((Join-Path $PSScriptRoot ".env.example"), [Text.Encoding]::UTF8)
+    $environmentTemplate = [IO.File]::ReadAllText((Join-Path $ProjectRoot ".env.example"), [Text.Encoding]::UTF8)
     $environmentContent = $environmentTemplate -replace '(?m)^AUTH_SECRET=[^\r\n]*', "AUTH_SECRET=$secret"
-    [IO.File]::WriteAllText((Join-Path $PSScriptRoot ".env"), $environmentContent, (New-Object Text.UTF8Encoding $false))
+    [IO.File]::WriteAllText((Join-Path $ProjectRoot ".env"), $environmentContent, (New-Object Text.UTF8Encoding $false))
     Write-Host "  Created .env with a random AUTH_SECRET."
   }
   if (-not (Test-Path .env.test)) {
@@ -29,23 +30,24 @@ if ($InitEnvOnly) {
   exit 0
 }
 
-& $PSCommandPath -InitEnvOnly
+& $PSCommandPath -ProjectRoot $ProjectRoot -InitEnvOnly
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-$pgCtl = Join-Path $PSScriptRoot ".tools\pgsql\pgsql\bin\pg_ctl.exe"
-$pgData = Join-Path $PSScriptRoot ".tools\pgdata"
-$pgLog = Join-Path $PSScriptRoot ".tools\pg.log"
+$pgCtl = Join-Path $ProjectRoot ".tools\pgsql\pgsql\bin\pg_ctl.exe"
+$pgData = Join-Path $ProjectRoot ".tools\pgdata"
+$pgLog = Join-Path $ProjectRoot ".tools\pg.log"
 
 if (Test-Path $pgCtl) {
   Write-Host "[1/5] Starting bundled Postgres..."
   & $pgCtl status -D $pgData | Out-Null
   if ($LASTEXITCODE -ne 0) {
     & $pgCtl start -D $pgData -l $pgLog
-    Start-Sleep -Seconds 3
+    if ($LASTEXITCODE -ne 0) { throw 'Postgres start failed. See .tools/pg.log.' }
   }
 } elseif (Get-Command docker -ErrorAction SilentlyContinue) {
   Write-Host "[1/5] Starting Docker Postgres..."
-  docker compose up -d
+  & docker.exe compose up -d db
+  if ($LASTEXITCODE -ne 0) { throw 'Docker database start failed.' }
   Start-Sleep -Seconds 5
 } else {
   Write-Host "[1/5] Docker unavailable; make sure your local Postgres is running." -ForegroundColor Yellow
@@ -54,7 +56,7 @@ if (Test-Path $pgCtl) {
 Write-Host "[2/5] .env / .env.test are ready; existing settings were preserved."
 
 Write-Host "[3/5] Installing dependencies..."
-& npm.cmd install
+& npm.cmd ci
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
 Write-Host "[4/5] Applying schema..."
@@ -63,9 +65,9 @@ if ($LASTEXITCODE -ne 0) { exit 1 }
 & npm.cmd run db:push:test
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
-Write-Host "[5/5] Seeding demo data..."
-& npm.cmd run db:seed
+Write-Host "[5/5] Creating demo data only for an empty database..."
+& node.exe (Join-Path $PSScriptRoot 'seed-if-empty.mjs')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host ""
-Write-Host "=== Setup complete. Run .\start.ps1 to start. ===" -ForegroundColor Green
+Write-Host "=== Setup complete. Starting with start.bat. ===" -ForegroundColor Green

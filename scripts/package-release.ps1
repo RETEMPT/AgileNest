@@ -52,8 +52,10 @@ Copy-Item -LiteralPath (Join-Path $pythonRoot 'LICENSE.txt') -Destination (Join-
 $pgCopyright = Join-Path $PostgresRoot 'doc/postgresql/COPYRIGHT'
 if (!(Test-Path -LiteralPath $pgCopyright)) { $pgCopyright = Join-Path $workspaceRoot 'scripts/release/POSTGRESQL-LICENSE.txt' }
 Copy-Item -LiteralPath $pgCopyright -Destination (Join-Path $licenses 'POSTGRESQL-LICENSE.txt')
-Copy-Item -LiteralPath 'scripts/release/start.bat', 'scripts/release/stop.bat' -Destination $bundleRoot
-Copy-Item -LiteralPath 'scripts/release' -Destination (Join-Path $bundleRoot 'launcher') -Recurse
+Copy-Item -LiteralPath 'scripts/release/start.bat' -Destination $bundleRoot
+$launcherPath = Join-Path $bundleRoot 'launcher'
+New-Item -ItemType Directory -Path $launcherPath -Force | Out-Null
+Copy-Item -LiteralPath 'scripts/release/start-release.ps1', 'scripts/release/bootstrap.mjs', 'scripts/release/validate-runtime.mjs', 'scripts/windows/web-process.cs' -Destination $launcherPath
 Copy-Item -LiteralPath 'docs/RELEASE.md' -Destination (Join-Path $bundleRoot 'RELEASE.md')
 Copy-Item -LiteralPath 'CHANGELOG.md' -Destination $bundleRoot
 $dbFiles = Join-Path $bundleRoot 'release-db'

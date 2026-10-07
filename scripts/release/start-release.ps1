@@ -16,8 +16,9 @@ $pgData = Join-Path $dataPath 'pgdata'
 $pgCtl = Join-Path $pgBin 'pg_ctl.exe'
 $serverFile = [IO.Path]::GetFullPath((Join-Path $releaseRoot 'app/server.js'))
 $launcherLock = $null
-$startedDatabase = $false
+$stopDatabaseOnExit = $false
 $webProcess = $null
+$webJob = $null
 $driveStatePath = Join-Path $dataPath 'runtime-drive.json'
 $runtimeDrive = $null
 $createdDrive = $false
@@ -128,10 +129,7 @@ try {
         exit 0
     }
     if ($owned) {
-        Wait-Web $owned.Url
-        Write-Host "AgileNest is already running: $($owned.Url)"
-        if (!$NoBrowser) { Start-Process "$($owned.Url)/login" }
-        exit 0
+        throw 'An older background instance is running. Run launcher\start-release.ps1 -Stop once, then open start.bat again.'
     }
     if (!(Test-Path -LiteralPath $configPath)) {
         @{ dbPassword = New-Secret; authSecret = New-Secret; dbPort = $DbPort } | ConvertTo-Json | Set-Content -LiteralPath $configPath -Encoding UTF8
@@ -152,8 +150,8 @@ try {
         Write-Host 'Starting local database...'
         & $pgCtl -D $pgData -l (Join-Path $logPath 'postgres.log') -o "-h 127.0.0.1 -p $($config.dbPort)" -w start
         if ($LASTEXITCODE -ne 0) { throw 'Database start failed. See data\logs\postgres.log.' }
-        $startedDatabase = $true
     }
+    $stopDatabaseOnExit = $true
     # These variables apply only to child processes, never to machine settings.
     $env:DATABASE_URL = "postgres://agilenest:$($config.dbPassword)@127.0.0.1:$($config.dbPort)/agilenest"
     $env:AUTH_SECRET = $config.authSecret
@@ -167,19 +165,24 @@ try {
     Remove-Item Env:FEISHU_APP_ID, Env:FEISHU_APP_SECRET -ErrorAction SilentlyContinue
     $bootstrap = Start-Process -FilePath $nodePath -ArgumentList ('"' + (Join-Path $PSScriptRoot 'bootstrap.mjs') + '"') -WorkingDirectory $releaseRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logPath 'bootstrap.log') -RedirectStandardError (Join-Path $logPath 'bootstrap-error.log') -Wait -PassThru
     if ($bootstrap.ExitCode -ne 0) { throw 'Database upgrade failed. See data\logs\bootstrap-error.log. Existing records were preserved.' }
-    $webProcess = Start-Process -FilePath $nodePath -ArgumentList ('"' + $serverFile + '"') -WorkingDirectory (Join-Path $releaseRoot 'app') -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logPath 'web.log') -RedirectStandardError (Join-Path $logPath 'web-error.log') -PassThru
+    Add-Type -Path (Join-Path $PSScriptRoot 'web-process.cs')
+    $webJob = New-Object AgileNestWebJob
+    $webProcess = $webJob.Start($nodePath, ('"' + $serverFile + '"'), (Join-Path $releaseRoot 'app'), (Join-Path $logPath 'web.log'), (Join-Path $logPath 'web-error.log'))
     @{ pid = $webProcess.Id; startedAt = $webProcess.StartTime.ToUniversalTime().Ticks.ToString(); url = $env:AGILECAMPUS_URL } | ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding UTF8
     Wait-Web $env:AGILECAMPUS_URL
     Write-Host "AgileNest is ready: $($env:AGILECAMPUS_URL)"
     Write-Host 'Demo: admin@agilecampus.local / password123 (see RELEASE.md for other accounts)'
-    Write-Host 'Closing this window keeps the website running. Double-click stop.bat to stop.'
+    Write-Host 'Keep this launcher window open. Closing it or pressing Ctrl+C stops the website; your records remain in data.'
     if (!$NoBrowser) { Start-Process "$($env:AGILECAMPUS_URL)/login" }
+    while (!$webProcess.WaitForExit(250)) {}
+    if ($webProcess.ExitCode -ne 0) { throw 'Web server exited. See data\logs\web-error.log.' }
 } catch {
-    if ($webProcess -and !$webProcess.HasExited) { Stop-Process -Id $webProcess.Id -ErrorAction SilentlyContinue }
-    if ($startedDatabase) { & $pgCtl -D $pgData -m fast -w stop *> $null }
-    if ($createdDrive -and !(Test-OwnedDatabase)) { Remove-OwnedDrive }
     Write-Host "Start/stop failed: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
 } finally {
+    if ($webJob) { $webJob.Dispose() }
+    if ($webProcess -and (Test-Path -LiteralPath $statePath)) { Remove-Item -LiteralPath $statePath }
+    if ($stopDatabaseOnExit -and (Test-OwnedDatabase)) { & $pgCtl -D $pgData -m fast -w stop *> $null }
+    if ($createdDrive -and !(Test-OwnedDatabase)) { Remove-OwnedDrive }
     if ($launcherLock) { $launcherLock.Dispose() }
 }

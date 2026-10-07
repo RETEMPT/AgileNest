@@ -25,11 +25,10 @@ git --version
 git clone https://github.com/RETEMPT/AgileNest.git
 cd AgileNest
 
-# ③ 初始化环境（自动起库 + 建表 + 种子）
-setup.bat
+# ③ 首次自动初始化，以后直接启动开发服务器
+.\start.bat
 
-# ④ 启动开发服务器
-start.bat
+# ④ 保持窗口打开，关闭窗口停止网站
 
 # ⑤ 浏览器验证
 # http://localhost:3000/login → 用 admin@agilecampus.local / password123 登录
@@ -199,7 +198,7 @@ npx vitest run tests/contract/exports.test.ts tests/contract/core tests/contract
 npm test
 ```
 
-> 测试库 `agilecampus_test` 由 `setup.bat` 自动创建。若连不上库，先跑 `setup.bat` 或手动 `npm run db:push:test`。
+> Docker 测试库 `agilecampus_test` 在首次初始化数据卷时创建。已有卷或本机 PostgreSQL 需先创建测试库，再执行 `npm run db:push:test`，见 [Windows 说明](WINDOWS.md)。
 
 ### 什么必须写测试
 
@@ -326,7 +325,7 @@ git describe --tags --always
 | 改公开接口签名 | 改 index.ts → 更新 docs/TEAM.md 对应契约节 |
 | 修 core 的 bug | foundation 使用 `feature/core-patch/<slug>`，PR 里说明理由 |
 | 加新依赖 | 先在 PR 里声明理由，等 foundation Owner 确认 |
-| 本地库起不来 | 跑 `setup.bat`，或检查 5432 端口，或用 `.tools/pgsql` 便携 Postgres |
+| 本地库起不来 | 跑 `start.bat -Setup`，或检查 5432 端口，或用 `.tools/pgsql` 便携 Postgres |
 | 想改登录逻辑 | **不要改**，逻辑原样保留（AGENTS.md §3） |
 | 实现 AI / 甘特 / Sprint | **不实现**，只在 ROADMAP.md 留条目 |
 

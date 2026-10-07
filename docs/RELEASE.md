@@ -1,12 +1,14 @@
 # AgileNest 0.3 · Windows 一键运行与阶段汇总
 
-正式版本 **0.3.0**，集成 PR [#6](https://github.com/RETEMPT/AgileNest/pull/6) 已合入主分支。[下载 Release](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0)，请选择 Windows ZIP；GitHub 自动生成的 Source code 是源码包。主分支合入后 29 个文件、283 条测试与 Windows 生产构建通过，交互和便携运行验收见 [UX.md](UX.md)。
+当前源码候选版 **0.3.1-rc.1** 整理了启动入口，尚未正式发布。已发布稳定版为 **0.3.0**，集成 PR [#6](https://github.com/RETEMPT/AgileNest/pull/6) 已合入主分支。[下载稳定版](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0)，请选择 Windows ZIP；GitHub 自动生成的 Source code 是源码包。稳定版通过 29 个文件、283 条测试与 Windows 生产构建，验收记录见 [UX.md](UX.md)。
 
 ## 运行发布包
 
 在 GitHub Releases 下载 `AgileNest-0.3.0-windows-x64.zip`，完整解压到可写的本地文件夹后双击 **start.bat**。需要 Windows 10/11 x64；自带 Node.js、PostgreSQL 和已编译网站，无需安装 npm、Docker 或数据库，首次启动也不需要联网下载依赖。请先解压，不要在压缩包里直接运行。
 
-首次启动创建本机数据库和示例空间，完成后自动打开 `http://localhost:3000`。关闭启动窗口不会停止网站；双击 **stop.bat** 关闭本包的服务，个人资料、任务和日程保留。重复双击 start 复用已经运行的实例。
+首次启动创建本机数据库和示例空间，完成后自动打开 `http://localhost:3000`。**从 0.3.1-rc.1 构建的新包只有 start.bat 一个运行入口，保持窗口打开，关闭窗口或按 Ctrl+C 即停止网站。** 重复启动会提示原窗口仍在运行；个人资料、任务和日程保留。
+
+已经下载的 0.3.0 包保持原行为：网站在后台运行，使用包内 stop.bat 停止。仓库整理不会改变旧 ZIP。
 
 | 演示账号 | 初始密码 | 职务 |
 |---|---|---|
@@ -20,9 +22,9 @@
 
 - `data/pgdata` 保存业务数据；`data/config.json` 是本机生成的连接信息与随机密钥；`data/logs` 保存启动、数据库和网站日志。分享发布包时请分享原始 ZIP，自己的 data 文件夹应独立保留。
 - 中文目录会自动使用一个空闲临时盘符供数据库运行；数据仍在原解压目录，停止时仅解除本包的映射。已有盘符不会覆盖；如所有可用盘符均已占用，启动提示改用纯英文目录。
-- 升级时先双击旧包 stop，将旧包完整 `data` 文件夹复制到新包根目录，再启动。数据库大版本须一致（本版为 PostgreSQL 17），新包只运行尚未执行的追加迁移。已有数据不重新初始化。
-- 备份时先停止，再复制完整 data 文件夹。不要直接覆盖运行中的数据库文件。
-- 默认网站端口 3000，数据库端口 55432。端口占用时会保留错误提示，不关闭其他程序。开发仓库正在运行时先用其停止方式退出；需要并行试用可在本包目录执行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\launcher\start-release.ps1 -WebPort 3001`。
+- 升级旧版 0.3.0 时先运行旧包 stop.bat，将旧包完整 `data` 文件夹复制到新包根目录，再启动。数据库大版本须一致（本版为 PostgreSQL 17），新包只运行尚未执行的追加迁移。已有数据不重新初始化。
+- 新包正常退出会停止本包数据库。强制关闭窗口时网站立即退出，数据库可能继续运行；备份、移动目录或升级前，关闭启动窗口，再在包目录执行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\launcher\start-release.ps1 -Stop`，确认数据库停止后复制完整 data。不要覆盖运行中的数据库文件。
+- 默认网站端口 3000，数据库端口 55432。端口占用时会保留错误提示，不关闭其他程序。需要并行试用可在本包目录执行 `.\start.bat -WebPort 3001`。
 - 首次安装如需更换数据库端口，可给同一命令增加 `-DbPort 55433`。已有安装应先停止，然后修改 data/config.json 的 dbPort。诊断启动可增加 `-NoBrowser`。
 - 启动失败会保留窗口，请查看对应日志；不要通过删除 data 来尝试修复已有资料。
 - 可用 `Get-FileHash .\AgileNest-0.3.0-windows-x64.zip -Algorithm SHA256` 对照 Release 附件校验文件。
@@ -39,7 +41,7 @@
 
 ## 构建发布包（维护者）
 
-正常开发继续使用仓库 setup.bat / start.bat。发布前运行完整 `npm test` 和 Windows `npm run build`，在已验证的正式版本提交上打包；根目录的发布包产物位于忽略目录 `.tools/releases`，不提交二进制到 Git。
+源码开发使用根目录 start.bat。发布前运行完整 `npm test`、Windows `npm run build` 和 `tests/windows/launcher.ps1`，在对应已验证版本提交上打包；正式发布须先合入 main 并重新验证。产物位于忽略目录 `.tools/releases`，不提交二进制到 Git。
 
 1. 从 [Node.js 官方目录](https://nodejs.org/dist/v22.23.3/) 下载 `node-v22.23.3-win-x64.zip`，按同目录 SHASUMS256.txt 校验，解压到 `.tools/release-runtime/node-v22.23.3-win-x64`。
 2. 从 [EDB 二进制页](https://www.enterprisedb.com/download-postgresql-binaries) 下载 PostgreSQL **17.11 Windows x64**（[本版来源](https://sbp.enterprisedb.com/getfile.jsp?fileid=1260616)），原 ZIP 保存为 `.tools/release-runtime/postgresql-17.11-windows-x64.zip`，解压到 `.tools/release-runtime/postgresql-17.11/pgsql`。来源由 [PostgreSQL 官方 Windows 页面](https://www.postgresql.org/download/windows/) 推荐。两份 ZIP 保留在缓存，打包按 `scripts/release/runtime-sources.json` 校验本轮原始文件的 SHA256。

@@ -288,3 +288,9 @@ notify 公开 `notify/views` 的 `NotificationsView` 和 `notify/ui` 的 `MarkRe
 ## 迭代版本管理 · 2026-10-05
 
 用户要求每轮迭代有递增版本号。foundation 在 `feature/core-patch/iteration-version` 仅调整包与锁文件的本项目版本元数据、README、更新日志、Agent/协作约束、工作流和 PR 模板；验证后快速合入 `codex/collaboration-completion`。当前候选版为 `0.3.0-rc.1`，不更改依赖、模块契约、数据库、core 或登录文件。版本统一由集成人维护，成员模块分支不独立抢占下一版本；候选版和正式版的规则见 [WORKFLOW.md](WORKFLOW.md#9-迭代版本与发布)。
+
+## 仓库与单一启动入口整理 · 2026-10-07
+
+用户要求 GitHub 仓库简洁、只保留 start 一个入口，关闭启动窗口即停止网站。foundation 在 `codex/single-launcher-cleanup` 负责根目录重复脚本清理、`scripts/windows` 启动/初始化、Windows 发布包生命周期、对应检查和使用文档。根目录公开入口仅 start.bat，首次初始化和诊断通过选项完成；发布包内部文件按实际运行需要复制。
+
+网站及 Next.js 子进程纳入 Windows Job Object，启动窗口退出后由 Windows 终止；同一目录的启动锁防止并发初始化。端口冲突只报错，已有配置、开发数据库及课设资料保留，示例仅在空用户表初始化。此轮不改变业务模块、公开契约、core、登录文件、schema 或依赖声明；候选版本为 0.3.1-rc.1。
