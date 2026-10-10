@@ -320,3 +320,9 @@ foundation 在 `codex/fix-postgres-launch-hang` 修复 Windows PowerShell 等待
 用户授权缩小输入框、整理加号菜单并增加文件资料读取与整理。foundation 沿用 `codex/ai-settings-workspace`，范围仅共享 `components/ai`、相关 tokens、契约检查与版本/体验文档。没有新增模块导出、业务 API、依赖或模型请求，保留 rc.2 的个人资料与启动修复。
 
 草稿/消息 v1 追加可选 `materials: {id,name,kind,size,createdAt}[]`；正文与 Blob 在 IndexedDB 按 `[userId,id]` 组织，旧草稿兼容，编辑正文合并最新资料元数据。每份会话最多 10 份、合计 50 MB，单文件 10 MB。文本读取、分页、搜索、标题/表格/JSON 字段整理完全在浏览器执行；PDF 与图片只预览，不宣称文字提取或 AI 总结。附件单独记录后仍随消息保留；移除或删除草稿清理不再引用的文件。用户手动选择文件，不自动读取项目任务、文件系统或服务端资料。
+
+## 评审修正 · 0.4.0-rc.4 · 2026-10-10
+
+对 rc.3 候选运行独立只读评审后，foundation 在同一分支修正并发与状态缺陷，范围仍为共享 `components/ai`、`components/preferences*`、identity 设置组合与对应契约用例，无新增导出、依赖或数据库变更。
+
+共享 `AiWorkspace` 的编辑器在自身未编辑时采用 store 中更新的正文，避免多标签覆盖与旧视图继续编辑；同一 store 的 `saveText` 语义与既有「未编辑不覆盖」约定不变。个人资料 action 仅在表单包含联系方式字段时传递 `contacts`，`saveAccountProfile` 的「缺省保留」契约不变。偏好 store 追加 `reset()`（需要 `removeItem`），identity 失败提示改为「重置偏好」。`SettingsWorkspace` 在软导航时同步请求分区，分区切换改用 `pushState` 并监听 `popstate`。

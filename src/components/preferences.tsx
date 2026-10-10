@@ -13,7 +13,7 @@ export function useUiPreferences(userId: string) {
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, [store, userId]);
-  return { ...snapshot, update: store.update, retry: store.refresh };
+  return { ...snapshot, update: store.update, retry: store.refresh, reset: store.reset };
 }
 
 export function AppearanceProvider({ userId }: { userId: string }) {

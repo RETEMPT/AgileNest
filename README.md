@@ -2,7 +2,7 @@
 
 面向课程设计、实验室课题和竞赛团队，覆盖团队空间 → 成员与职务 → 项目 → 任务协作 → 教师验收。
 
-当前源码版本：**0.4.0-rc.3**，AI 输入框收紧并固定底部，加号支持本地文件/图片、粘贴资料、读取与结构整理，保留项目会话、插件、模型配置草稿和选填联系方式。已发布的稳定版为 [0.3.0](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0)；候选版尚未正式发布。已有库运行 `node scripts/migrate-profiles.mjs` 追加联系方式表，升级不清空数据。更新与升级要求见 [CHANGELOG.md](CHANGELOG.md)。
+当前源码版本：**0.4.0-rc.4**，AI 输入框收紧并固定底部，加号支持本地文件/图片、粘贴资料、读取与结构整理，保留项目会话、插件、模型配置草稿和选填联系方式；候选版修正多标签同步、偏好重置与个人中心分区 URL。已发布的稳定版为 [0.3.0](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0)；候选版尚未正式发布。已有库运行 `node scripts/migrate-profiles.mjs` 追加联系方式表，升级不清空数据。更新与升级要求见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 开始使用
 
@@ -16,7 +16,7 @@
 
 本机 PostgreSQL 用户应先运行 `.\start.bat -ConfigOnly`，填写 `.env` / `.env.test` 的连接信息，再运行 `.\start.bat -Setup`。详细要求、已有库迁移和排错见 [Windows 使用说明](docs/WINDOWS.md)。
 
-无需开发环境的试用者可以下载 [候选版 Windows ZIP](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.3) 或已发布的 [0.3.0 稳定版](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0)，完整解压后运行其中的 start.bat。旧版 0.3.0 仍使用独立 stop.bat；本候选版的新包采用窗口关闭即停止网站的方式。见 [发布与数据备份](docs/RELEASE.md)。
+无需开发环境的试用者可以下载 [候选版 Windows ZIP](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.4) 或已发布的 [0.3.0 稳定版](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0)，完整解压后运行其中的 start.bat。旧版 0.3.0 仍使用独立 stop.bat；本候选版的新包采用窗口关闭即停止网站的方式。见 [发布与数据备份](docs/RELEASE.md)。
 
 | 演示账号 | 初始密码 | 职务 |
 |---|---|---|

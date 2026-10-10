@@ -233,6 +233,7 @@ function DraftEditor({ draft, store, persistRef, focusOnOpen, compact, userId, p
 }) {
   const [text, setText] = useState(draft.text);
   const [savedText, setSavedText] = useState(draft.text);
+  const [remoteText, setRemoteText] = useState(draft.text);
   const [feedback, setFeedback] = useState("");
   const [materialError, setMaterialError] = useState("");
   const [importing, setImporting] = useState(false);
@@ -250,6 +251,12 @@ function DraftEditor({ draft, store, persistRef, focusOnOpen, compact, userId, p
   const messages = draft.messages ?? [];
   const enabledPlugins = BUILTIN_PLUGINS.filter((plugin) => preferences.ai.plugins.includes(plugin.id));
   useEffect(() => { if (focusOnOpen) inputRef.current?.focus(); }, [focusOnOpen]);
+  // Another tab or the floating window may have saved newer text; adopt it, but only while this editor is clean.
+  if (text === savedText && draft.text !== remoteText) {
+    setRemoteText(draft.text);
+    setText(draft.text);
+    setSavedText(draft.text);
+  }
   useEffect(() => {
     const element = inputRef.current;
     if (!element) return;
@@ -316,7 +323,7 @@ function DraftEditor({ draft, store, persistRef, focusOnOpen, compact, userId, p
         validateMaterialBatch(draftMaterials(latest ?? draft),files);
         return saveDraft(notebook,{...(latest ?? draft),materials:[...(latest?.materials ?? []),...materials.map((item) => item.ref)],updatedAt:new Date().toISOString()});
       });
-      if (!ok) {await deleteMaterials(userId,materials.map((item) => item.ref.id));setMaterialError("资料未加入会话，请查看保存提示后重试");return false;}
+      if (!ok) {const ids = materials.map((item) => item.ref.id);await deleteMaterials(userId,ids).catch(() => setRemovalIds((current) => Array.from(new Set([...current,...ids]))));setMaterialError("资料未加入会话，请查看保存提示后重试");return false;}
       setFeedback(`已添加 ${materials.length} 份资料`);return true;
     } catch (error) {setMaterialError(error instanceof Error ? error.message : "文件读取失败，请重试");return false;}
     finally {importLock.current = false;setImporting(false);}

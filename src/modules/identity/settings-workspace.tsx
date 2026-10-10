@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Bot, FolderKanban, GraduationCap, Link2, Palette, UserRound } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -21,12 +21,20 @@ export function SettingsWorkspace({ profile, joinedAt, initialSection, panels }:
   panels: Record<SettingsSection, ReactNode>;
 }) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
+  const [requestedSection, setRequestedSection] = useState<SettingsSection>(initialSection);
+  // A soft navigation can request another section without remounting this workspace.
+  if (initialSection !== requestedSection) { setRequestedSection(initialSection); setSection(initialSection); }
+  useEffect(() => {
+    const onPopState = () => setSection(settingsSection(new URL(window.location.href).searchParams.get("section") ?? undefined));
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
   return (
     <Tabs.Root orientation="vertical" value={section} onValueChange={(value) => {
       setSection(settingsSection(value));
       const url = new URL(window.location.href);
       url.searchParams.set("section", value);
-      window.history.replaceState(null, "", url);
+      window.history.pushState(null, "", url);
     }} className="flex min-h-[calc(100dvh-3.5rem)] flex-col md:min-h-dvh md:flex-row">
       <aside className="flex shrink-0 flex-col border-b border-border bg-background/70 md:sticky md:top-0 md:h-dvh md:w-56 md:border-r md:border-b-0">
         <div className="border-b border-border px-5 py-5 md:py-6">

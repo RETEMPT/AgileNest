@@ -4,7 +4,7 @@ import { settingsSection } from "@/modules/identity/settings-sections";
 
 function memoryStorage() {
   const values = new Map<string, string>();
-  return { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } };
+  return { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); }, removeItem: (key: string) => { values.delete(key); } };
 }
 
 describe("foundation 使用偏好", () => {
@@ -17,7 +17,7 @@ describe("foundation 使用偏好", () => {
   });
   it("拒绝读取时不覆盖存储", () => {
     let writes = 0;
-    const store = createPreferencesStore("a", () => ({ getItem: () => { throw new Error("denied"); }, setItem: () => { writes += 1; } }));
+    const store = createPreferencesStore("a", () => ({ getItem: () => { throw new Error("denied"); }, setItem: () => { writes += 1; }, removeItem: () => { writes += 1; } }));
     expect(store.update({ theme: "dark" })).toBe(false);
     expect(writes).toBe(0);
     expect(store.getSnapshot().error).toContain("无法读取");
@@ -41,6 +41,17 @@ describe("foundation 使用偏好", () => {
     store.refresh();
     expect(store.update({ theme: "dark" })).toBe(true);
     expect(store.getSnapshot().error).toBeNull();
+  });
+  it("损坏值可重置回默认偏好并重新保存", () => {
+    const storage = memoryStorage();
+    storage.setItem(preferencesKey("a"), "{broken");
+    const store = createPreferencesStore("a", () => storage);
+    expect(store.update({ theme: "dark" })).toBe(false);
+    expect(store.reset()).toBe(true);
+    expect(storage.getItem(preferencesKey("a"))).toBeNull();
+    expect(store.getSnapshot()).toEqual({ preferences: DEFAULT_PREFERENCES, error: null });
+    expect(store.update({ theme: "dark" })).toBe(true);
+    expect(createPreferencesStore("a", () => storage).getSnapshot().preferences.theme).toBe("dark");
   });
   it("同一浏览器的设置修改通知所有订阅者", () => {
     const storage = memoryStorage();

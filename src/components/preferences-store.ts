@@ -11,7 +11,7 @@ export const DEFAULT_PREFERENCES: UiPreferences = { theme: "system", aiFloating:
 export const PREFERENCES_SERVER_SNAPSHOT = { preferences: DEFAULT_PREFERENCES, error: null as string | null };
 export const preferencesKey = (userId: string) => `agilenest:preferences:v1:${userId}`;
 
-export function createPreferencesStore(userId: string, storage: () => Pick<Storage, "getItem" | "setItem">) {
+export function createPreferencesStore(userId: string, storage: () => Pick<Storage, "getItem" | "setItem" | "removeItem">) {
   const listeners = new Set<() => void>();
   let raw: string | null | undefined;
   let snapshot = PREFERENCES_SERVER_SNAPSHOT;
@@ -32,6 +32,19 @@ export function createPreferencesStore(userId: string, storage: () => Pick<Stora
     getSnapshot,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     refresh() { raw = undefined; emit(); },
+    reset() {
+      try {
+        storage().removeItem(preferencesKey(userId));
+        raw = undefined;
+        snapshot = PREFERENCES_SERVER_SNAPSHOT;
+        emit();
+        return true;
+      } catch {
+        snapshot = { preferences: DEFAULT_PREFERENCES, error: "无法重置偏好，浏览器存储不可用。" };
+        emit();
+        return false;
+      }
+    },
     update(change: Partial<UiPreferences>) {
       const current = getSnapshot();
       if (current.error) return false;

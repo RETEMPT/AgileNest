@@ -6,12 +6,12 @@ import { useUiPreferences } from "@/components/preferences";
 import { openAiFloating } from "@/components/ai/floating";
 import { AiConfiguration } from "@/components/ai/configuration";
 
-function PreferenceFeedback({ error, onRetry }: { error: string | null; onRetry: () => void }) {
-  return error ? <div role="alert" className="mt-6 flex items-center gap-3 text-sm text-destructive">{error}<Button variant="outline" size="sm" onClick={onRetry}>重试</Button></div> : <p role="status" className="mt-6 flex items-center gap-2 text-xs text-muted-foreground"><Check size={14} />偏好立即生效，保存在当前账号的浏览器中。</p>;
+function PreferenceFeedback({ error, onReset }: { error: string | null; onReset: () => void }) {
+  return error ? <div role="alert" className="mt-6 flex items-center gap-3 text-sm text-destructive">{error}<Button variant="outline" size="sm" onClick={onReset}>重置偏好</Button></div> : <p role="status" className="mt-6 flex items-center gap-2 text-xs text-muted-foreground"><Check size={14} />偏好立即生效，保存在当前账号的浏览器中。</p>;
 }
 
 export function AppearanceSettings({ userId }: { userId: string }) {
-  const { preferences, update, error, retry } = useUiPreferences(userId);
+  const { preferences, update, error, reset } = useUiPreferences(userId);
   return <section>
     <h2 className="text-xl font-semibold">主题外观</h2>
     <p className="mt-2 text-sm text-muted-foreground">选择工作区的显示风格。</p>
@@ -31,12 +31,12 @@ export function AppearanceSettings({ userId }: { userId: string }) {
         </label>)}
       </div>
     </fieldset>
-    <PreferenceFeedback error={error} onRetry={retry} />
+    <PreferenceFeedback error={error} onReset={reset} />
   </section>;
 }
 
 export function AiSettings({ userId }: { userId: string }) {
-  const { preferences, update, error, retry } = useUiPreferences(userId);
+  const { preferences, update, error, reset } = useUiPreferences(userId);
   return <section>
     <h2 className="text-xl font-semibold">AI 助手</h2>
     <p className="mt-2 text-sm text-muted-foreground">设置快速入口，随时继续整理当前对话草稿。</p>
@@ -48,6 +48,6 @@ export function AiSettings({ userId }: { userId: string }) {
       <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border bg-background/50 px-5 py-4"><p className="text-xs text-muted-foreground">可打开、收起，或继续在完整工作区编辑。</p><Button variant="outline" size="sm" disabled={!preferences.aiFloating} onClick={openAiFloating}><PanelRightOpen size={15} />打开悬浮窗</Button></div>
     </div>
     <div className="mt-8"><AiConfiguration userId={userId} /></div>
-    <PreferenceFeedback error={error} onRetry={retry} />
+    <PreferenceFeedback error={error} onReset={reset} />
   </section>;
 }
