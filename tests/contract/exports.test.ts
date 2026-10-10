@@ -9,6 +9,7 @@ import * as worklog from "@/modules/worklog";
 import * as calendar from "@/modules/calendar";
 import * as milestone from "@/modules/milestone";
 import * as notify from "@/modules/notify";
+import * as resources from "@/modules/resources";
 import {
   TASK_STATUSES,
   STATUS_LABELS,
@@ -67,6 +68,15 @@ describe("identity 契约导出", () => {
       "getAvatar",
       "getFeishuConnection",
       "disconnectFeishu",
+      "getTeamInformation",
+      "updateTeamInformation",
+      "rotateTeamInvite",
+      "listTeamAnnouncements",
+      "createTeamAnnouncement",
+      "updateTeamAnnouncement",
+      "deleteTeamAnnouncement",
+      "leaveTeam",
+      "removeTeamMember",
     ]) {
       expect(identity, `identity 缺少 ${name}`).toHaveProperty(name);
     }
@@ -89,12 +99,29 @@ describe("业务模块契约导出（stub 期）", () => {
         "createSubtask",
         "listSubtasks",
         "setDueDate",
+        "getTaskDelivery",
+        "saveTaskRequirements",
       ],
     ],
     [
       "board",
       board,
       ["deriveColumns", "applyFilters", "parseFilters", "serializeFilters", "moveTask", "getMoveTransition"],
+    ],
+    [
+      "resources",
+      resources,
+      [
+        "listResources",
+        "getResource",
+        "createResource",
+        "uploadResource",
+        "updateResource",
+        "deleteResource",
+        "listResourceRevisions",
+        "getResourceFile",
+        "bindSubmissionResources",
+      ],
     ],
     [
       "review",

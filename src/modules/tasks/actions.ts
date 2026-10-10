@@ -10,7 +10,11 @@ import {
   updateTask,
   getTaskDetail,
   createSubtask,
+  getTaskDelivery,
+  saveTaskRequirements,
 } from "@/modules/tasks";
+import { transitionBodySchema, requirementsSchema } from "./delivery-validation";
+import type { TaskDeliveryDTO } from "./delivery-types";
 import { listTeamMembers } from "@/modules/identity";
 import { addWorklog } from "@/modules/worklog";
 import { createMilestone } from "@/modules/milestone";
@@ -146,11 +150,17 @@ export async function transitionAction(
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   let projectId: string;
   try {
+    const body = transitionBodySchema.safeParse({
+      ...parsed.data,
+      delivery: formData.has("delivery") ? JSON.parse(String(formData.get("delivery"))) as unknown : undefined,
+      review: formData.has("review") ? JSON.parse(String(formData.get("review"))) as unknown : undefined,
+    });
+    if (!body.success) return { error: body.error.issues[0].message };
     const task = await transitionTask(
       user.id,
       parsed.data.taskId,
       parsed.data.action,
-      { note: parsed.data.note, assigneeId: parsed.data.assigneeId },
+      body.data,
     );
     projectId = task.projectId;
   } catch (e) {
@@ -160,6 +170,29 @@ export async function transitionAction(
   revalidatePath(`/t`);
   revalidatePath("/home", "layout");
   return { error: "", ok: "已更新" };
+}
+
+export async function loadTaskDeliveryAction(taskId: string): Promise<{ error: string; delivery?: TaskDeliveryDTO }> {
+  const user = await requireUser();
+  try {
+    return { error: "", delivery: await getTaskDelivery(user.id, z.uuid("任务无效").parse(taskId)) };
+  } catch (error) { return { error: fail(error)?.error ?? "无法加载提交要求" }; }
+}
+
+export async function saveTaskRequirementsAction(_previous: FormState, data: FormData) {
+  const user = await requireUser();
+  try {
+    const taskId = z.uuid("任务无效").parse(data.get("taskId"));
+    const input = requirementsSchema.parse({ version: Number(data.get("version")), criteria: JSON.parse(String(data.get("criteria"))) as unknown });
+    const requirements = await saveTaskRequirements(user.id, taskId, input);
+    const task = await getTaskDetail(user.id, taskId);
+    revalidatePath(`/p/${task.projectId}`, "layout");
+    revalidatePath("/home", "layout");
+    return { error: "", ok: "验收要求已保存", requirements };
+  } catch (error) {
+    if (error instanceof z.ZodError) return { error: error.issues[0].message };
+    return fail(error);
+  }
 }
 
 export async function loadTaskAssigneesAction(taskId: string) {

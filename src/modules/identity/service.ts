@@ -10,6 +10,7 @@ import {
   academicConfirmations,
   memberPositions,
   personalProfiles,
+  teamProfiles,
   type TeamRole,
 } from "@/db/schema";
 import {
@@ -20,6 +21,7 @@ import {
   getProjectForUser,
   getTeamMembership,
   requireTeamRole,
+  todayISO,
 } from "@/modules/core";
 import {
   academicProfileSchema,
@@ -36,6 +38,7 @@ import {
   type TeamPosition,
 } from "./client";
 import { avatarUrl } from "./profile-service";
+import { teamInviteCodeSchema } from "./team-schema";
 
 // —— identity：团队 / 成员 / 项目（登录之外的基础域）——
 
@@ -55,26 +58,26 @@ export async function createTeam(userId: string, name: string) {
 }
 
 export async function joinTeam(userId: string, inviteCode: string) {
-  const [team] = await db
+  const parsed = teamInviteCodeSchema.safeParse(inviteCode);
+  if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
+  const [initial] = await db
     .select()
     .from(teams)
-    .where(eq(teams.inviteCode, inviteCode));
-  if (!team) throw new AppError("邀请码无效");
-
-  const [existing] = await db
-    .select({ id: teamMembers.id })
-    .from(teamMembers)
-    .where(
-      and(eq(teamMembers.teamId, team.id), eq(teamMembers.userId, userId)),
-    );
-  if (existing) throw new AppError("已在该团队中");
-
+    .where(eq(teams.inviteCode, parsed.data));
+  if (!initial) throw new AppError("邀请码无效");
   try {
-    const [member] = await db
-      .insert(teamMembers)
-      .values({ teamId: team.id, userId, role: "student" })
-      .returning();
-    return member;
+    return await db.transaction(async (tx) => {
+      // 刷新邀请码与加入共用团队锁，等待后重新核对当前代码与有效期。
+      const [team] = await tx.select().from(teams).where(eq(teams.id, initial.id)).for("update");
+      if (!team || team.inviteCode !== parsed.data) throw new AppError("邀请码无效或已刷新");
+      const [profile] = await tx.select().from(teamProfiles).where(eq(teamProfiles.teamId, team.id));
+      if (profile?.inviteExpiresOn && profile.inviteExpiresOn < todayISO()) throw new AppError("邀请码已过期，请联系团队管理员获取新码");
+      const [existing] = await tx.select({ id: teamMembers.id }).from(teamMembers)
+        .where(and(eq(teamMembers.teamId, team.id), eq(teamMembers.userId, userId)));
+      if (existing) throw new AppError("已在该团队中");
+      const [member] = await tx.insert(teamMembers).values({ teamId: team.id, userId, role: "student" }).returning();
+      return member;
+    });
   } catch (e) {
     if (isUniqueViolation(e)) throw new AppError("已在该团队中");
     throw e;
@@ -87,10 +90,12 @@ export async function listMyTeams(userId: string) {
       id: teams.id,
       name: teams.name,
       inviteCode: teams.inviteCode,
+      inviteExpiresOn: teamProfiles.inviteExpiresOn,
       role: teamMembers.role,
     })
     .from(teamMembers)
     .innerJoin(teams, eq(teamMembers.teamId, teams.id))
+    .leftJoin(teamProfiles, eq(teamProfiles.teamId, teams.id))
     .where(eq(teamMembers.userId, userId))
     .orderBy(desc(teamMembers.createdAt));
 }
@@ -328,6 +333,7 @@ export async function listTeamSpaces(actorId: string) {
       id: teams.id,
       name: teams.name,
       inviteCode: teams.inviteCode,
+      inviteExpiresOn: teamProfiles.inviteExpiresOn,
       role: teamMembers.role,
       positions: memberPositions.positions,
       memberCount:
@@ -342,6 +348,7 @@ export async function listTeamSpaces(actorId: string) {
     .from(teamMembers)
     .innerJoin(teams, eq(teamMembers.teamId, teams.id))
     .leftJoin(memberPositions, eq(memberPositions.membershipId, teamMembers.id))
+    .leftJoin(teamProfiles, eq(teamProfiles.teamId, teams.id))
     .where(eq(teamMembers.userId, actorId))
     .orderBy(desc(teamMembers.createdAt));
   return rows.map((row) => ({

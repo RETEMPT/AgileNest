@@ -26,6 +26,7 @@ import {
   STATUS_DESCRIPTIONS,
   availableTransitions,
   canDeleteTask,
+  transitionNeedsDialog,
   type TransitionRule,
 } from "./states";
 import type { TeamRole } from "@/db/schema";
@@ -35,6 +36,8 @@ import {
   type TeamPosition,
   type TaskPermissions,
 } from "@/modules/identity/client";
+import { StructuredTransitionFields } from "./delivery-fields";
+import { DiscardChangesDialog } from "./form-guards";
 
 export { TaskDetailSummary, type TaskDetailSummaryProps } from "./detail-summary";
 
@@ -242,16 +245,24 @@ export function TransitionDialog({
   members,
   onClose,
   onSuccess,
+  onPendingChange,
 }: {
   task: TaskDTO;
   rule: TransitionRule;
   members: AssigneeOption[];
   onClose: () => void;
   onSuccess?: () => void;
+  onPendingChange?: (pending: boolean) => void;
 }) {
   const id = useId();
   const [assigneeId, setAssigneeId] = useState("");
-  const [note, setNote] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [structuredReady, setStructuredReady] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const structuredAction = ["submit", "resubmit", "accept", "reject"].includes(rule.action)
+    ? rule.action as "submit" | "resubmit" | "accept" | "reject"
+    : null;
   const returnFocus = useRef<HTMLElement | null>(null);
   const parentDialog = useRef<HTMLElement | null>(null);
   const notify = useFeedback();
@@ -267,11 +278,18 @@ export function TransitionDialog({
     },
     null,
   );
+  const busy = pending || uploading;
+  useEffect(() => { onPendingChange?.(busy); return () => onPendingChange?.(false); }, [busy, onPendingChange]);
+  function tryClose() {
+    if (busy) return;
+    if (dirty) setDiscardOpen(true);
+    else onClose();
+  }
   return (
     <Dialog.Root
       open
       onOpenChange={(open) => {
-        if (!open && !pending) onClose();
+        if (!open) tryClose();
       }}
     >
       <Dialog.Portal>
@@ -292,12 +310,12 @@ export function TransitionDialog({
             else parentDialog.current?.focus();
           }}
           onEscapeKeyDown={(event) => {
-            if (pending) event.preventDefault();
+            if (busy) event.preventDefault();
           }}
           onPointerDownOutside={(event) => {
-            if (pending) event.preventDefault();
+            if (busy) event.preventDefault();
           }}
-          className="dialog-surface fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-xl"
+          className="dialog-surface fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-4 shadow-xl sm:p-6"
         >
           <Dialog.Title className="pr-8 text-lg font-semibold">
             {rule.label}任务
@@ -310,7 +328,7 @@ export function TransitionDialog({
               type="button"
               variant="ghost"
               size="icon"
-              disabled={pending}
+              disabled={busy}
               aria-label="关闭"
               className="absolute right-3 top-3"
             >
@@ -335,10 +353,12 @@ export function TransitionDialog({
           <form
             action={formAction}
             onReset={(event) => event.preventDefault()}
+            onSubmit={(event) => { if (busy || (structuredAction && !structuredReady)) event.preventDefault(); }}
             className="space-y-4"
           >
             <input type="hidden" name="taskId" value={task.id} />
             <input type="hidden" name="action" value={rule.action} />
+            <fieldset disabled={busy} className="space-y-4">
             {rule.setsAssignee && (
               <div className="space-y-2">
                 <label
@@ -352,7 +372,7 @@ export function TransitionDialog({
                   name="assigneeId"
                   required
                   value={assigneeId}
-                  onChange={(event) => setAssigneeId(event.target.value)}
+                  onChange={(event) => { setAssigneeId(event.target.value); setDirty(true); }}
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
                   <option value="" disabled>
@@ -380,30 +400,7 @@ export function TransitionDialog({
                 )}
               </div>
             )}
-            {rule.noteRequired && (
-              <div className="space-y-2">
-                <label htmlFor={`${id}-note`} className="text-sm font-medium">
-                  {rule.action === "reject" ? "修改意见" : "完成说明"}{" "}
-                  <span className="text-destructive">*</span>
-                </label>
-                <textarea
-                  id={`${id}-note`}
-                  name="note"
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
-                  required
-                  maxLength={5000}
-                  rows={4}
-                  placeholder={
-                    rule.action === "reject"
-                      ? "填写需要修改的内容与验收要求"
-                      : "说明完成内容、验证结果，可附成果链接"
-                  }
-                  className="w-full rounded-md border border-input bg-background p-3 text-sm"
-                  autoFocus
-                />
-              </div>
-            )}
+            {structuredAction && <StructuredTransitionFields task={task} action={structuredAction} disabled={busy} onReadyChange={setStructuredReady} onDirtyChange={setDirty} onBusyChange={setUploading} />}
             <div role="alert">
               <ErrorLine state={state} />
             </div>
@@ -411,20 +408,22 @@ export function TransitionDialog({
               <Button
                 type="button"
                 variant="outline"
-                disabled={pending}
-                onClick={onClose}
+                disabled={busy}
+                onClick={tryClose}
               >
                 取消
               </Button>
               <Button
                 disabled={
-                  pending || (rule.setsAssignee && members.length === 0)
+                  busy || (rule.setsAssignee && members.length === 0) || Boolean(structuredAction && !structuredReady)
                 }
                loading={pending}>
                 {pending ? "处理中…" : `确认${rule.label}`}
               </Button>
             </div>
+            </fieldset>
           </form>
+          <DiscardChangesDialog open={discardOpen} onKeepEditing={() => setDiscardOpen(false)} onDiscard={onClose} />
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -436,11 +435,13 @@ export function TaskActions({
   role,
   actorId,
   members = [],
+  onPendingChange,
 }: {
   task: TaskDTO;
   role: TeamRole;
   actorId: string;
   members?: AssigneeOption[];
+  onPendingChange?: (pending: boolean) => void;
 }) {
   const notify = useFeedback();
   const [acting, setActing] = useState("");
@@ -457,12 +458,14 @@ export function TaskActions({
   const [loadedOptions, setOptions] = useState(members);
   const options = members.length ? members : loadedOptions;
   const [loading, setLoading] = useState(false);
+  const [dialogPending, setDialogPending] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [resolved, setResolved] = useState<{
     task: TaskDTO;
     permissions?: TaskPermissions;
     error: string;
   } | null>(null);
+  useEffect(() => { onPendingChange?.(pending || loading || dialogPending); return () => onPendingChange?.(false); }, [pending, loading, dialogPending, onPendingChange]);
   // 旧工作台 DTO 没有权限快照，进入操作区时从统一入口补齐。
   useEffect(() => {
     if (task.permissions) return;
@@ -534,14 +537,7 @@ export function TaskActions({
         {actions.map((rule) => (
           <Button
             key={rule.action}
-            type={
-              rule.noteRequired ||
-              rule.setsAssignee ||
-              rule.action === "reopen" ||
-              rule.action === "unclaim"
-                ? "button"
-                : "submit"
-            }
+            type={transitionNeedsDialog(rule) ? "button" : "submit"}
             name="action"
             value={rule.action}
             size="sm"
@@ -552,12 +548,9 @@ export function TaskActions({
                 ? "default"
                 : "outline"
             }
-            disabled={pending || loading}
+            disabled={pending || loading || dialogPending}
             onClick={
-              rule.noteRequired ||
-              rule.setsAssignee ||
-              rule.action === "reopen" ||
-              rule.action === "unclaim"
+              transitionNeedsDialog(rule)
                 ? () => void openDialog(rule)
                 : undefined
             }
@@ -580,6 +573,7 @@ export function TaskActions({
           rule={selected}
           members={options}
           onClose={() => setSelected(null)}
+          onPendingChange={setDialogPending}
         />
       )}
     </div>

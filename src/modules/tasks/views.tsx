@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser, getProjectForUser, todayISO } from "@/modules/core";
-import { getTaskDetail, listProjectTasks } from "./service";
+import { getTaskDetail, getTaskDelivery, listProjectTasks } from "./service";
 import { listTeamMembers } from "@/modules/identity";
 import { listTaskEvents } from "@/modules/review";
 import { listWorklogs } from "@/modules/worklog";
@@ -18,6 +18,10 @@ import {
 } from "./ui";
 import { Button } from "@/components/ui/button";
 import { TaskAuditStream } from "@/components/cards/task-audit-stream";
+import { SubmissionTimeline } from "@/modules/review/ui";
+import { TaskRequirementsEditor } from "./requirements-ui";
+import { applyFilters, parseFilters, serializeFilters, workspaceUrl, type GroupBy } from "@/modules/board/client";
+import { TaskPoolFilters } from "./pool-filters";
 
 export async function TaskDetailView({
   params,
@@ -32,11 +36,12 @@ export async function TaskDetailView({
   const task = await getTaskDetail(user.id, taskId).catch(() => null);
   if (!task || task.projectId !== projectId) notFound();
 
-  const [events, logs, members, milestones] = await Promise.all([
+  const [events, logs, members, milestones, delivery] = await Promise.all([
     listTaskEvents(user.id, taskId),
     listWorklogs(user.id, taskId),
     listTeamMembers(user.id, access.project.teamId),
     listMilestones(user.id, projectId),
+    getTaskDelivery(user.id, taskId),
   ]);
 
   return (
@@ -74,6 +79,9 @@ export async function TaskDetailView({
           headingLevel="h1"
         />
       </section>
+
+      <TaskRequirementsEditor taskId={task.id} requirements={delivery.requirements} canEdit={Boolean(task.permissions?.actions.includes("update"))} />
+      <SubmissionTimeline taskId={task.id} updatedAt={task.updatedAt.toISOString()} />
 
       <section className="space-y-3 rounded-xl border border-border bg-card p-4 sm:p-5">
         <h2 className="text-sm font-semibold">下一步操作</h2>
@@ -148,35 +156,45 @@ export async function TaskDetailView({
   );
 }
 
-export async function TaskPoolView({ projectId }: { projectId: string }) {
+export async function TaskPoolView({ projectId, query = {} }: { projectId: string; query?: Record<string, string | string[] | undefined> }) {
   const user = await requireUser();
   const access = await getProjectForUser(user.id, projectId);
   if (!access) notFound();
-  const tasks = await listProjectTasks(user.id, projectId, {
-    parentTaskId: null,
-  });
+  const [tasks, members, milestones] = await Promise.all([
+    listProjectTasks(user.id, projectId, { parentTaskId: null }),
+    listTeamMembers(user.id, access.project.teamId),
+    listMilestones(user.id, projectId),
+  ]);
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) for (const entry of Array.isArray(value) ? value : value ? [value] : []) params.append(key, entry);
+  const filters = parseFilters(params);
+  const group = params.get("groupBy");
+  const groupBy: GroupBy = group === "assignee" || group === "priority" || group === "milestone" ? group : "status";
+  const visible = applyFilters(tasks, filters).sort((a, b) => Number(b.status === "unclaimed") - Number(a.status === "unclaimed"));
+  const hasFilters = serializeFilters(filters).size > 0;
   return (
     <main className="space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">任务池</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {tasks.length} 个任务 · 查看任务详情、负责人和执行进度
+            {visible.length}/{tasks.length} 个任务 · 未认领事项优先显示
           </p>
         </div>
       </header>
       <nav aria-label="任务视图" className="flex flex-wrap gap-1 rounded-xl border border-border bg-card p-1">
-        <Button asChild variant="secondary" size="sm"><Link aria-current="page" href={`/p/${projectId}/tasks`}>任务池</Link></Button>
-        <Button asChild variant="ghost" size="sm"><Link href={`/p/${projectId}/board`}>看板</Link></Button>
-        <Button asChild variant="ghost" size="sm"><Link href={`/p/${projectId}/table`}>表格</Link></Button>
+        <Button asChild variant="secondary" size="sm"><Link aria-current="page" href={workspaceUrl({ projectId, view: "tasks", filters, groupBy })}>任务池</Link></Button>
+        <Button asChild variant="ghost" size="sm"><Link href={workspaceUrl({ projectId, view: "board", filters, groupBy })}>看板</Link></Button>
+        <Button asChild variant="ghost" size="sm"><Link href={workspaceUrl({ projectId, view: "table", filters, groupBy })}>表格</Link></Button>
       </nav>
+      <TaskPoolFilters projectId={projectId} filters={filters} members={members} milestones={milestones} groupBy={groupBy} />
       <details className="rounded-xl border border-border bg-card p-4" open={tasks.length === 0}>
         <summary className="cursor-pointer text-sm font-medium text-muted-foreground">任务流程与权限</summary>
         <div className="mt-4"><TaskWorkflow /></div>
       </details>
       <div className="grid items-start gap-5 xl:grid-cols-[1fr_320px]">
         <div className="grid gap-3 lg:grid-cols-2">
-          {tasks.map((task) => (
+          {visible.map((task) => (
             <TaskCard
               key={task.id}
               task={task}
@@ -189,8 +207,9 @@ export async function TaskPoolView({ projectId }: { projectId: string }) {
               暂无任务。创建后可由有执行职务的成员认领，或由有指派权限的成员分配。
             </p>
           )}
+          {tasks.length > 0 && visible.length === 0 && <div className="space-y-3 rounded-xl border border-dashed border-border bg-card p-6 text-sm text-muted-foreground"><p>没有符合当前条件的任务，可调整筛选或重置条件。</p><Button asChild variant="outline" size="sm"><Link href={`/p/${projectId}/tasks`}>重置筛选</Link></Button></div>}
         </div>
-        <CreateTaskForm projectId={projectId} />
+        <div className="space-y-3"><CreateTaskForm projectId={projectId} />{hasFilters && <p className="px-1 text-xs leading-relaxed text-muted-foreground">创建后当前筛选会保留；新任务可能不在筛选结果中。</p>}</div>
       </div>
     </main>
   );

@@ -9,7 +9,7 @@ import {
   listPendingReview,
   listTaskEvents,
 } from "@/modules/review";
-import { createTask, transitionTask } from "@/modules/tasks";
+import { createTask, getTaskDelivery } from "@/modules/tasks";
 import {
   updateMemberPositions,
   updateProject,
@@ -19,6 +19,7 @@ import {
 } from "@/modules/identity";
 import { ForbiddenError } from "@/modules/core";
 import { makeFixture, resetDb } from "../../helpers";
+import { reviewEvidence, submitEvidence } from "../../delivery-fixtures";
 
 describe("统一工作台", () => {
   let fx: Awaited<ReturnType<typeof makeFixture>>;
@@ -36,14 +37,12 @@ describe("统一工作台", () => {
       title: "队员交付",
       assigneeId: fx.teacher.id,
     });
-    await transitionTask(fx.teacher.id, other.id, "submit", { note: "完成" });
+    await submitEvidence(fx.teacher.id, other.id, "完成");
     const supervised = await createTask(fx.student.id, fx.project.id, {
       title: "指导交付",
       assigneeId: fx.student.id,
     });
-    await transitionTask(fx.student.id, supervised.id, "submit", {
-      note: "完成",
-    });
+    await submitEvidence(fx.student.id, supervised.id, "完成");
     const work = await getWorkbench(fx.teacher.id);
     expect(work.review.map((task) => task.id)).toEqual([supervised.id]);
     expect(work.mine.map((task) => task.id)).toEqual([other.id]);
@@ -84,7 +83,7 @@ describe("统一工作台", () => {
       title: "待审",
       assigneeId: fx.student.id,
     });
-    await transitionTask(fx.student.id, task.id, "submit", { note: "完成" });
+    await submitEvidence(fx.student.id, task.id, "完成");
     const work = await getWorkbench(fx.teacher.id);
     expect(work.mine).toHaveLength(1);
     expect(work.review).toHaveLength(1);
@@ -121,16 +120,20 @@ describe("统一工作台", () => {
       title: "检查交付上下文",
       assigneeId: fx.student.id,
     });
-    await transitionTask(fx.student.id, task.id, "submit", { note: "第一版成果" });
-    await transitionTask(fx.teacher.id, task.id, "reject", { note: "补充边界验证" });
+    await submitEvidence(fx.student.id, task.id, "第一版成果");
+    await reviewEvidence(fx.teacher.id, task.id, "reject", "补充边界验证");
+    const firstVersion = (await getTaskDelivery(fx.teacher.id, task.id)).submissions[0];
     const rejected = (await getWorkbench(fx.student.id)).mine.find((item) => item.id === task.id);
     expect(rejected).toMatchObject({ status: "rejected", completionNote: "第一版成果", rejectReason: "补充边界验证" });
-    await transitionTask(fx.student.id, task.id, "resubmit", { note: "已补齐边界验证" });
+    await submitEvidence(fx.student.id, task.id, "已补齐边界验证", "resubmit");
     const [pending] = await listPendingReview(fx.teacher.id, fx.project.id);
     expect(pending).toMatchObject({ completionNote: "已补齐边界验证", rejectReason: "补充边界验证" });
     expect(pending.permissions?.actions).toContain("accept");
+    const { submissions } = await getTaskDelivery(fx.teacher.id, task.id);
+    expect(submissions.map((submission) => submission.version)).toEqual([2, 1]);
+    expect(submissions[1]).toEqual(firstVersion);
     expect((await listTaskEvents(fx.teacher.id, task.id)).filter((event) => ["submit", "reject", "resubmit"].includes(event.action)).map((event) => event.action)).toEqual(["submit", "reject", "resubmit"]);
-    await transitionTask(fx.teacher.id, task.id, "accept");
+    await reviewEvidence(fx.teacher.id, task.id);
     expect(await listPendingReview(fx.teacher.id, fx.project.id)).toHaveLength(0);
     expect((await getWorkbench(fx.teacher.id)).review).toHaveLength(0);
   });

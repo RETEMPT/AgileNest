@@ -1,4 +1,5 @@
 import type { ProjectKind, TaskAction, TeamRole } from "@/db/schema";
+export type { TeamInformationDTO, TeamAnnouncementDTO } from "./team-client";
 
 export type FeishuConnection = {
   connected: boolean;

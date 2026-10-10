@@ -2,7 +2,7 @@
 
 面向课程设计、实验室课题和竞赛团队，覆盖团队空间 → 成员与职务 → 项目 → 任务协作 → 教师验收。
 
-当前源码版本：**0.4.0-rc.5**，项目任务统一导航、看板与表格保留筛选，共用任务详情；工作台前置待处理内容，验收、统计、项目日历与通知入口进一步连通。本轮保留既有 AI 本地草稿和个人设置，无新依赖或数据库迁移；[体验方案与 Agent 任务卡](docs/AGILENEST-EXPERIENCE-PLAN.md)、[执行与验收记录](docs/AGILENEST-EXECUTION.md) 可供后续协作者使用。rc.5 当前为源码候选，未发布运行包；已发布的稳定版为 [0.3.0](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0)。从旧版升级仍按既有要求运行 `node scripts/migrate-profiles.mjs`，不清空数据。更新与升级要求见 [CHANGELOG.md](CHANGELOG.md)。
+当前源码版本：**0.4.0-rc.6**，完善成果提交证据、不可变版本、逐项验收核对、团队信息中心与团队/项目资料整理模块；项目任务统一导航、看板与表格保留筛选，共用任务详情；工作台前置待处理内容，验收、统计、项目日历与通知入口进一步连通。本轮已完成全套契约自动化测试与 Windows 生产构建；[业务完善实施契约](docs/BUSINESS-COMPLETION.md)、[体验方案与 Agent 任务卡](docs/AGILENEST-EXPERIENCE-PLAN.md) 可供后续协作者查阅。更新与升级要求见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 开始使用
 
@@ -16,7 +16,7 @@
 
 本机 PostgreSQL 用户应先运行 `.\start.bat -ConfigOnly`，填写 `.env` / `.env.test` 的连接信息，再运行 `.\start.bat -Setup`。详细要求、已有库迁移和排错见 [Windows 使用说明](docs/WINDOWS.md)。
 
-无需开发环境的试用者可以下载 [上一候选 rc.4 的 Windows ZIP](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.4) 或已发布的 [0.3.0 稳定版](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0)，完整解压后运行其中的 start.bat。rc.4 包不包含本轮 rc.5 的界面改动。旧版 0.3.0 仍使用独立 stop.bat；rc.4 包采用窗口关闭即停止网站的方式。见 [发布与数据备份](docs/RELEASE.md)。
+无需开发环境的试用者可以下载 [上一候选 rc.4 的 Windows ZIP](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.4) 或已发布的 [0.3.0 稳定版](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0)，完整解压后运行其中的 start.bat。rc.4 包不包含 rc.5/rc.6 的改动。旧版 0.3.0 仍使用独立 stop.bat；rc.4 包采用窗口关闭即停止网站的方式。见 [发布与数据备份](docs/RELEASE.md)。
 
 | 演示账号 | 初始密码 | 职务 |
 |---|---|---|
@@ -24,10 +24,14 @@
 | teacher@agilecampus.local | password123 | 指导老师 |
 | student@agilecampus.local | password123 | 队员 |
 
+已有数据库升级到 rc.6 时追加执行 `node scripts/migrate-business.mjs`（测试库加 `--test`），保留历史任务与文件；新数据库仍沿用初始化流程。
+
 ## 已实现
 
 - 团队、学术身份确认与可叠加职务，课程、实验室和竞赛项目。
 - 五态任务、子任务、姓名指派、看板拖动与表格筛选，成果提交和教师验收。
+- 成果说明、验证结果、链接/文件证据、逐项自检及不可变提交版本；按指定版本逐项验收与打回。
+- 团队资料、公告、邀请码有效期、成员退出/移除保护；团队/项目资料分类、搜索、文档历史与文件预览下载。
 - 工作台、工时、贡献统计、里程碑、站内消息与个人资料。
 - 个人日历、项目日历和跨天排期；个人安排仅本人可访问。
 - 可选飞书账号连接；AI 对话界面与按账号区分的浏览器草稿，模型尚未接入。
@@ -73,3 +77,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\windows\launcher.ps1
 | [开发工作流与版本规则](docs/WORKFLOW.md) | [日历与日程](docs/SCHEDULES.md) |
 | [模块分工与公开契约](docs/TEAM.md) | [飞书边界](docs/FEISHU.md)、[AI 草稿](docs/AI.md) |
 | [Agent 约束](AGENTS.md) | [功能路线图](docs/ROADMAP.md) |
+| [文档提炼与当前计划](docs/PROJECT-STATE.md) | [前端设计指南](docs/FRONTEND-DESIGN-GUIDE.md) |

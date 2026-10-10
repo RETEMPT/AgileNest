@@ -48,6 +48,10 @@ export type TransitionRule = {
   label: string;
 };
 
+export function transitionNeedsDialog(rule: TransitionRule) {
+  return Boolean(rule.noteRequired || rule.setsAssignee || ["accept", "reopen", "unclaim"].includes(rule.action));
+}
+
 /** 合法转移表：action + from → to。不在表中即非法（409）。 */
 export const TRANSITIONS: TransitionRule[] = [
   {

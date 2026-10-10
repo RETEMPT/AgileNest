@@ -9,6 +9,7 @@ import { joinTeam } from "@/modules/identity";
 import { listTaskEvents } from "@/modules/review";
 import { AppError, ConflictError, ForbiddenError } from "@/modules/core";
 import { makeFixture, resetDb } from "../../helpers";
+import { submitEvidence, reviewEvidence } from "../../delivery-fixtures";
 
 describe("状态机交互与并发契约", () => {
   let fx: Awaited<ReturnType<typeof makeFixture>>;
@@ -110,17 +111,13 @@ describe("状态机交互与并发契约", () => {
       title: "修改循环",
     });
     await transitionTask(fx.student.id, task.id, "claim");
-    await transitionTask(fx.student.id, task.id, "submit", { note: "初稿" });
+    await submitEvidence(fx.student.id, task.id, "初稿");
     await expect(
       transitionTask(fx.teacher.id, task.id, "reject", { note: " " }),
     ).rejects.toBeInstanceOf(AppError);
-    await transitionTask(fx.teacher.id, task.id, "reject", {
-      note: "补上测试结果",
-    });
-    await transitionTask(fx.student.id, task.id, "resubmit", {
-      note: "已补测试结果",
-    });
-    await transitionTask(fx.teacher.id, task.id, "accept");
+    await reviewEvidence(fx.teacher.id, task.id, "reject", "补上测试结果");
+    await submitEvidence(fx.student.id, task.id, "已补测试结果", "resubmit");
+    await reviewEvidence(fx.teacher.id, task.id);
     expect(
       (await transitionTask(fx.teacher.id, task.id, "reopen")).status,
     ).toBe("in_progress");

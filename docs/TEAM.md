@@ -12,6 +12,7 @@
 src/modules/
   core/        错误 · 权限 · session · 日期 · 表单     foundation
   identity/    团队 · 成员 · 角色 · 项目               foundation
+  resources/   团队/项目文档 · 文件 · 交付证据          foundation
   tasks/       任务 CRUD · 子任务 · 五态状态机         A
   board/       看板 + 表格 · 筛选 · 拖拽               B
   review/      双端工作台 · 验收台 · 活动流            C
@@ -36,6 +37,7 @@ views.tsx    可选：公开服务端页面组合
 ```
 
 数据表归属：`users/teams/team_members/projects/academic_profiles/member_positions/academic_confirmations` → identity · `tasks` → tasks · `milestones` → milestone · `worklogs` → worklog · `task_acceptance_events` → review · `notifications` → notify。
+新增表归属：`team_profiles/team_announcements` → identity；`task_requirements/task_submissions/task_submission_reviews` → tasks；`team_resources/resource_revisions/resource_references` → resources。
 `src/db/schema.ts` 是 barrel，本期集中放一份，**只追加不重排**。
 
 ---
@@ -105,6 +107,21 @@ ReviewTaskDetails({ task: TaskDTO, role: TeamRole, actorId: string })
 
 看板与表格保留 `q/status/assigneeId/priority/milestoneId/groupBy`，搜索提交保留已存在的多值条件；任务池仍有独立入口和旧 URL。本轮后置 `task` query、任务池共享筛选、项目日历统一筛选。个人日程版本与隐私不变，日历里程碑通过公开 `board/client.serializeFilters` 下钻。证据与后续入口见 [执行记录](AGILENEST-EXECUTION.md)。
 
+
+## 当前业务集成 · 0.4.0-rc.6 · 2026-10-10
+
+分支 `codex/business-completion`，基线 `7c53f70`。identity（foundation）负责团队资料、公告、邀请和成员管理；tasks（A）负责要求、提交和逐项验收；board/review（B/C）负责 URL、筛选和证据历史；resources（foundation）负责共享资料与文件绑定；root 串行集成追加表、公开契约、遗漏修复和版本。锁定登录、core 和依赖不变。
+
+`tasks/client` 公开 DeliveryInput/ReviewInput/SubmissionDTO/TaskDeliveryDTO 与浏览器安全的 deliverySchema/reviewSchema，内部状态仍以 TRANSITIONS 为唯一真相。`TransitionInput` 增加 delivery?/review?；普通动作兼容，新 submit/resubmit 不能仅传 note。必须提供至少一项验收要求、要求版本、完成说明、验证结果和链接或文件。accept/reject 绑定当前 submissionId；打回需至少一项未通过、逐项问题位置/通过条件和总体修改要求。历史提交明确标记 legacy，不伪造证据。
+
+`TaskActions/TransitionDialog` 追加 `onPendingChange?`，写入和上传期间外层关闭保护同源。公开 `review/ui` 提供 `SubmissionTimeline({taskId,updatedAt?,compact?})`、`ReviewSubmissionEvidence`；`review/client` 提供 `parseTaskDeliveryPayload(input,taskId)` 和 `sortSubmissionVersions`，读取返回的真实版本并隔离旧请求。
+
+`board/client` 增加 `parseTaskQuery(params)`、`taskDetailUrl(pathname,params,taskId|null)`、`workspaceUrl({projectId,view,filters,groupBy?,taskId?})`；`ProjectWorkspace` 增加 selectedTask?。看板/表格的 task URL 经项目权限检查，打开 push、切换 replace、关闭只清 task；任务池使用共用 q/status/priority/assigneeId/milestoneId 筛选，详情仍是独立页。项目日历筛选统一后置。
+
+`identity/client` 增加 TeamInformationDTO/TeamAnnouncementDTO；`identity/views.TeamSettingsView({teamId})` 组合设置页。`identity/ui.TeamSectionLinks({teamId,current})` 连通 projects/members/settings/resources；TeamMemberRemovalButton、TeamSettingsWorkspace 与 InviteCode 的 expiresOn? 支持当前团队操作。
+
+本轮保留必要自动检查与关键入口试用，全面手工验收按用户最新要求留到最后迭代。统一文档入口与后续计划见 [PROJECT-STATE](PROJECT-STATE.md)。
+
 ## 3. 公开契约（`index.ts`）
 
 > 填实 stub 后**必须**更新本节。`tests/contract/exports.test.ts` 做静态断言。
@@ -155,15 +172,25 @@ createProject(actorId, teamId, input)
 listTeamProjects(actorId, teamId)
 updateProject(actorId, projectId, patch)
 listMyProjects(actorId)
+getTeamInformation(actorId, teamId)     // 团队信息中心、邀请有效期与公开联系方式
+updateTeamInformation(actorId, teamId, input)
+rotateTeamInvite(actorId, teamId, input)
+listTeamAnnouncements(actorId, teamId)
+createTeamAnnouncement(actorId, teamId, input)
+updateTeamAnnouncement(actorId, teamId, announcementId, input)
+deleteTeamAnnouncement(actorId, teamId, announcementId, version)
+leaveTeam(actorId, teamId)              // 保护最后管理员及仍承担未完成任务成员
+removeTeamMember(actorId, teamId, targetUserId)
 // re-export: getTeamMembership / getProjectForUser / requireTeamRole
 ```
 
-`createTeam`/`createProject` 校验并去除名称首尾空白；项目日期校验真实日历日期及开始≤结束。`updateMemberRole` 在事务中锁定团队，拒绝降级最后一位管理员。公开 UI：`identity/ui` 提供场景选择、创建/加入、成员职务与邀请码组件；`identity/views` 提供团队、成员、项目、个人设置、项目设置和项目概览页面。团队场景是引导选择，数据库实体仍为团队，课程/实验室/竞赛类型存于项目。
+`createTeam`/`createProject` 校验并去除名称首尾空白；项目日期校验真实日历日期及开始≤结束。`updateMemberRole` 在事务中锁定团队，拒绝降级最后一位管理员。公开 UI：`identity/ui` 提供场景选择、创建/加入、成员职务与邀请码组件；`identity/views` 提供团队、成员、项目、个人设置、项目设置、团队信息设置和项目概览页面。团队场景是引导选择，数据库实体仍为团队，课程/实验室/竞赛类型存于项目。
 
 ### `@/modules/tasks`（A）
 
 ```ts
 type TaskDTO / TaskPatch / TransitionInput / TransitionAction
+type AcceptanceCriterion / DeliveryInput / ReviewInput / SubmissionDTO / TaskDeliveryDTO
 
 listProjectTasks(actorId, projectId, filters?)
 getTaskDetail(actorId, taskId)                    // 含 subtasks
@@ -174,6 +201,9 @@ transitionTask(actorId, taskId, action, input?)   // 唯一状态入口
 createSubtask(actorId, parentTaskId, input)
 listSubtasks(actorId, parentTaskId)
 setDueDate(actorId, taskId, dueDate)
+getTaskDelivery(actorId, taskId)
+saveTaskRequirements(actorId, taskId, { version, criteria })
+deliverySchema / reviewSchema
 
 availableTransitions(task: { status, assigneeId, permissions? }, role, actorId): TransitionRule[]
 STATUS_DESCRIPTIONS / canDeleteTask(role)
@@ -189,7 +219,7 @@ applyFilters(tasks, f)
 parseFilters(params) / serializeFilters(f)
 moveTask(actorId, taskId, patch)   // 只调 tasks.updateTask / transitionTask
 getMoveTransition(task, targetStatus, role, actorId): TransitionRule | null
-type MovePatch = { status?, assigneeId?, priority?, milestoneId?, sortOrder?, note? }
+type MovePatch = { status?, assigneeId?, priority?, milestoneId?, sortOrder?, note?, delivery?, review? }
 movePatchSchema
 ```
 
@@ -252,6 +282,28 @@ notifyAssigned(taskId) / notifySubmitted(taskId) / notifyAccepted(taskId) / noti
 scanAndNotifyDue()                            // cron
 listMyNotifications(actorId, opts?) / markRead(actorId, id)
 ```
+
+### `@/modules/resources`（foundation）
+
+```ts
+listResources(actorId, opts: { projectId?, teamId? })
+getResource(actorId, resourceId)
+createResource(actorId, input: { projectId?, teamId?, kind: "document" | "link", title, body?, url?, tags?, category? })
+uploadResource(actorId, scope: { projectId?, teamId? }, file: { name: string, bytes: Uint8Array }, title?)
+updateResource(actorId, resourceId, patch: { version: number, title: string, body?, url?, tags?, category? })
+deleteResource(actorId, resourceId, version)
+listResourceRevisions(actorId, resourceId)
+getResourceFile(actorId, resourceId)
+bindSubmissionResources(actorId, projectId, resourceIds, submissionId, tx)
+resourcesGET(request) / resourcesPOST(request)
+resourceGET(request, context) / resourcePATCH(request, context) / resourceDELETE(request, context)
+resourceFileGET(request, context)
+type ResourceDTO
+```
+
+资源分为可编辑 Markdown 文档、外部链接与原文件。文本/Markdown/CSV/JSON 文件有真实正文预览；图片/PDF 浏览器预览，Office/ZIP 下载，不宣称已提取正文。文档版本保存历史，文件原内容不可覆盖，引用文件禁止删除；ResourceDTO 追加 referenced，客户端据此禁用删除，服务端继续锁与重新检查。
+
+公开 `resources/client` 导出 DTO、类别/容量、真实文本整理及安全 URL/Marker 产物解析纯函数；`resources/ui` 导出 `ResourcesWorkspace({initialResources,teamId,projectId?,scopeName})`、`ResourcePicker({projectId,selectedIds,onChange,disabled?,onUploadingChange?})` 和 `ResourceMarkdown({text,idPrefix?})`。公开 `resources/views` 提供 `TeamResourcesView/ProjectResourcesView({params})`，路由只做壳。
 
 ---
 

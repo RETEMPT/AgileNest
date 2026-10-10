@@ -338,3 +338,86 @@ export const personalContacts = pgTable("personal_contacts", {
   github: text("github").notNull().default(""),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+import { boolean, jsonb } from "drizzle-orm/pg-core";
+
+// identity：团队资料和公告不复用私有个人资料。
+export const teamProfiles = pgTable("team_profiles", {
+  teamId: uuid("team_id").primaryKey().references(() => teams.id, { onDelete: "cascade" }),
+  description: text("description").notNull().default(""),
+  website: text("website"),
+  contactEmail: text("contact_email"),
+  version: integer("version").notNull().default(1),
+  inviteExpiresOn: date("invite_expires_on"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+export const teamAnnouncements = pgTable("team_announcements", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  title: text("title").notNull(), body: text("body").notNull(),
+  pinned: boolean("pinned").notNull().default(false), version: integer("version").notNull().default(1),
+  authorId: uuid("author_id").references(() => users.id, { onDelete: "set null" }),
+  updatedById: uuid("updated_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(), updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("team_announcements_team_idx").on(t.teamId)]);
+
+// resources：文件内容不可覆盖，文档编辑保留历史；提交引用阻止删除证据。
+export const teamResources = pgTable("team_resources", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
+  kind: text("kind").$type<"file" | "document" | "link">().notNull(),
+  title: text("title").notNull(), body: text("body"), url: text("url"),
+  fileName: text("file_name"), mimeType: text("mime_type"), size: integer("size").notNull().default(0),
+  contentBase64: text("content_base64"),
+  tags: jsonb("tags").$type<string[]>().notNull().default([]),
+  category: text("category").notNull().default("general"),
+  version: integer("version").notNull().default(1),
+  createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  updatedById: uuid("updated_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(), updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("team_resources_scope_idx").on(t.teamId, t.projectId)]);
+export const resourceRevisions = pgTable("resource_revisions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  resourceId: uuid("resource_id").notNull().references(() => teamResources.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(), title: text("title").notNull(), body: text("body").notNull(),
+  createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("resource_revisions_version_idx").on(t.resourceId, t.version)]);
+export const resourceReferences = pgTable("resource_references", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  resourceId: uuid("resource_id").notNull().references(() => teamResources.id, { onDelete: "restrict" }),
+  submissionId: uuid("submission_id").notNull().references(() => taskSubmissions.id, { onDelete: "cascade" }),
+}, (t) => [uniqueIndex("resource_references_pair_idx").on(t.resourceId, t.submissionId)]);
+export const taskRequirements = pgTable("task_requirements", {
+  taskId: uuid("task_id").primaryKey().references(() => tasks.id, { onDelete: "cascade" }),
+  version: integer("version").notNull().default(1),
+  criteria: jsonb("criteria").$type<{ id: string; text: string }[]>().notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const taskSubmissions = pgTable("task_submissions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  taskId: uuid("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  submittedById: uuid("submitted_by_id").references(() => users.id, { onDelete: "set null" }),
+  submittedByName: text("submitted_by_name"),
+  submittedAt: timestamp("submitted_at").notNull().defaultNow(),
+  summary: text("summary").notNull(),
+  verification: text("verification").notNull(),
+  links: jsonb("links").$type<{ title: string; url: string }[]>().notNull(),
+  resources: jsonb("resources").$type<{ id: string; title: string; fileName: string | null; mimeType: string | null; size: number }[]>().notNull(),
+  criteria: jsonb("criteria").$type<{ id: string; text: string; met: boolean; note?: string }[]>().notNull(),
+  source: text("source").$type<"structured" | "legacy">().notNull(),
+}, (table) => [uniqueIndex("task_submissions_task_version_unique").on(table.taskId, table.version)]);
+
+export const taskSubmissionReviews = pgTable("task_submission_reviews", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  submissionId: uuid("submission_id").notNull().references(() => taskSubmissions.id, { onDelete: "cascade" }),
+  reviewerId: uuid("reviewer_id").references(() => users.id, { onDelete: "set null" }),
+  reviewerName: text("reviewer_name"),
+  action: text("action").$type<"accept" | "reject">().notNull(),
+  summary: text("summary").notNull(),
+  checks: jsonb("checks").$type<{ criterionId: string; passed: boolean; note?: string }[]>().notNull(),
+  reviewedAt: timestamp("reviewed_at").notNull().defaultNow(),
+}, (table) => [uniqueIndex("task_submission_reviews_submission_unique").on(table.submissionId)]);

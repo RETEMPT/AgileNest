@@ -65,6 +65,8 @@ node scripts/migrate-profiles.mjs
 node scripts/migrate-profiles.mjs --test
 node scripts/migrate-schedules.mjs
 node scripts/migrate-schedules.mjs --test
+node scripts/migrate-business.mjs
+node scripts/migrate-business.mjs --test
 .\start.bat
 ```
 

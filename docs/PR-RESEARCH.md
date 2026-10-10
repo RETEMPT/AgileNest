@@ -67,3 +67,9 @@
 整合时修复日程页查询固定从今天开始造成历史月份遗漏、月格与日程未共用筛选、完整任务跨度先展开再裁剪的性能问题，以及非法日期边界。新增六条集成用例和六条 HTTP 用例；API 路由只转发模块入口。配色转换为既有品牌 tokens，没有采用额外 UI 包、跨天个人日程或绕过任务状态机的改动。
 
 便携包遵循 Next.js standalone 静态资源说明；Node 校验官方 SHA256，数据库来自官方推荐的 EDB Windows 二进制。运行环境来源、版本与版权在 [RELEASE.md](RELEASE.md) 和包内 licenses 留档。
+
+## 成果验收与资料整理参考 · rc.6
+
+本轮核对 [Plane 任务详情](https://docs.plane.so/work-items/work-item-details)、[Plane Pages](https://docs.plane.so/pages/overview)、[Linear 看板](https://linear.app/docs/board-layout) 和 [Marker 仓库](https://github.com/datalab-to/marker)。采用任务详情内证据/活动分层、资料分类与文档历史、同一数据多视图及保留筛选的快速详情；实现与本仓五态、职务权限和指定提交版本验收相结合，未复制外部源码或引入产品运行时。
+
+Marker 用于真实转换产物兼容：用户可导入 Markdown 或含 markdown 内容的 JSON，预览后保存为共享文档；原文件单独保留。当前没有安装其 Python/PyTorch 环境或下载 OCR 模型，不把格式导入描述成 PDF 自动识别。任务提交引用服务器共享文件形成不可变成果快照，区别于 AI 页仅本机的 IndexedDB 资料。具体采用范围与接口见 [业务实施契约](BUSINESS-COMPLETION.md)。

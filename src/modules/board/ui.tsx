@@ -1,8 +1,8 @@
 "use client";
 
-import { useId, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   DndContext,
@@ -27,6 +27,7 @@ import {
   STATUS_DESCRIPTIONS,
   STATUS_LABELS,
   availableTransitions,
+  transitionNeedsDialog,
   type TaskDTO,
   type TransitionRule,
 } from "@/modules/tasks/client";
@@ -41,7 +42,10 @@ import {
   applyFilters,
   deriveColumns,
   getMoveTransition,
+  parseTaskQuery,
   serializeFilters,
+  taskDetailUrl,
+  workspaceUrl,
   type BoardFilters,
   type ColumnDef,
   type GroupBy,
@@ -53,6 +57,7 @@ type WorkspaceProps = {
   projectId: string;
   projectName: string;
   tasks: TaskDTO[];
+  selectedTask?: TaskDTO | null;
   role: TeamRole;
   actorId: string;
   members: AssigneeOption[];
@@ -111,7 +116,7 @@ function TaskTile({
   task: TaskDTO;
   draggable: boolean;
   showStatus: boolean;
-  onOpen: () => void;
+  onOpen: (trigger: HTMLElement) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: task.id, disabled: !draggable });
@@ -128,7 +133,7 @@ function TaskTile({
       <div className="flex items-start gap-2">
         <button
           type="button"
-          onClick={onOpen}
+          onClick={(event) => onOpen(event.currentTarget)}
           title={task.title}
           className="min-w-0 flex-1 rounded text-left text-sm font-semibold leading-6 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
@@ -225,6 +230,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
     projectId,
     projectName,
     tasks,
+    selectedTask,
     role,
     actorId,
     members,
@@ -234,13 +240,18 @@ export function ProjectWorkspace(props: WorkspaceProps) {
     view,
   } = props;
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const notify = useFeedback();
   const id = useId();
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [openedId, setOpenedId] = useState<string | null>(null);
+  const openedId = parseTaskQuery(new URLSearchParams(searchParams));
   const [createOpen, setCreateOpen] = useState(false);
   const [createBusy, setCreateBusy] = useState(false);
   const createReturnFocus = useRef<HTMLElement | null>(null);
+  const workspaceRef = useRef<HTMLElement | null>(null);
+  const detailReturnFocus = useRef<HTMLElement | null>(null);
+  const hadDetail = useRef(false);
   const [dialog, setDialog] = useState<{
     task: TaskDTO;
     rule: TransitionRule;
@@ -267,11 +278,20 @@ export function ProjectWorkspace(props: WorkspaceProps) {
         milestones.find((milestone) => milestone.id === column.id)?.title ||
         "无里程碑";
   const activeTask = tasks.find((task) => task.id === activeId);
-  const openedTask = tasks.find((task) => task.id === openedId);
+  const openedTask = tasks.find((task) => task.id === openedId) ?? (selectedTask?.id === openedId && selectedTask.projectId === projectId ? selectedTask : null);
+  useEffect(() => {
+    if (openedTask) hadDetail.current = true;
+    else if (hadDetail.current) {
+      hadDetail.current = false;
+      if (detailReturnFocus.current?.isConnected) detailReturnFocus.current.focus();
+      else workspaceRef.current?.focus();
+    }
+  }, [openedTask]);
   const query = serializeFilters(filters);
   if (groupBy !== "status") query.set("groupBy", groupBy);
+  if (openedId) query.set("task", openedId);
   const suffix = query.size ? `?${query}` : "";
-  const resetHref = `/p/${projectId}/${view}${groupBy === "status" ? "" : `?groupBy=${groupBy}`}`;
+  const resetHref = workspaceUrl({ projectId, view, filters: {}, groupBy, taskId: openedId });
   const selectedFilters = [
     ...(filters.q ? [{ name: "q", value: filters.q, label: `搜索：${filters.q}` }] : []),
     ...(filters.status ?? []).map((status) => ({
@@ -305,6 +325,17 @@ export function ProjectWorkspace(props: WorkspaceProps) {
     return `/p/${projectId}/${view}${next.size ? `?${next}` : ""}`;
   }
 
+  function openTask(taskId: string, trigger: HTMLElement) {
+    detailReturnFocus.current = trigger;
+    const next = taskDetailUrl(pathname, new URLSearchParams(searchParams), taskId);
+    if (openedId) router.replace(next, { scroll: false });
+    else router.push(next, { scroll: false });
+  }
+
+  function closeTask() {
+    router.replace(taskDetailUrl(pathname, new URLSearchParams(searchParams), null), { scroll: false });
+  }
+
   function move(event: DragEndEvent) {
     setActiveId(null);
     const task = tasks.find((task) => task.id === event.active.id);
@@ -317,7 +348,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
       setNotice({ error: "当前状态或权限不允许移到该列", ok: "" });
       return;
     }
-    if (rule.noteRequired || rule.setsAssignee || rule.action === "reopen" || rule.action === "unclaim") {
+    if (transitionNeedsDialog(rule)) {
       setDialog({ task, rule });
       return;
     }
@@ -329,7 +360,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
   }
 
   return (
-    <main className="min-w-0 space-y-5">
+    <main ref={workspaceRef} tabIndex={-1} className="min-w-0 space-y-5 focus:outline-none">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="mb-1 break-words text-sm text-muted-foreground">
@@ -383,7 +414,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-3">
             <Button asChild variant="ghost" size="sm">
-              <Link href={`/p/${projectId}/tasks`}>任务池</Link>
+              <Link href={workspaceUrl({ projectId, view: "tasks", filters, groupBy, taskId: openedId })}>任务池</Link>
             </Button>
             <nav aria-label="任务视图" className="flex gap-1 rounded-lg bg-muted p-1">
               <Button asChild variant={view === "board" ? "outline" : "ghost"} size="sm">
@@ -405,11 +436,12 @@ export function ProjectWorkspace(props: WorkspaceProps) {
           </span>
         </div>
         <form
-          key={suffix}
+          key={`${groupBy}:${serializeFilters(filters)}`}
           action={`/p/${projectId}/${view}`}
           method="get"
           className="grid grid-cols-2 items-end gap-3 sm:flex sm:flex-wrap"
         >
+          {openedId && <input type="hidden" name="task" value={openedId} />}
           <div className="col-span-2 min-w-0 sm:min-w-44 sm:flex-1">
             <label
               className="mb-1 block text-xs text-muted-foreground"
@@ -513,6 +545,12 @@ export function ProjectWorkspace(props: WorkspaceProps) {
         {pending && <p className="text-sm text-brand">正在更新任务…</p>}
         <FormFeedback message={notice?.error} />
         <FormFeedback message={notice?.ok} tone="success" />
+        {searchParams.has("task") && !openedTask && (
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-sm text-muted-foreground">此任务暂不可用，可能已删除或不属于当前可访问的项目。</p>
+            <Button variant="outline" size="sm" onClick={closeTask}>关闭任务提示</Button>
+          </div>
+        )}
       </div>
       {tasks.length === 0 ? (
         <EmptyState icon={<LayoutGrid className="h-6 w-6" />} title="项目尚无任务" description="创建一个可交付任务，成员即可认领并按流程提交验收。" actionText="新建任务" onAction={() => setCreateOpen(true)} />
@@ -574,7 +612,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
                               availableTransitions(task, role, actorId).length >
                                 0
                             }
-                            onOpen={() => setOpenedId(task.id)}
+                            onOpen={(trigger) => openTask(task.id, trigger)}
                           />
                         ))}
                       </BoardColumn>
@@ -614,7 +652,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
                       <td className="p-3">
                         <button
                           type="button"
-                          onClick={() => setOpenedId(task.id)}
+                          onClick={(event) => openTask(task.id, event.currentTarget)}
                           className="max-w-96 rounded text-left font-medium leading-6 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           {task.title}
@@ -645,7 +683,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
         members={members}
         milestoneName={milestones.find((milestone) => milestone.id === openedTask?.milestoneId)?.title}
         isOpen={Boolean(openedTask)}
-        onClose={() => setOpenedId(null)}
+        onClose={closeTask}
       />
       <Dialog.Root open={createOpen} onOpenChange={(value) => { if (!createBusy) setCreateOpen(value); }}>
         <Dialog.Portal>

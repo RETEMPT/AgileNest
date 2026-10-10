@@ -1,0 +1,191 @@
+"use client";
+
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import * as Dialog from "@radix-ui/react-dialog";
+import { z } from "zod";
+import { ArrowDownToLine, ArrowUpRight, Check, ChevronRight, File, FileText, FolderOpen, History, Link2, Plus, Search, UploadCloud, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { FormFeedback, useFeedback } from "@/components/ui/feedback";
+import { RESOURCE_ACCEPT, RESOURCE_CATEGORIES, RESOURCE_MAX_BYTES, csvPreview, findTextLines, formatBytes, markerMarkdown, safeResourceUrl, textOutline, type ResourceDTO, type ResourceCategory } from "./client";
+
+const dtoSchema = z.object({
+  id: z.uuid(), teamId: z.uuid(), projectId: z.uuid().nullable(), kind: z.enum(["file", "document", "link"]),
+  title: z.string(), body: z.string().nullable(), url: z.string().nullable(), fileName: z.string().nullable(), mimeType: z.string().nullable(),
+  size: z.number(), tags: z.array(z.string()), category: z.enum(["general", "specification", "research", "delivery", "meeting"]), version: z.number(),
+  createdById: z.string().nullable(), authorName: z.string().nullable(), updatedAt: z.string(), createdAt: z.string(), canManage: z.boolean(), referenced: z.boolean(),
+});
+async function responseJson(response: Response): Promise<unknown> {
+  const data: unknown = await response.json();
+  if (!response.ok) throw new Error(typeof data === "object" && data !== null && "error" in data && typeof data.error === "string" ? data.error : "操作暂时无法完成，请重试");
+  return data;
+}
+async function uploadFile(file: File, scope: { teamId?: string; projectId?: string }) {
+  if (file.size > RESOURCE_MAX_BYTES || !file.size) throw new Error("文件需大于 0 字节且不超过 10 MB");
+  const form = new FormData(); form.set("file", file);
+  if (scope.projectId) form.set("projectId", scope.projectId); else if (scope.teamId) form.set("teamId", scope.teamId);
+  return z.object({ resource: dtoSchema }).parse(await responseJson(await fetch("/api/v1/resources", { method: "POST", body: form }))).resource;
+}
+function inline(text: string): ReactNode[] {
+  return text.split(/(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^\s)]+\))/g).map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) return <strong key={i}>{part.slice(2, -2)}</strong>;
+    if (part.startsWith("`") && part.endsWith("`")) return <code key={i} className="rounded bg-muted px-1.5 py-0.5 text-[0.9em]">{part.slice(1, -1)}</code>;
+    const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (link && safeResourceUrl(link[2])) return <a key={i} href={link[2]} target="_blank" rel="noopener noreferrer" className="text-brand underline underline-offset-4">{link[1]}</a>;
+    return part;
+  });
+}
+export function ResourceMarkdown({ text, idPrefix = "resource" }: { text: string; idPrefix?: string }) {
+  const lines = text.split("\n"); const blocks: ReactNode[] = []; let code: string[] | null = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith("```")) { if (code) { blocks.push(<pre key={i} className="overflow-x-auto rounded-xl border border-border bg-muted p-4 text-xs leading-6"><code>{code.join("\n")}</code></pre>); code = null; } else code = []; continue; }
+    if (code) { code.push(line); continue; }
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) { const Tag = heading[1].length === 1 ? "h2" : heading[1].length === 2 ? "h3" : "h4"; blocks.push(<Tag id={`${idPrefix}-line-${i + 1}`} key={i} className={`scroll-mt-4 font-semibold ${Tag === "h2" ? "pt-3 text-xl" : Tag === "h3" ? "pt-2 text-lg" : "text-base"}`}>{inline(heading[2])}</Tag>); }
+    else if (/^\s*[-*]\s+\[[ xX]\]/.test(line)) blocks.push(<p key={i} className="flex gap-2"><span aria-label={/\[[xX]\]/.test(line) ? "已勾选" : "未勾选"} className="mt-0.5 text-brand">{/\[[xX]\]/.test(line) ? "☑" : "□"}</span><span>{inline(line.replace(/^\s*[-*]\s+\[[ xX]\]\s*/, ""))}</span></p>);
+    else if (/^\s*[-*]\s/.test(line)) blocks.push(<p key={i} className="flex gap-3 pl-1"><span className="text-muted-foreground">•</span><span>{inline(line.replace(/^\s*[-*]\s+/, ""))}</span></p>);
+    else if (line.startsWith("> ")) blocks.push(<blockquote key={i} className="border-l-2 border-brand/40 pl-4 text-muted-foreground">{inline(line.slice(2))}</blockquote>);
+    else if (/^---+$/.test(line.trim())) blocks.push(<hr key={i} className="border-border" />);
+    else if (line.trim()) blocks.push(<p id={`${idPrefix}-line-${i + 1}`} key={i} className="whitespace-pre-wrap">{inline(line)}</p>);
+    else blocks.push(<div key={i} className="h-1" />);
+  }
+  if (code) blocks.push(<pre key="last-code" className="overflow-x-auto rounded-xl bg-muted p-4 text-xs"><code>{code.join("\n")}</code></pre>);
+  return <div className="space-y-2 break-words text-sm leading-7 [overflow-wrap:anywhere]">{blocks}</div>;
+}
+
+export function ResourcePicker({ projectId, selectedIds, onChange, disabled = false, onUploadingChange }: { projectId: string; selectedIds: string[]; onChange: (ids: string[]) => void; disabled?: boolean; onUploadingChange?: (uploading: boolean) => void }) {
+  const [state, setState] = useState<{ projectId: string; rows: ResourceDTO[]; error?: string } | null>(null);
+  const [uploading, setUploading] = useState(false); const [reload, setReload] = useState(0); const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { onUploadingChange?.(uploading); return () => onUploadingChange?.(false); }, [uploading, onUploadingChange]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch(`/api/v1/resources?projectId=${encodeURIComponent(projectId)}`, { signal: controller.signal }).then(responseJson).then((data) => {
+      const parsed = z.object({ resources: z.array(dtoSchema) }).parse(data);
+      if (!controller.signal.aborted) setState({ projectId, rows: parsed.resources.filter((row) => row.kind === "file") });
+    }).catch((e: unknown) => { if (!controller.signal.aborted) setState({ projectId, rows: [], error: e instanceof Error ? e.message : "资料加载失败" }); });
+    return () => controller.abort();
+  }, [projectId, reload]);
+  const current = state?.projectId === projectId ? state : null;
+  return <div className="space-y-3 rounded-xl border border-border bg-muted/25 p-3">
+    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-medium">成果文件 <span className="text-muted-foreground">{selectedIds.length}/10</span></p><Button type="button" variant="outline" size="sm" disabled={disabled || uploading} loading={uploading} onClick={() => inputRef.current?.click()}><UploadCloud className="h-4 w-4" />上传文件</Button></div>
+    <input ref={inputRef} type="file" accept={RESOURCE_ACCEPT} className="hidden" aria-label="上传成果文件" onChange={async (event) => {
+      const file = event.target.files?.[0]; if (!file) return; setUploading(true);
+      try { const item = await uploadFile(file, { projectId }); if (selectedIds.length < 10) onChange([...selectedIds, item.id]); setReload((v) => v + 1); }
+      catch (e) { setState({ projectId, rows: current?.rows ?? [], error: e instanceof Error ? e.message : "文件上传失败" }); }
+      finally { setUploading(false); event.target.value = ""; }
+    }} />
+    {!current ? <p role="status" className="text-xs text-muted-foreground">正在加载可用文件…</p> : <>
+      <FormFeedback message={current.error} />{current.error && <Button type="button" variant="ghost" size="sm" onClick={() => setReload((v) => v + 1)}>重新加载</Button>}
+      <div className="max-h-40 space-y-1 overflow-y-auto">{current.rows.map((item) => <label key={item.id} className="flex cursor-pointer items-center gap-2 rounded-lg p-2 text-xs hover:bg-accent"><input type="checkbox" checked={selectedIds.includes(item.id)} disabled={disabled || uploading || (!selectedIds.includes(item.id) && selectedIds.length >= 10)} onChange={(event) => onChange(event.target.checked ? [...selectedIds, item.id] : selectedIds.filter((id) => id !== item.id))} /><File className="h-4 w-4 shrink-0 text-muted-foreground" /><span className="min-w-0 flex-1 truncate">{item.title}</span><span className="shrink-0 text-muted-foreground">{formatBytes(item.size)}</span></label>)}</div>
+      {!current.rows.length && !current.error && <p className="text-xs text-muted-foreground">暂无共享文件，可上传报告、截图或成果包。</p>}
+    </>}
+    <p className="text-xs leading-5 text-muted-foreground">单文件最多 10 MB。上传后保存到项目资料，提交取消后仍可在那里管理。</p>
+  </div>;
+}
+
+type Revision = { id: string; version: number; title: string; body: string; createdAt: string; authorName: string | null };
+const revisionSchema = z.object({ revisions: z.array(z.object({ id: z.uuid(), version: z.number(), title: z.string(), body: z.string(), createdAt: z.string(), authorName: z.string().nullable() })) });
+const inputClass = "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/40";
+function JsonPreview({ value, label = "JSON", depth = 0 }: { value: unknown; label?: string; depth?: number }) {
+  if (value === null || typeof value !== "object") return <p className="break-words py-1 font-mono text-xs [overflow-wrap:anywhere]"><span className="text-muted-foreground">{label}: </span>{JSON.stringify(value)?.slice(0, 500)}</p>;
+  const entries = Object.entries(value);
+  return <details open={depth < 2} className="rounded-lg border border-border bg-muted/15 p-3"><summary className="cursor-pointer font-mono text-xs"><span className="text-brand">{label}</span> · {Array.isArray(value) ? "数组" : "对象"} · {entries.length} 项</summary><div className="mt-2 space-y-2 border-l border-border pl-3">{depth < 8 ? entries.slice(0, 50).map(([key, item]) => <JsonPreview key={key} label={key} value={item} depth={depth + 1} />) : <p className="text-xs text-muted-foreground">嵌套内容请下载原文件查看。</p>}{entries.length > 50 && <p className="text-xs text-muted-foreground">当前层展示前 50 项，原文件内容完整保留。</p>}</div></details>;
+}
+type Editor = { id?: string; version?: number; kind: "document" | "link" | "file"; title: string; body: string; url: string; tags: string; category: ResourceCategory };
+export function ResourcesWorkspace({ initialResources, teamId, projectId, scopeName }: { initialResources: ResourceDTO[]; teamId: string; projectId?: string; scopeName: string }) {
+  const [resources, setResources] = useState(initialResources); const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [search, setSearch] = useState(""); const [category, setCategory] = useState("all"); const [kind, setKind] = useState("all");
+  const [editor, setEditor] = useState<Editor | null>(null); const [preview, setPreview] = useState(false); const [pending, setPending] = useState(false);
+  const [latestVersion, setLatestVersion] = useState<ResourceDTO | null>(null);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const editorBaseline = useRef(""); const returnFocus = useRef<HTMLElement | null>(null); const newDocumentButton = useRef<HTMLButtonElement>(null);
+  const [error, setError] = useState(""); const [editorError, setEditorError] = useState(""); const [query, setQuery] = useState(""); const [page, setPage] = useState(0);
+  const [history, setHistory] = useState<{ resourceId: string; revisions: Revision[] } | null>(null); const [historyError, setHistoryError] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<ResourceDTO | null>(null); const [dragging, setDragging] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null); const importInput = useRef<HTMLInputElement>(null); const feedback = useFeedback();
+  const selected = resources.find((item) => item.id === selectedId) ?? null;
+  const scope = projectId ? { projectId } : { teamId };
+  const visible = resources.filter((item) => (category === "all" || item.category === category) && (kind === "all" || item.kind === kind) && `${item.title} ${item.tags.join(" ")} ${item.body ?? ""}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
+  function saveRow(row: ResourceDTO) { setResources((rows) => [row, ...rows.filter((item) => item.id !== row.id)]); setSelectedId(row.id); setHistory(null); setPage(0); setQuery(""); }
+  async function upload(files: File[]) {
+    if (!files.length || pending) return; setPending(true); setError("");
+    if (files.length > 10) { setError("一次最多上传 10 份文件"); setPending(false); return; }
+    let completed = 0;
+    try { for (const file of files) { saveRow(await uploadFile(file, scope)); completed++; } feedback(`已上传 ${completed} 份共享资料`); }
+    catch (e) { setError(`${e instanceof Error ? e.message : "上传失败"}${completed ? `；已有 ${completed} 份保存成功` : ""}`); }
+    finally { setPending(false); }
+  }
+  function openEditor(row?: ResourceDTO) { if (!selected) returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; const next: Editor = row ? { id: row.id, version: row.version, kind: row.kind, title: row.title, body: row.body ?? "", url: row.url ?? "", tags: row.tags.join("，"), category: row.category } : { kind: "document", title: "", body: "", url: "", tags: "", category: "general" }; editorBaseline.current = JSON.stringify(next); setEditor(next); setEditorError(""); setPreview(false); setLatestVersion(null); }
+  function closeEditor() { if (pending) return; if (editor && JSON.stringify(editor) !== editorBaseline.current) setDiscardOpen(true); else setEditor(null); }
+  function restoreFocus(event: Event) { event.preventDefault(); requestAnimationFrame(() => { if (document.querySelector("[data-resource-dialog]")) return; (returnFocus.current?.isConnected ? returnFocus.current : newDocumentButton.current)?.focus(); }); }
+  async function saveEditor() {
+    if (!editor || pending) return; setPending(true); setEditorError("");
+    const tags = editor.tags.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean);
+    const payload = { ...scope, kind: editor.kind, title: editor.title, ...(editor.kind === "document" ? { body: editor.body } : {}), ...(editor.kind === "link" ? { url: editor.url } : {}), tags, category: editor.category, ...(editor.id ? { version: editor.version } : {}) };
+    try { const data = await responseJson(await fetch(editor.id ? `/api/v1/resources/${editor.id}` : "/api/v1/resources", { method: editor.id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })); saveRow(z.object({ resource: dtoSchema }).parse(data).resource); setEditor(null); feedback("资料已保存，团队成员可查看"); }
+    catch (e) { setEditorError(e instanceof Error ? e.message : "保存失败，输入已保留"); }
+    finally { setPending(false); }
+  }
+  const outline = selected?.body ? textOutline(selected.body) : [];
+  const matches = selected?.body ? findTextLines(selected.body, query) : { count: 0, matches: [] };
+  const lines = (selected?.body ?? "").split("\n");
+  let table: ReturnType<typeof csvPreview> | null = null; let tableError = "";
+  if (selected?.mimeType === "text/csv" || selected?.mimeType === "text/tab-separated-values") { try { table = csvPreview(selected.body ?? "", selected.mimeType === "text/csv" ? "," : "\t"); } catch (e) { tableError = e instanceof Error ? e.message : "表格解析失败"; } }
+  return <main className="min-w-0 space-y-5">
+    <header className="flex flex-wrap items-start justify-between gap-4"><div><p className="mb-1 text-xs text-muted-foreground">{scopeName} / 资料与文档</p><h1 className="text-2xl font-semibold tracking-tight">资料中心</h1><p className="mt-2 text-sm text-muted-foreground">把需求、参考资料与交付证据保留在团队的同一个工作空间。</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" disabled={pending} onClick={() => fileInput.current?.click()} loading={pending}><UploadCloud className="h-4 w-4" />上传资料</Button><Button ref={newDocumentButton} onClick={() => openEditor()} disabled={pending}><Plus className="h-4 w-4" />新建文档</Button></div></header>
+    <nav aria-label="团队空间导航" className="flex flex-wrap gap-4 text-xs text-muted-foreground"><Link href={`/t/${teamId}/projects`} className="hover:text-brand">团队项目</Link><Link href={`/t/${teamId}/members`} className="hover:text-brand">成员与分工</Link><Link href={`/t/${teamId}/settings`} className="hover:text-brand">团队资料与公告</Link>{projectId && <Link href={`/p/${projectId}/board`} className="hover:text-brand">返回项目任务</Link>}</nav>
+    <FormFeedback message={error} />
+    <input ref={fileInput} type="file" multiple accept={RESOURCE_ACCEPT} className="hidden" aria-label="上传共享资料" onChange={(e) => { void upload(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
+    <input ref={importInput} type="file" accept=".md,.markdown,.txt,.json" className="hidden" aria-label="导入 Markdown 或 Marker 整理结果" onChange={async (e) => {
+      const file = e.target.files?.[0]; if (!file) return;
+      try { if (file.size > RESOURCE_MAX_BYTES) throw new Error("整理文件最多 10 MB"); const raw = await file.text(); const body = file.name.endsWith(".json") ? markerMarkdown(raw) : raw; if (body.length > 200000) throw new Error("整理正文最多 20 万字"); returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; editorBaseline.current = ""; setLatestVersion(null); setEditor({ kind: "document", title: file.name.replace(/\.[^.]+$/, ""), body, url: "", tags: "整理结果", category: "research" }); setEditorError(""); setPreview(true); }
+      catch (e) { setError(e instanceof Error ? e.message : "导入失败"); } finally { e.target.value = ""; }
+    }} />
+    <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-3 sm:px-5"><div className="relative min-w-48 flex-1 sm:max-w-md"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><input aria-label="搜索名称、标签或正文" className={`${inputClass} pl-9`} placeholder="搜索名称、标签或正文" value={search} onChange={(e) => setSearch(e.target.value)} /></div><div className="flex flex-wrap gap-1 rounded-lg bg-muted p-1">{[["all", "全部"], ["document", "文档"], ["file", "文件"], ["link", "链接"]].map(([key, label]) => <button type="button" key={key} aria-pressed={kind === key} onClick={() => setKind(key)} className={`rounded-md px-3 py-1.5 text-xs transition ${kind === key ? "bg-card font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>{label}</button>)}</div></div>
+      <div className="grid min-h-[480px] min-w-0 lg:grid-cols-[180px_minmax(0,1fr)]">
+        <aside aria-label="资料分类" className="flex gap-1 overflow-x-auto border-b border-border bg-muted/20 p-3 lg:block lg:space-y-1 lg:border-b-0 lg:border-r"><button type="button" onClick={() => setCategory("all")} className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm lg:w-full ${category === "all" ? "bg-brand-soft text-brand" : "text-muted-foreground hover:bg-accent"}`}><FolderOpen className="h-4 w-4" />全部资料<span className="ml-auto text-xs">{resources.length}</span></button>{Object.entries(RESOURCE_CATEGORIES).map(([key, label]) => <button key={key} type="button" onClick={() => setCategory(key)} className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs lg:w-full ${category === key ? "bg-brand-soft text-brand" : "text-muted-foreground hover:bg-accent"}`}>{label}<span className="ml-auto">{resources.filter((row) => row.category === key).length}</span></button>)}<div className="hidden border-t border-border pt-4 lg:mt-5 lg:block"><button type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-brand hover:bg-accent" onClick={() => importInput.current?.click()}><ArrowDownToLine className="h-4 w-4" />导入整理结果</button><p className="px-3 pt-2 text-xs leading-5 text-muted-foreground">支持 Markdown 与 Marker JSON。原文件与整理正文分别保留。</p></div></aside>
+        <div className="min-w-0"><div className="flex items-center justify-between border-b border-border px-5 py-3 text-xs text-muted-foreground"><span>{visible.length} 份资料 · 团队内共享</span><button type="button" onClick={() => importInput.current?.click()} className="text-brand lg:hidden">导入整理结果</button></div>
+          {!resources.length && <div onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(e) => { e.preventDefault(); setDragging(false); void upload(Array.from(e.dataTransfer.files)); }} className={`m-5 flex min-h-80 flex-col items-center justify-center rounded-xl border border-dashed p-6 text-center transition ${dragging ? "border-brand bg-brand-soft" : "border-border bg-muted/15"}`}><UploadCloud className="mb-4 h-10 w-10 text-brand/70" /><h2 className="font-semibold">为团队建立第一份共享资料</h2><p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">拖入报告、设计稿或参考资料，也可以从一份可编辑文档开始。</p><div className="mt-5 flex gap-2"><Button variant="outline" disabled={pending} onClick={() => fileInput.current?.click()}>选择文件</Button><Button onClick={() => openEditor()}>新建文档</Button></div><p className="mt-4 text-xs text-muted-foreground">PDF、图片、Office、文本与 ZIP · 单文件 10 MB</p></div>}
+          {!!resources.length && !visible.length && <p className="p-12 text-center text-sm text-muted-foreground">没有匹配的资料，可调整分类或搜索条件。</p>}
+          <ul className="divide-y divide-border">{visible.map((item) => <li key={item.id}><button type="button" onClick={(event) => { returnFocus.current = event.currentTarget; setSelectedId(item.id); setPage(0); setQuery(""); setHistory(null); setHistoryError(""); }} className="group flex w-full items-center gap-3 px-4 py-4 text-left transition hover:bg-accent/60 sm:px-5"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand/10 bg-brand-soft text-brand">{item.kind === "document" ? <FileText className="h-5 w-5" /> : item.kind === "link" ? <Link2 className="h-5 w-5" /> : <File className="h-5 w-5" />}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{item.title}</span><span className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground"><span>{RESOURCE_CATEGORIES[item.category]}</span><span>{item.authorName ?? "原成员"}</span><span>{item.kind === "file" ? formatBytes(item.size) : `v${item.version}`}</span>{item.tags.map((tag) => <span key={tag} className="text-brand">#{tag}</span>)}</span></span><span className="hidden text-xs text-muted-foreground sm:block">{item.updatedAt.slice(0, 10)}</span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" /></button></li>)}</ul>
+          {!!resources.length && <div className="border-t border-border bg-muted/15 px-5 py-3 text-xs text-muted-foreground">文件可作为任务提交证据；文档编辑会保留版本。PDF/Office 未提取正文时提供原文件预览或下载。</div>}
+        </div>
+      </div>
+    </section>
+
+    <Dialog.Root open={!!selected && !editor && !deleteTarget} onOpenChange={(open) => { if (!open) setSelectedId(null); }}>
+      <Dialog.Portal><Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-black/35" /><Dialog.Content data-resource-dialog onCloseAutoFocus={restoreFocus} aria-describedby={undefined} className="drawer-surface fixed inset-y-0 right-0 z-50 flex w-full max-w-[900px] flex-col border-l border-border bg-card shadow-xl">
+        <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-6"><div className="min-w-0"><p className="text-xs text-muted-foreground">{scopeName} / {selected ? RESOURCE_CATEGORIES[selected.category] : "资料"}</p><Dialog.Title className="mt-1 truncate text-lg font-semibold">{selected?.title}</Dialog.Title></div><Dialog.Close asChild><Button variant="ghost" size="icon" aria-label="关闭资料详情"><X className="h-4 w-4" /></Button></Dialog.Close></header>
+        {selected && <><div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3 text-xs sm:px-6"><span className="text-muted-foreground">{selected.authorName ?? "原成员"} · {selected.kind === "file" ? formatBytes(selected.size) : `版本 ${selected.version}`} · {selected.updatedAt.slice(0, 10)}</span><div className="flex flex-wrap gap-2">{selected.kind === "file" && <Button asChild size="sm" variant="outline"><a href={`/api/v1/resources/${selected.id}/file?download=1`}><ArrowDownToLine className="h-3.5 w-3.5" />下载原文件</a></Button>}{selected.canManage && <Button variant="outline" size="sm" onClick={() => openEditor(selected)}>编辑{selected.kind === "file" ? "属性" : "文档"}</Button>}{selected.kind === "document" && <Button size="sm" variant="ghost" onClick={async () => { setHistoryError(""); try { const data = revisionSchema.parse(await responseJson(await fetch(`/api/v1/resources/${selected.id}?history=1`))); setHistory({ resourceId: selected.id, revisions: data.revisions }); } catch (e) { setHistoryError(e instanceof Error ? e.message : "历史加载失败"); } }}><History className="h-4 w-4" />历史</Button>}{selected.canManage && <Button variant="ghost" size="sm" disabled={selected.referenced} title={selected.referenced ? "此文件已作为提交证据，不能删除" : undefined} onClick={() => { setDeleteTarget(selected); setError(""); }}>删除</Button>}</div></div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+            <FormFeedback message={historyError} />{selected.referenced && <p className="mb-4 rounded-lg bg-brand-soft p-3 text-xs leading-5 text-brand">此文件已被任务提交引用，原内容和文件会保留，无法删除。</p>}
+            {history?.resourceId === selected.id && <details open className="mb-5 rounded-xl border border-border p-4"><summary className="cursor-pointer text-sm font-medium">文档版本 · {history.revisions.length} 次保存</summary><ol className="mt-3 space-y-2">{history.revisions.map((revision) => <li key={revision.id}><details className="rounded-lg bg-muted/40 p-3"><summary className="cursor-pointer text-xs">v{revision.version} · {revision.authorName ?? "原成员"} · {revision.createdAt.slice(0, 10)}</summary><div className="mt-3"><ResourceMarkdown text={revision.body} idPrefix={`revision-${revision.id}`} /></div></details></li>)}</ol></details>}
+            {selected.kind === "link" && selected.url && safeResourceUrl(selected.url) && <div className="rounded-xl border border-border bg-muted/25 p-6"><Link2 className="mb-3 h-8 w-8 text-brand" /><p className="mb-4 break-all text-sm text-muted-foreground">{selected.url}</p><Button asChild><a href={selected.url} target="_blank" rel="noopener noreferrer">打开外部资料<ArrowUpRight className="h-4 w-4" /></a></Button></div>}
+            {selected.kind === "file" && selected.mimeType?.startsWith("image/") && <Image unoptimized width={1000} height={800} src={`/api/v1/resources/${selected.id}/file`} alt={selected.title} className="mx-auto h-auto max-h-[65dvh] max-w-full rounded-xl border border-border object-contain" />}
+            {selected.kind === "file" && selected.mimeType === "application/pdf" && <><p className="mb-3 text-xs text-muted-foreground">原 PDF 预览，尚未提取文字。预览不可用时可下载原文件；已有转换结果可用“导入整理结果”保存。</p><iframe title={`${selected.title} PDF 预览`} src={`/api/v1/resources/${selected.id}/file`} className="h-[65dvh] w-full rounded-xl border border-border" /></>}
+            {selected.mimeType === "application/json" && selected.body && <JsonPreview value={JSON.parse(selected.body) as unknown} />}{selected.body !== null && selected.mimeType !== "application/json" && <>
+              {selected.kind === "document" || selected.mimeType === "text/markdown" ? <><details className="mb-4 rounded-lg border border-border p-3"><summary className="cursor-pointer text-xs font-medium">正文目录 · {outline.length} 节</summary><nav className="mt-3 space-y-2">{outline.map((entry) => <a key={entry.line} href={`#current-${selected.id}-line-${entry.line}`} className="block text-xs text-brand">{entry.title}</a>)}{!outline.length && <p className="text-xs text-muted-foreground">正文尚未包含章节标题。</p>}</nav></details><ResourceMarkdown text={selected.body} idPrefix={`current-${selected.id}`} /></> : table ? <><p className="mb-3 text-xs text-muted-foreground">{table.count} 行 · {table.columns} 列，预览前 50 行</p><div className="overflow-x-auto rounded-lg border border-border"><table className="min-w-full divide-y divide-border text-xs"><tbody>{table.rows.map((row, i) => <tr key={i} className={i === 0 ? "bg-muted font-medium" : "border-t border-border"}>{row.map((cell, j) => <td key={j} className="max-w-80 break-words border-r border-border px-3 py-2">{cell}</td>)}</tr>)}</tbody></table></div></> : <><FormFeedback message={tableError} /><div className="mb-3 flex gap-2"><input aria-label="搜索文件正文" className={inputClass} placeholder="搜索正文关键词" value={query} onChange={(e) => setQuery(e.target.value)} /><Button variant="outline" disabled={!page} onClick={() => setPage((v) => v - 1)}>上一页</Button><Button variant="outline" disabled={(page + 1) * 100 >= lines.length} onClick={() => setPage((v) => v + 1)}>下一页</Button></div>{query && <div className="mb-3 max-h-36 overflow-auto rounded-lg bg-brand-soft p-3 text-xs"><p className="mb-2 text-brand">{matches.count} 处匹配</p>{matches.matches.map((match) => <button key={match.line} type="button" className="block w-full truncate py-1 text-left" onClick={() => setPage(Math.floor((match.line - 1) / 100))}>第 {match.line} 行：{match.text}</button>)}</div>}<pre className="overflow-x-auto rounded-xl bg-muted/40 p-4 text-xs leading-6">{lines.slice(page * 100, (page + 1) * 100).join("\n")}</pre><p className="mt-2 text-xs text-muted-foreground">第 {page + 1}/{Math.ceil(lines.length / 100)} 页 · {lines.length} 行</p></>}
+            </>}
+            {selected.kind === "file" && selected.body === null && !selected.mimeType?.startsWith("image/") && selected.mimeType !== "application/pdf" && <div className="rounded-xl border border-dashed border-border p-8 text-center"><File className="mx-auto mb-4 h-10 w-10 text-brand" /><p className="text-sm">此格式保留原文件供团队下载。</p><p className="mt-2 text-xs text-muted-foreground">如需整理正文，请先转换为 Markdown 或 JSON 后导入。</p></div>}
+          </div></>}
+      </Dialog.Content></Dialog.Portal>
+    </Dialog.Root>
+
+    <Dialog.Root open={!!editor} onOpenChange={(open) => { if (!open) closeEditor(); }}>
+      <Dialog.Portal><Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-black/35" /><Dialog.Content data-resource-dialog onCloseAutoFocus={restoreFocus} aria-describedby={undefined} onEscapeKeyDown={(e) => { if (pending) e.preventDefault(); }} onPointerDownOutside={(e) => { if (pending) e.preventDefault(); }} className="dialog-surface fixed left-1/2 top-1/2 z-50 flex max-h-[92dvh] w-[calc(100%-1rem)] max-w-4xl -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl border border-border bg-card shadow-2xl">
+        <header className="flex shrink-0 items-center justify-between border-b border-border p-4 sm:px-6"><div><Dialog.Title className="font-semibold">{editor?.id ? "编辑资料" : "新建共享文档"}</Dialog.Title><p className="mt-1 text-xs text-muted-foreground">{scopeName} · 保存后团队成员可查看</p></div><Dialog.Close asChild><Button variant="ghost" size="icon" disabled={pending} aria-label="关闭资料编辑"><X className="h-4 w-4" /></Button></Dialog.Close></header>
+        {editor && <form className="flex min-h-0 flex-1 flex-col" onSubmit={(e) => { e.preventDefault(); void saveEditor(); }}><div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-6"><label className="block text-xs font-medium">资料名称<input className={`${inputClass} mt-2`} required maxLength={160} value={editor.title} onChange={(e) => setEditor({ ...editor, title: e.target.value })} placeholder="例如：项目验收说明" disabled={pending} /></label>
+          <div className="grid gap-3 sm:grid-cols-3"><label className="block text-xs font-medium">分类<select className={`${inputClass} mt-2`} value={editor.category} disabled={pending} onChange={(e) => setEditor({ ...editor, category: e.target.value as ResourceCategory })}>{Object.entries(RESOURCE_CATEGORIES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><label className="block text-xs font-medium">资料类型<select className={`${inputClass} mt-2`} value={editor.kind} disabled={!!editor.id || pending} onChange={(e) => setEditor({ ...editor, kind: e.target.value as Editor["kind"] })}><option value="document">文档</option><option value="link">外部链接</option>{editor.kind === "file" && <option value="file">文件属性</option>}</select></label><label className="block text-xs font-medium">标签<input className={`${inputClass} mt-2`} placeholder="逗号分隔，最多 8 个" value={editor.tags} disabled={pending} onChange={(e) => setEditor({ ...editor, tags: e.target.value })} /></label></div>
+          {editor.kind === "link" && <label className="block text-xs font-medium">资料链接<input className={`${inputClass} mt-2`} required type="url" placeholder="https://" value={editor.url} disabled={pending} onChange={(e) => setEditor({ ...editor, url: e.target.value })} /></label>}
+          {editor.kind === "document" && <div className="overflow-hidden rounded-xl border border-border"><div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/30 p-2"><div className="flex gap-1">{[["# ", "标题"], ["- ", "列表"], ["- [ ] ", "清单"], ["```\n\n```", "代码块"]].map(([value, label]) => <Button key={label} type="button" size="sm" variant="ghost" disabled={pending || preview} onClick={() => setEditor({ ...editor, body: `${editor.body}${editor.body ? "\n" : ""}${value}` })}>{label}</Button>)}</div><Button type="button" variant={preview ? "secondary" : "ghost"} size="sm" onClick={() => setPreview(!preview)}>{preview ? "编辑正文" : "预览正文"}</Button></div>{preview ? <div className="min-h-64 p-5"><ResourceMarkdown text={editor.body || "正文为空"} idPrefix="editor-preview" /></div> : <textarea aria-label="文档正文" className="min-h-72 w-full resize-y bg-background p-5 font-mono text-sm leading-7 outline-none focus:ring-2 focus:ring-ring/30" maxLength={200000} placeholder={"# 文档标题\n\n## 目标\n\n## 验收要求\n- [ ] 条目"} value={editor.body} disabled={pending} onChange={(e) => setEditor({ ...editor, body: e.target.value })} />}</div>}
+          <FormFeedback message={editorError} />{editorError.includes("更新") && editor.id && <Button type="button" variant="outline" size="sm" disabled={pending} onClick={async () => { try { const latest = z.object({ resource: dtoSchema }).parse(await responseJson(await fetch(`/api/v1/resources/${editor.id}`))).resource; setResources((rows) => rows.map((row) => row.id === latest.id ? latest : row)); setLatestVersion(latest); setEditor({ ...editor, version: latest.version }); setEditorError("已获取最新版本；你的正文仍保留，请与最新资料核对后再保存。"); } catch (e) { setEditorError(e instanceof Error ? e.message : "加载失败"); } }}>保留输入并获取最新版本</Button>}{latestVersion && <details open className="rounded-xl border border-brand/30 bg-brand-soft/30 p-4"><summary className="cursor-pointer text-sm font-medium">服务器版本 v{latestVersion.version} · {latestVersion.title}</summary><p className="my-3 text-xs leading-5 text-muted-foreground">上面的编辑区保留你的草稿。请对照以下最新内容再保存。</p>{latestVersion.kind === "document" ? <ResourceMarkdown text={latestVersion.body ?? ""} idPrefix="latest-version" /> : <p className="break-all text-sm">{latestVersion.url ?? latestVersion.fileName}</p>}</details>}
+        </div><footer className="flex shrink-0 items-center justify-between gap-3 border-t border-border bg-muted/20 p-4 sm:px-6"><span className="text-xs text-muted-foreground">{editor.kind === "document" ? `Markdown 文档 · ${editor.body.length.toLocaleString()} 字` : "团队内共享"}</span><Button type="submit" loading={pending} disabled={pending}><Check className="h-4 w-4" />保存资料</Button></footer></form>}
+      </Dialog.Content></Dialog.Portal>
+    </Dialog.Root>
+    <Dialog.Root open={!!deleteTarget} onOpenChange={(open) => { if (!open && !pending) setDeleteTarget(null); }}><Dialog.Portal><Dialog.Overlay className="dialog-overlay fixed inset-0 z-[60] bg-black/35" /><Dialog.Content data-resource-dialog onCloseAutoFocus={restoreFocus} onEscapeKeyDown={(event) => { if (pending) event.preventDefault(); }} onPointerDownOutside={(event) => { if (pending) event.preventDefault(); }} className="dialog-surface fixed left-1/2 top-1/2 z-[60] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-card p-6 shadow-xl"><Dialog.Title className="font-semibold">删除共享资料？</Dialog.Title><Dialog.Description className="mt-2 text-sm leading-6 text-muted-foreground">{deleteTarget?.title} 将从资料中心移除。已作为提交证据的文件会保留，无法删除。</Dialog.Description><FormFeedback className="mt-3" message={error} /><div className="mt-5 flex justify-end gap-2"><Button variant="outline" disabled={pending} onClick={() => setDeleteTarget(null)}>取消</Button><Button variant="destructive" loading={pending} onClick={async () => { if (!deleteTarget) return; setPending(true); setError(""); try { await responseJson(await fetch(`/api/v1/resources/${deleteTarget.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ version: deleteTarget.version }) })); setResources((rows) => rows.filter((row) => row.id !== deleteTarget.id)); setSelectedId(null); setDeleteTarget(null); feedback("资料已删除"); } catch (e) { setError(e instanceof Error ? e.message : "删除失败"); } finally { setPending(false); } }}>删除</Button></div></Dialog.Content></Dialog.Portal></Dialog.Root>
+    <Dialog.Root open={discardOpen} onOpenChange={setDiscardOpen}><Dialog.Portal><Dialog.Overlay className="dialog-overlay fixed inset-0 z-[70] bg-black/40" /><Dialog.Content data-resource-dialog className="dialog-surface fixed left-1/2 top-1/2 z-[70] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-card p-5 shadow-xl"><Dialog.Title className="font-semibold">放弃未保存的修改？</Dialog.Title><Dialog.Description className="mt-2 text-sm leading-6 text-muted-foreground">本次文档草稿会被放弃，已保存的资料和版本会保留。</Dialog.Description><div className="mt-5 flex justify-end gap-2"><Button variant="outline" onClick={() => setDiscardOpen(false)}>继续编辑</Button><Button variant="destructive" onClick={() => { setDiscardOpen(false); setEditor(null); }}>放弃并关闭</Button></div></Dialog.Content></Dialog.Portal></Dialog.Root>
+  </main>;
+}

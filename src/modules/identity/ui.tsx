@@ -1,6 +1,7 @@
 "use client";
 
 export { ProjectContextHeader } from "./project-context";
+export { TeamSectionLinks, TeamMemberRemovalButton, TeamSettingsWorkspace } from "./team-settings";
 
 import { useActionState, useId, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -19,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormFeedback } from "@/components/ui/feedback";
+import { todayISO } from "@/modules/core/dates";
 import type { ProjectKind } from "@/db/schema";
 import {
   createTeamAction,
@@ -421,7 +423,7 @@ export function CreateProjectButton({
   );
 }
 
-export function InviteCode({ code }: { code: string }) {
+export function InviteCode({ code, expiresOn }: { code: string; expiresOn?: string | null }) {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   async function copy() {
@@ -433,6 +435,9 @@ export function InviteCode({ code }: { code: string }) {
     } catch {
       setError("复制失败，请手动选中邀请码复制");
     }
+  }
+  if (expiresOn && expiresOn < todayISO()) {
+    return <p className="text-sm text-destructive">邀请码已过期，请联系管理员在团队信息页刷新。</p>;
   }
   return (
     <div className="space-y-1">
@@ -454,6 +459,7 @@ export function InviteCode({ code }: { code: string }) {
           {copied ? "已复制" : "复制邀请码"}
         </Button>
       </div>
+      {expiresOn && <p className="text-xs text-muted-foreground">有效至 {expiresOn}（含当天）</p>}
       <p role="status" className="text-xs text-destructive">
         {error}
       </p>

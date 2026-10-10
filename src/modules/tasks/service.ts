@@ -43,6 +43,11 @@ import {
   positionsFromRole,
   type TaskPermissions,
 } from "@/modules/identity/client";
+import type { DeliveryInput, ReviewInput } from "./delivery-types";
+import { writeSubmission, writeReview } from "./delivery";
+import { lockTeamTaskAccess } from "./task-locks";
+
+export { getTaskDelivery, saveTaskRequirements } from "./delivery";
 
 export type TaskDTO = {
   id: string;
@@ -82,6 +87,8 @@ export type TaskPatch = {
 export type TransitionInput = {
   note?: string;
   assigneeId?: string;
+  delivery?: DeliveryInput;
+  review?: ReviewInput;
 };
 
 export type TransitionAction =
@@ -153,20 +160,6 @@ async function assertRole(
   if (!access.capabilities.task.actions.includes(action))
     throw new ForbiddenError();
   return access;
-}
-
-async function recordEvent(
-  taskId: string,
-  actorId: string | null,
-  action: TaskAction,
-  note?: string | null,
-) {
-  await db.insert(taskAcceptanceEvents).values({
-    taskId,
-    actorId,
-    action,
-    note: note ?? null,
-  });
 }
 
 function assertISODate(value: string | null | undefined, field: string) {
@@ -280,13 +273,15 @@ export async function createTask(
   assertISODate(input.startDate, "开始日期");
   assertISODate(input.dueDate, "截止日期");
 
-  if (input.assigneeId) {
+  const row = await db.transaction(async (tx) => {
+    const latestAccess = await lockTeamTaskAccess(tx, actorId, projectId, access.project.teamId, "create");
+    if (input.assigneeId) {
     if (
-      !access.capabilities.task.actions.includes("assign") &&
+      !latestAccess.capabilities.task.actions.includes("assign") &&
       input.assigneeId !== actorId
     )
       throw new ForbiddenError("只能认领自己的任务，请联系有指派权限的成员");
-    const [member] = await db
+    const [member] = await tx
       .select({
         userId: teamMembers.userId,
         role: teamMembers.role,
@@ -299,7 +294,7 @@ export async function createTask(
       )
       .where(
         and(
-          eq(teamMembers.teamId, access.project.teamId),
+          eq(teamMembers.teamId, latestAccess.project.teamId),
           eq(teamMembers.userId, input.assigneeId),
         ),
       );
@@ -307,13 +302,11 @@ export async function createTask(
     if (
       !capabilitiesFor(
         member.positions ?? positionsFromRole(member.role),
-        access.project.kind,
+        latestAccess.project.kind,
       ).execute
     )
       throw new AppError("请选择有队员、队长或管理员职务的成员作为负责人");
-  }
-
-  const row = await db.transaction(async (tx) => {
+    }
     await validateTaskLinks(
       tx,
       projectId,
@@ -348,13 +341,13 @@ export async function createTask(
         action: "assign",
         note: input.assigneeId,
       });
-    return created;
+    return { created, permissions: latestAccess.capabilities.task };
   });
 
   if (input.assigneeId) {
-    await fireNotify(() => notifyAssigned(row.id));
+    await fireNotify(() => notifyAssigned(row.created.id));
   }
-  return toActorDTO({ ...row, assigneeName: null }, access.capabilities.task);
+  return toActorDTO({ ...row.created, assigneeName: null }, row.permissions);
 }
 
 export async function updateTask(
@@ -376,6 +369,7 @@ export async function updateTask(
   assertISODate(patch.dueDate, "截止日期");
 
   const updated = await db.transaction(async (tx) => {
+    const latestAccess = await lockTeamTaskAccess(tx, actorId, row.projectId, access.project.teamId, "update");
     if (row.parentTaskId)
       await tx
         .select({ id: tasks.id })
@@ -417,11 +411,11 @@ export async function updateTask(
     await tx
       .insert(taskAcceptanceEvents)
       .values({ taskId, actorId, action: "update", note: "更新任务信息" });
-    return changed;
+    return { changed, permissions: latestAccess.capabilities.task };
   });
   return toActorDTO(
-    { ...updated, assigneeName: row.assigneeName },
-    access.capabilities.task,
+    { ...updated.changed, assigneeName: row.assigneeName },
+    updated.permissions,
   );
 }
 
@@ -430,9 +424,15 @@ export async function deleteTask(
   taskId: string,
 ): Promise<void> {
   const row = await loadTaskRow(taskId);
-  await assertRole(actorId, row.projectId, "delete");
-  await recordEvent(taskId, actorId, "delete");
-  await db.delete(tasks).where(eq(tasks.id, taskId));
+  const access = await assertRole(actorId, row.projectId, "delete");
+  await db.transaction(async (tx) => {
+    await lockTeamTaskAccess(tx, actorId, row.projectId, access.project.teamId, "delete");
+    if (row.parentTaskId) await tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, row.parentTaskId)).for("update");
+    const [current] = await tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, taskId)).for("update");
+    if (!current) throw new NotFoundError("任务不存在");
+    await tx.insert(taskAcceptanceEvents).values({ taskId, actorId, action: "delete" });
+    await tx.delete(tasks).where(eq(tasks.id, taskId));
+  });
 }
 
 export async function transitionTask(
@@ -443,8 +443,9 @@ export async function transitionTask(
 ): Promise<TaskDTO> {
   const initial = await loadTaskRow(taskId);
   const access = await assertRole(actorId, initial.projectId, action);
-  const note = input?.note?.trim() || null;
+  let note = input?.note?.trim() || null;
   const result = await db.transaction(async (tx) => {
+    const latestAccess = await lockTeamTaskAccess(tx, actorId, initial.projectId, access.project.teamId, action);
     if (initial.parentTaskId) {
       const [parent] = await tx
         .select()
@@ -464,16 +465,17 @@ export async function transitionTask(
     if (!rule) throw new ConflictError("当前状态无法执行该操作，请刷新后重试");
     if (
       !availableTransitions(
-        { ...row, permissions: access.capabilities.task },
-        access.role,
+        { ...row, permissions: latestAccess.capabilities.task },
+        latestAccess.role,
         actorId,
       ).includes(rule)
     ) {
       throw new ForbiddenError("只能操作自己认领的任务");
     }
 
-    if (rule.noteRequired && !note) throw new AppError("请填写说明");
-    if (note && note.length > 5000) throw new AppError("说明最多 5000 字");
+    if (action === "submit" || action === "resubmit") note = await writeSubmission(tx, actorId, row, input?.delivery);
+    else if (action === "accept" || action === "reject") note = await writeReview(tx, actorId, row, action, input?.review);
+    else if (note && note.length > 5000) throw new AppError("说明最多 5000 字");
     if (action === "accept") {
       const children = await tx
         .select({ status: tasks.status })
@@ -502,7 +504,7 @@ export async function transitionTask(
         )
         .where(
           and(
-            eq(teamMembers.teamId, access.project.teamId),
+            eq(teamMembers.teamId, latestAccess.project.teamId),
             eq(teamMembers.userId, target),
           ),
         );
@@ -510,7 +512,7 @@ export async function transitionTask(
       if (
         !capabilitiesFor(
           member.positions ?? positionsFromRole(member.role),
-          access.project.kind,
+          latestAccess.project.kind,
         ).execute
       )
         throw new AppError("请选择有队员、队长或管理员职务的成员作为负责人");
@@ -574,7 +576,7 @@ export async function transitionTask(
     await tx
       .insert(taskAcceptanceEvents)
       .values({ taskId, actorId, action, note });
-    return toActorDTO(await loadTaskRow(taskId, tx), access.capabilities.task);
+    return toActorDTO(await loadTaskRow(taskId, tx), latestAccess.capabilities.task);
   });
 
   if (action === "claim" || action === "assign") {

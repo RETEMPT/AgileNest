@@ -10,6 +10,7 @@ import { createProject } from "@/modules/identity";
 import { createMilestone } from "@/modules/milestone";
 import { AppError, ConflictError, ForbiddenError } from "@/modules/core";
 import { makeFixture, resetDb } from "../../helpers";
+import { submitEvidence, reviewEvidence } from "../../delivery-fixtures";
 
 describe("任务编辑和拆分", () => {
   let fx: Awaited<ReturnType<typeof makeFixture>>;
@@ -100,14 +101,14 @@ describe("任务编辑和拆分", () => {
       assigneeId: fx.student.id,
     });
     const child = await createSubtask(fx.student.id, root.id, { title: "子" });
-    await transitionTask(fx.student.id, root.id, "submit", { note: "请验收" });
+    await submitEvidence(fx.student.id, root.id, "请验收");
     await expect(
-      transitionTask(fx.teacher.id, root.id, "accept"),
+      reviewEvidence(fx.teacher.id, root.id),
     ).rejects.toBeInstanceOf(ConflictError);
     await transitionTask(fx.student.id, child.id, "claim");
-    await transitionTask(fx.student.id, child.id, "submit", { note: "完成" });
-    await transitionTask(fx.teacher.id, child.id, "accept");
-    await transitionTask(fx.teacher.id, root.id, "accept");
+    await submitEvidence(fx.student.id, child.id, "完成");
+    await reviewEvidence(fx.teacher.id, child.id);
+    await reviewEvidence(fx.teacher.id, root.id);
     await expect(
       createSubtask(fx.admin.id, root.id, { title: "追加" }),
     ).rejects.toBeInstanceOf(ConflictError);

@@ -1,4 +1,6 @@
 export * from "./service";
+export * from "./team-service";
+export type { TeamInformationDTO, TeamAnnouncementDTO } from "./team-client";
 export {
   getAccountProfile,
   saveAccountProfile,

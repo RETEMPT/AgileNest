@@ -4,6 +4,8 @@
 
 调研基线：本地 `codex/ai-settings-workspace`，应用版本 `0.4.0-rc.4`、提交 `2301a6d`。方案撰写阶段未改业务代码；用户随后授权分步实施与子代理，首轮已在 `codex/experience-integration` 实施，候选版本为 `0.4.0-rc.5`。实际文件、冻结决策与本轮重新验证的证据见 [执行与验收记录](AGILENEST-EXECUTION.md)，下文保留设计目标和后续候选。
 
+当前进展补充：rc.6 已接续结构化成果、版本评审、团队/项目资料、看板 task URL 与任务池共用筛选。下文旧基线描述保留为当时方案；最新范围与计划见 [PROJECT-STATE](PROJECT-STATE.md) 和 [业务实施契约](BUSINESS-COMPLETION.md)。
+
 配套：[Agent 执行任务卡](AGILENEST-AGENT-BRIEFS.md)。硬约束仍以 [AGENTS.md](../AGENTS.md)、[TEAM.md](TEAM.md)、[IDENTITY.md](IDENTITY.md) 为准。本文是规划，不代表 Sprint、GitHub 集成或 AI 执行已获实现授权；实际开发开始时由集成人登记本轮范围。
 
 ## 1. 产品方向与范围

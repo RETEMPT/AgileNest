@@ -1,6 +1,6 @@
 # 协作链路与状态机 · v0.4
 
-AgileNest 面向高校课程设计、实验室课题和竞赛团队。团队聚集成员，项目承载目标，任务承载可交付工作。实验室本期采用团队 + lab 类型项目，不新增独立的数据/文件/设备模型。
+AgileNest 面向高校课程设计、实验室课题和竞赛团队。团队聚集成员，项目承载目标，任务承载可交付工作。实验室采用团队 + lab 类型项目；通用团队/项目资料由 resources 管理，不新增实验专属数据或设备模型。
 
 ## 数据与导航链路
 
@@ -40,10 +40,10 @@ stateDiagram-v2
   state "待修改" as rejected
   state "已完成" as accepted
   unclaimed --> in_progress: claim / assign
-  in_progress --> submitted: submit + note
-  submitted --> accepted: accept
-  submitted --> rejected: reject + note
-  rejected --> submitted: resubmit + note
+  in_progress --> submitted: submit + delivery
+  submitted --> accepted: accept + review
+  submitted --> rejected: reject + review
+  rejected --> submitted: resubmit + delivery
   in_progress --> unclaimed: unclaim
   rejected --> unclaimed: unclaim
   rejected --> in_progress: assign
@@ -58,7 +58,7 @@ stateDiagram-v2
 
 学术身份不参与授权。管理员、指导老师、队长、队员可叠加；完整能力矩阵见 [IDENTITY.md](IDENTITY.md)。指导老师负责验收，叠加队员后可以执行自己的任务；队长协调实验室/竞赛的指派和项目维护，验收仍由管理员或指导老师执行。
 
-负责人选择具有执行职务的真实团队成员。提交/重交需完成说明；打回需修改意见；创建时指定负责人同样校验，普通队员不能通过创建接口指派别人。成员查询也在 service 中检查访问权限。职务调整锁定团队，禁止降级最后一位管理员。
+负责人选择具有执行职务的真实团队成员。提交/重交必须验收清单、完成说明、验证结果、证据和逐项自检；验收绑定当前提交版本，打回要求未通过项的问题位置与通过条件；创建时指定负责人同样校验，普通队员不能通过创建接口指派别人。成员查询也在 service 中检查访问权限。职务调整锁定团队，禁止降级最后一位管理员。
 
 任务最多两层，创建后不能更换父任务。待验收或已完成的父任务不能继续拆分；验收父任务前需全部子任务通过，重开已完成子任务前需先重开父任务。父任务行锁协调子任务写入与验收，避免并发更新产生相互矛盾的完成状态。项目完成率只统计顶层任务，子任务进度在详情独立展示。
 
@@ -66,7 +66,7 @@ stateDiagram-v2
 
 `transitionTask()` 是所有既有任务状态变更入口：先检查项目访问/角色，在事务内锁定任务，读取最新状态并查表，最后同时写任务与活动事件。并发认领会让后一请求看到新的状态并返回 409。通知在事务提交后发送，失败不撤销任务操作。
 
-看板移动通过 `moveTask()` 调用任务公开契约；带说明的移动支持 `note`。状态、负责人和普通属性分别提交，混合写入明确拒绝，避免静默丢弃字段。页面在服务端确认后更新；取消或失败仍留在原列。
+看板移动通过 `moveTask()` 调用任务公开契约；普通动作仍兼容 `note`，提交/重交传 `delivery`，通过/打回传 `review`，不能用文字绕过结构化校验。状态、负责人和普通属性分别提交，混合写入明确拒绝，避免静默丢弃字段。页面在服务端确认后更新；取消或失败仍留在原列。
 
 Server Actions 刷新实际任务所属项目的页面，包含看板、表格、详情、验收台与工作台。任务详情同时校验 URL 中的 projectId 和任务真实归属。活动记录可追踪操作人、动作、说明，不宣称具有不可篡改存证能力。
 

@@ -10,6 +10,7 @@ import {
 import { createTask, createSubtask, transitionTask, listProjectTasks } from "@/modules/tasks";
 import { AppError, ForbiddenError } from "@/modules/core";
 import { makeFixture, resetDb } from "../../helpers";
+import { reviewEvidence, submitEvidence } from "../../delivery-fixtures";
 
 describe("验收口径与工时", () => {
   let fx: Awaited<ReturnType<typeof makeFixture>>;
@@ -29,16 +30,14 @@ describe("验收口径与工时", () => {
     });
     const sub = await createSubtask(fx.student.id, parent.id, { title: "子" });
     await transitionTask(fx.student.id, sub.id, "claim");
-    await transitionTask(fx.student.id, sub.id, "submit", { note: "完成" });
-    await transitionTask(fx.teacher.id, sub.id, "accept");
+    await submitEvidence(fx.student.id, sub.id, "完成");
+    await reviewEvidence(fx.teacher.id, sub.id);
     expect((await completionRatio(fx.student.id, parent.id)).ratio).toBe(1);
     expect((await projectCompletion(fx.student.id, fx.project.id)).ratio).toBe(
       0,
     );
-    await transitionTask(fx.student.id, parent.id, "submit", {
-      note: "整体完成",
-    });
-    await transitionTask(fx.teacher.id, parent.id, "accept");
+    await submitEvidence(fx.student.id, parent.id, "整体完成");
+    await reviewEvidence(fx.teacher.id, parent.id);
     expect(await projectCompletion(fx.student.id, fx.project.id)).toMatchObject(
       { done: 1, total: 1, ratio: 1 },
     );
@@ -122,10 +121,10 @@ describe("验收口径与工时", () => {
     await transitionTask(fx.student.id, child.id, "claim");
     await addWorklog(fx.student.id, parent.id, { minutes: 90, workDate: "2026-10-10" });
     await addWorklog(fx.student.id, child.id, { minutes: 45, workDate: "2026-10-10" });
-    await transitionTask(fx.student.id, child.id, "submit", { note: "边界已验证" });
-    await transitionTask(fx.teacher.id, child.id, "accept");
-    await transitionTask(fx.student.id, parent.id, "submit", { note: "整体交付" });
-    await transitionTask(fx.teacher.id, parent.id, "accept");
+    await submitEvidence(fx.student.id, child.id, "边界已验证");
+    await reviewEvidence(fx.teacher.id, child.id);
+    await submitEvidence(fx.student.id, parent.id, "整体交付");
+    await reviewEvidence(fx.teacher.id, parent.id);
     const completion = await projectCompletion(fx.student.id, fx.project.id);
     const topLevel = await listProjectTasks(fx.student.id, fx.project.id, { parentTaskId: null });
     expect(completion).toMatchObject({ done: 1, total: 2, ratio: 0.5 });

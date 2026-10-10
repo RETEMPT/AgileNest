@@ -7,6 +7,7 @@ import {
   type TransitionRule,
 } from "@/modules/tasks/client";
 import type { TaskPriority, TaskStatus, TeamRole } from "@/db/schema";
+import { z } from "zod";
 
 export type GroupBy = "status" | "assignee" | "priority" | "milestone";
 
@@ -75,6 +76,37 @@ export function serializeFilters(f: BoardFilters): URLSearchParams {
   if (f.milestoneId) p.set("milestoneId", f.milestoneId);
   if (f.q) p.set("q", f.q);
   return p;
+}
+
+export function parseTaskQuery(params: URLSearchParams): string | null {
+  const values = params.getAll("task");
+  if (values.length !== 1) return null;
+  const parsed = z.uuid().safeParse(values[0]);
+  return parsed.success ? parsed.data.toLowerCase() : null;
+}
+
+export function taskDetailUrl(
+  pathname: string,
+  params: URLSearchParams,
+  taskId: string | null,
+): string {
+  const next = new URLSearchParams(params);
+  next.delete("task");
+  if (taskId) next.set("task", taskId);
+  return `${pathname}${next.size ? `?${next}` : ""}`;
+}
+
+export function workspaceUrl({ projectId, view, filters, groupBy = "status", taskId }: {
+  projectId: string;
+  view: "tasks" | "board" | "table";
+  filters: BoardFilters;
+  groupBy?: GroupBy;
+  taskId?: string | null;
+}): string {
+  const params = serializeFilters(filters);
+  if (groupBy !== "status") params.set("groupBy", groupBy);
+  if (taskId) params.set("task", taskId);
+  return `/p/${projectId}/${view}${params.size ? `?${params}` : ""}`;
 }
 
 export const BOARD_STATUS_ORDER: TaskStatus[] = [

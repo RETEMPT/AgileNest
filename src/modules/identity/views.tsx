@@ -31,6 +31,8 @@ import {
 import { TeamEntryActions, CreateProjectButton, InviteCode } from "./ui";
 export { ProjectOverviewView, ProjectSettingsView } from "./project-view";
 export { SettingsView } from "./settings-view";
+export { TeamSettingsView } from "./team-settings-view";
+import { TeamMemberRemovalButton, TeamSectionLinks } from "./team-settings";
 import { ACADEMIC_LABELS, POSITION_META } from "./client";
 import {
   AcademicProfileForm,
@@ -153,7 +155,11 @@ export async function TeamSpacesView() {
                       </p>
                     </div>
                   </div>
-                  <InviteCode code={team.inviteCode} />
+                  <InviteCode code={team.inviteCode} expiresOn={team.inviteExpiresOn} />
+                  <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs">
+                    <Link href={`/t/${team.id}/settings`} className="text-brand hover:underline">团队信息与公告</Link>
+                    <Link href={`/t/${team.id}/resources`} className="text-muted-foreground hover:text-brand">资料中心</Link>
+                  </div>
                   <div className="flex items-center justify-between border-t border-border pt-4">
                     <Link
                       href={`/t/${team.id}/members`}
@@ -255,6 +261,7 @@ export async function TeamProjectsView({
           </div>
         </div>
       </header>
+      <TeamSectionLinks teamId={teamId} current="projects" />
       {projects.length === 0 && <CollaborationPath current={2} />}
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
         <div>
@@ -263,7 +270,7 @@ export async function TeamProjectsView({
             分享邀请码；加入后，管理员可设置指导老师、队长等可叠加职务。
           </p>
         </div>
-        <InviteCode code={team.inviteCode} />
+        <InviteCode code={team.inviteCode} expiresOn={team.inviteExpiresOn} />
       </section>
       <nav aria-label="项目类型筛选" className="flex flex-wrap gap-2">
         <Button asChild variant={!selected ? "default" : "outline"} size="sm">
@@ -436,11 +443,12 @@ export async function TeamMembersView({ teamId }: { teamId: string }) {
         >
           ← {team.name} / 团队项目
         </Link>
-        <h1 className="mt-3 text-3xl font-semibold">成员与分工</h1>
+        <h1 id="team-members-heading" tabIndex={-1} className="mt-3 text-3xl font-semibold">成员与分工</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           学术身份展示成长阶段，团队职务明确分工；一位成员可以承担多项职务。
         </p>
       </header>
+      <TeamSectionLinks teamId={teamId} current="members" />
       <CollaborationPath current={1} />
       {!profile && <AcademicProfileForm profile={null} />}
       <section
@@ -557,6 +565,9 @@ export async function TeamMembersView({ teamId }: { teamId: string }) {
               {membership.role === "admin" && (
                 <MemberPositionsForm teamId={teamId} member={member} />
               )}
+              {(member.id === user.id || membership.role === "admin") && <div className="border-t border-border pt-3">
+                <TeamMemberRemovalButton teamId={teamId} userId={member.id} name={member.id === user.id ? team.name : member.name} self={member.id === user.id} />
+              </div>}
             </CardContent>
           </Card>
         ))}

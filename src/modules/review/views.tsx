@@ -17,7 +17,7 @@ import { StatusPill, PriorityPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { getWorkbench, listPendingReview, listOverdueRisks } from "./service";
-import { ReviewTaskDetails } from "./ui";
+import { ReviewTaskDetails, ReviewSubmissionEvidence } from "./ui";
 import {
   parseWorkbenchQuery,
   selectWorkbenchItems,
@@ -356,7 +356,7 @@ export async function ReviewView({
       <section className="overflow-hidden rounded-xl border border-border bg-card" aria-labelledby="review-queue-heading">
         <div className="border-b border-border px-4 py-3 sm:px-5">
           <h2 id="review-queue-heading" className="text-sm font-semibold">待验收队列</h2>
-          <p className="mt-1 text-xs text-muted-foreground">先查看完成说明与子任务；详情中可查看完整修改历史。</p>
+          <p className="mt-1 text-xs text-muted-foreground">先核对提交版本、成果证据与子任务，再逐项评审；每次结论对应指定提交。</p>
         </div>
         {pending.length === 0 ? (
           <div className="px-5 py-12 text-center">
@@ -387,9 +387,10 @@ export async function ReviewView({
                     <StatusPill status={task.status} />
                   </div>
                   <div className="rounded-lg bg-brand-soft p-3">
-                    <h3 className="mb-1 text-xs font-semibold text-brand">最新完成说明</h3>
-                    <p className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-6">{task.completionNote || "暂无完成说明，请打开详情核对活动记录。"}</p>
+                    <h3 className="mb-1 text-xs font-semibold text-brand">最新提交摘要</h3>
+                    <p className="line-clamp-3 whitespace-pre-wrap break-words text-sm leading-6">{task.completionNote || "暂无完成说明，请核对提交版本记录。"}</p>
                   </div>
+                  <ReviewSubmissionEvidence taskId={task.id} updatedAt={task.updatedAt.toISOString()} />
                   {task.rejectReason && (
                     <details className="text-sm">
                       <summary className="cursor-pointer text-muted-foreground">上次修改意见</summary>

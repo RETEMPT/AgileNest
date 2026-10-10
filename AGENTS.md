@@ -45,6 +45,10 @@
 
 用户授权本轮按 AgileNest 体验方案分步实施并使用子代理，集成分支为 `codex/experience-integration`。foundation 负责共享导航、详情容器、状态 tokens 和 identity 项目上下文；A/B/C/D/E 分别负责任务、看板、工作台与验收、统计、日历与通知入口。公开 UI 契约及验收范围登记于 `docs/TEAM.md`、`docs/AGILENEST-EXECUTION.md`；不修改 core、登录、schema 或依赖，不实现 Sprint、GitHub 同步或模型调用。
 
+用户随后授权完善成果提交、提交版本、逐项验收、团队信息和资料整理，分支为 `codex/business-completion`。foundation 集成共享 UI、导航、迁移，并负责新增 resources 模块（团队/项目资料、文件预览与 Markdown/JSON 整理）；identity Owner 负责团队资料、公告及成员管理；A 负责验收要求、不可变提交与 transitionTask 中的原子验收；C/B 负责提交历史展示、验收台及任务视图导航。schema 仅在末尾追加，由集成人串行落实；契约见 `docs/BUSINESS-COMPLETION.md`。用户本轮授权团队共享资料，个人 AI 文件仍保持私有；不修改 core、登录或依赖，不运行 OCR/模型、Sprint 或 GitHub 自动同步。Marker 参考用于导入真实转换产物，不宣称已运行文档识别。
+
+用户于本轮后续要求整理全部 Markdown、更新执行计划后继续业务/前端/交互；本轮保留必要自动检查，完整人工综合验收留到最后迭代按用户要求执行。统一提炼与计划见 `docs/PROJECT-STATE.md`；子代理交付后的 A/B/C 联调与遗漏由 root 在已登记集成范围接续，不覆盖成员分支。
+
 ## 2. 架构不变量
 
 1. **模块化单体**：`src/modules/<m>/{schema,service,actions,api,ui,index}.ts`
@@ -62,7 +66,7 @@
 7. **UI**：复用 `src/components/ui/*`；状态用 `<StatusPill>`；设计 tokens 在 `globals.css`（品牌 `#294a78`，点缀 `#bf6a34`）。
 8. **交互同源**：按钮、拖拽目标和服务端权限都使用 `availableTransitions()`；不得复制角色×状态按钮表。提交/重交需完成说明，打回需修改意见，指派选择团队成员，禁止让用户输入数据库 ID。
 9. **一致性**：`transitionTask()` 在事务中锁住任务后查转移表，状态与事件一同提交；并发认领不能覆盖负责人。失败或取消时卡片保留原列，成功后刷新相关视图。
-10. **产品链路**：团队空间 → 成员与角色 → 项目/课题 → 任务 → 验收。实验室在本期是团队空间内的 `lab` 类型项目；不新增实验数据、文件库和设备管理。
+10. **产品链路**：团队空间 → 成员与角色 → 项目/课题 → 任务 → 验收。实验室在本期是团队空间内的 `lab` 类型项目；不新增实验数据、实验专属文件库和设备管理。用户授权的通用团队/项目资料由 resources 模块管理。
 11. **个人日程**：仅当前账号读写，团队职务不授予他人日程访问。日期仍为 `YYYY-MM-DD`，可选时间为同日 `HH:mm`；编辑/删除携带版本，旧版本返回 409，个人日程不修改项目任务。
 
 ## 3. 禁止事项

@@ -9,10 +9,11 @@ import {
 } from "@/modules/tasks";
 import { ConflictError, ForbiddenError, AppError } from "@/modules/core/errors";
 import { listPendingReview, listTaskEvents, listMyInProgress } from "@/modules/review";
-import { addWorklog, completionRatio, projectCompletion, memberContribution } from "@/modules/worklog";
+import { addWorklog, completionRatio, memberContribution } from "@/modules/worklog";
 import { createMilestone, listMilestones } from "@/modules/milestone";
 import { listMyNotifications } from "@/modules/notify";
 import { makeFixture, resetDb } from "../../helpers";
+import { submitEvidence, reviewEvidence } from "../../delivery-fixtures";
 
 describe("tasks 五态状态机（集成）", () => {
   let fx: Awaited<ReturnType<typeof makeFixture>>;
@@ -33,32 +34,26 @@ describe("tasks 五态状态机（集成）", () => {
     expect(claimed.status).toBe("in_progress");
     expect(claimed.assigneeId).toBe(fx.student.id);
 
-    const submitted = await transitionTask(fx.student.id, t.id, "submit", {
-      note: "已完成初稿",
-    });
+    const submitted = await submitEvidence(fx.student.id, t.id, "已完成初稿");
     expect(submitted.status).toBe("submitted");
     expect(submitted.completionNote).toBe("已完成初稿");
 
-    const accepted = await transitionTask(fx.teacher.id, t.id, "accept");
+    const accepted = await reviewEvidence(fx.teacher.id, t.id);
     expect(accepted.status).toBe("accepted");
 
     const events = await listTaskEvents(fx.student.id, t.id);
-    expect(events.map((e) => e.action)).toEqual(["create", "claim", "submit", "accept"]);
+    expect(events.map((e) => e.action)).toEqual(["create", "claim", "update", "submit", "accept"]);
   });
 
   it("打回 → 重新提交", async () => {
     const t = await createTask(fx.teacher.id, fx.project.id, { title: "画看板" });
     await transitionTask(fx.student.id, t.id, "claim");
-    await transitionTask(fx.student.id, t.id, "submit", { note: "v1" });
-    const rejected = await transitionTask(fx.teacher.id, t.id, "reject", {
-      note: "缺少泳道",
-    });
+    await submitEvidence(fx.student.id, t.id, "v1");
+    const rejected = await reviewEvidence(fx.teacher.id, t.id, "reject", "缺少泳道");
     expect(rejected.status).toBe("rejected");
     expect(rejected.rejectReason).toBe("缺少泳道");
 
-    const resub = await transitionTask(fx.student.id, t.id, "resubmit", {
-      note: "v2 补泳道",
-    });
+    const resub = await submitEvidence(fx.student.id, t.id, "v2 补泳道", "resubmit");
     expect(resub.status).toBe("submitted");
   });
 
@@ -80,7 +75,7 @@ describe("tasks 五态状态机（集成）", () => {
   it("越权：学生不能验收；非成员不能读", async () => {
     const t = await createTask(fx.admin.id, fx.project.id, { title: "x" });
     await transitionTask(fx.student.id, t.id, "claim");
-    await transitionTask(fx.student.id, t.id, "submit", { note: "ok" });
+    await submitEvidence(fx.student.id, t.id, "ok");
     await expect(transitionTask(fx.student.id, t.id, "accept")).rejects.toBeInstanceOf(
       ForbiddenError,
     );
@@ -92,8 +87,8 @@ describe("tasks 五态状态机（集成）", () => {
     await createSubtask(fx.admin.id, parent.id, { title: "子1" });
     const sub2 = await createSubtask(fx.admin.id, parent.id, { title: "子2" });
     await transitionTask(fx.student.id, sub2.id, "claim");
-    await transitionTask(fx.student.id, sub2.id, "submit", { note: "done" });
-    await transitionTask(fx.teacher.id, sub2.id, "accept");
+    await submitEvidence(fx.student.id, sub2.id, "done");
+    await reviewEvidence(fx.teacher.id, sub2.id);
 
     const ratio = await completionRatio(fx.admin.id, parent.id);
     expect(ratio.total).toBe(2);
@@ -126,7 +121,7 @@ describe("tasks 五态状态机（集成）", () => {
       milestoneId: ms.id,
     });
     await transitionTask(fx.student.id, t.id, "claim");
-    await transitionTask(fx.student.id, t.id, "submit", { note: "已上传" });
+    await submitEvidence(fx.student.id, t.id, "已上传");
 
     const pending = await listPendingReview(fx.teacher.id, fx.project.id);
     expect(pending).toHaveLength(1);
