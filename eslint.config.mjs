@@ -5,5 +5,6 @@ import nextTs from "eslint-config-next/typescript";
 export default defineConfig([
   ...nextVitals,
   ...nextTs,
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
+  // .tools holds the local PostgreSQL/Node release runtimes; linting them exhausts the heap.
+  globalIgnores([".next/**", "out/**", "build/**", "coverage/**", ".tools/**", "next-env.d.ts"]),
 ]);

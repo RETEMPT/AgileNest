@@ -5,15 +5,18 @@ import { db } from "@/db";
 import {
   academicProfiles,
   personalProfiles,
+  personalContacts,
   teamMembers,
   users,
 } from "@/db/schema";
 import { AppError, ForbiddenError, NotFoundError } from "@/modules/core";
+import { contactSchema, EMPTY_CONTACTS } from "./contact-schema";
 
 const profileInput = z.object({
   name: z.string().trim().min(1, "请填写姓名").max(50, "姓名最多 50 字"),
   bio: z.string().trim().max(300, "个人简介最多 300 字").default(""),
   avatar: z.string().max(480000, "头像过大，请重新选择").optional(),
+  contacts: contactSchema.optional(),
 });
 
 export function avatarUrl(userId: string, hash: string | null) {
@@ -56,10 +59,12 @@ export async function getAccountProfile(actorId: string) {
     .leftJoin(personalProfiles, eq(personalProfiles.userId, users.id))
     .where(eq(users.id, actorId));
   if (!row) throw new NotFoundError("账号不存在");
+  const [contacts] = await db.select().from(personalContacts).where(eq(personalContacts.userId, actorId));
   return {
     ...row,
     bio: row.bio ?? "",
     avatarUrl: avatarUrl(row.id, row.avatarHash),
+    contacts: contacts ? { phone: contacts.phone, contactEmail: contacts.contactEmail, officeAddress: contacts.officeAddress, qq: contacts.qq, wechat: contacts.wechat, x: contacts.x, github: contacts.github } : EMPTY_CONTACTS,
   };
 }
 
@@ -70,7 +75,7 @@ export async function saveAccountProfile(
   const account = await getAccountProfile(actorId);
   const parsed = profileInput.safeParse(input);
   if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
-  const { name, bio, avatar } = parsed.data;
+  const { name, bio, avatar, contacts } = parsed.data;
   const image = avatar && avatar !== "remove" ? decodeAvatar(avatar) : null;
   await db.transaction(async (tx) => {
     // 同一账号的更新串行，姓名变化与学术资料确认失效一起提交。
@@ -99,6 +104,7 @@ export async function saveAccountProfile(
         target: personalProfiles.userId,
         set: { bio, ...imagePatch, updatedAt: new Date() },
       });
+    if (contacts) await tx.insert(personalContacts).values({ userId: account.id, ...contacts }).onConflictDoUpdate({ target: personalContacts.userId, set: { ...contacts, updatedAt: new Date() } });
   });
   return getAccountProfile(actorId);
 }

@@ -21,7 +21,7 @@ try {
     await tx`SELECT pg_advisory_xact_lock(73463211)`;
     const [{ fresh }] = await tx`SELECT to_regclass('public.users') IS NULL AS fresh`;
     await tx.unsafe("CREATE TABLE IF NOT EXISTS _agilenest_release_migrations (name text PRIMARY KEY, sha256 text NOT NULL, applied_at timestamp NOT NULL DEFAULT now())");
-    for (const name of ["0000_init.sql", "identity-positions.sql", "personal-profiles.sql", "personal-schedules.sql"]) {
+    for (const name of ["0000_init.sql", "identity-positions.sql", "personal-profiles.sql", "personal-schedules.sql", "personal-contacts.sql"]) {
       const source = await readFile(path.join(root, "release-db", name), "utf8");
       const digest = createHash("sha256").update(source).digest("hex");
       const [previous] = await tx`SELECT sha256 FROM _agilenest_release_migrations WHERE name = ${name}`;

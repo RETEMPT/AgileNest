@@ -56,7 +56,7 @@ main  ──  可部署
 | 人 | 分支 | 模块 | 路由 |
 |---|---|---|---|
 | foundation | `chore/foundation` | core · identity · ui · lib | `/login` `/register` `/t/*` `/settings` `/api/auth/**` |
-| foundation（本轮 AI 界面） | `codex/collaboration-completion` | 共享 AI UI · 浏览器草稿 | `/ai`，仅界面与本地存储 |
+| foundation（本轮 AI 与个人中心） | `codex/ai-settings-workspace` | 共享 AI UI · 浏览器草稿与偏好 · identity 设置 | `/ai` `/settings`，仅界面与本地存储 |
 | A | `feature/tasks-status` | tasks | `/p/[id]/tasks/**` |
 | B | `feature/board-views` | board | `/p/[id]/board` `/p/[id]/table` |
 | C | `feature/review-portal` | review | `/home/student` `/home/teacher` `/p/[id]/review` |
@@ -294,3 +294,35 @@ notify 公开 `notify/views` 的 `NotificationsView` 和 `notify/ui` 的 `MarkRe
 用户要求 GitHub 仓库简洁、只保留 start 一个入口，关闭启动窗口即停止网站。foundation 在 `codex/single-launcher-cleanup` 负责根目录重复脚本清理、`scripts/windows` 启动/初始化、Windows 发布包生命周期、对应检查和使用文档。根目录公开入口仅 start.bat，首次初始化和诊断通过选项完成；发布包内部文件按实际运行需要复制。
 
 网站及 Next.js 子进程纳入 Windows Job Object，启动窗口退出后由 Windows 终止；同一目录的启动锁防止并发初始化。端口冲突只报错，已有配置、开发数据库及课设资料保留，示例仅在空用户表初始化。此轮不改变业务模块、公开契约、core、登录文件、schema 或依赖声明；候选版本为 0.3.1-rc.1。
+
+## 数据库启动卡住修复 · 2026-10-07
+
+foundation 在 `codex/fix-postgres-launch-hang` 修复 Windows PowerShell 等待 Postgres 继承输出管道的问题，范围为 `scripts/windows`、对应初始化/发布包调用与打包复制、Windows 回归检查及版本/使用文档。只等待 pg_ctl 进程并设置启动超时，启动日志与数据库日志分开；数据库子进程继续运行，现有数据保留。不修改业务模块、core、登录、schema 或依赖声明，候选版本为 0.3.1-rc.2。
+
+## AI 工作区与个人中心 · 2026-10-07
+
+用户授权参照提供的 DeepSeek Harness 界面重整 AI 和个人中心布局、拆分资料/项目/AI/外观功能。foundation 在 `codex/ai-settings-workspace` 负责 `components/ai`、共享 AppShell、浏览器偏好与主题 tokens、identity 设置组合/分区、对应检查和文档；保留上一轮启动修复，不调整 core、登录、成员业务模块、schema 或依赖。
+
+公开 `identity/views.SettingsView` 的 `searchParams` 追加可选 `section`（profile/academic/projects/ai/appearance/connections）；飞书回调 notice 仍优先进入账号连接。内部 `settings-workspace` 只负责分区交互，现有资料/身份/连接表单保持原服务与 action，项目来自既有 `listMyProjects/listTeamSpaces` 的账号范围。共享 `AiWorkspace` 追加 `compact?` 供悬浮窗复用；没有新业务接口或模型执行。
+
+主题与悬浮窗偏好键为 `agilenest:preferences:v1:<userId>`，客户端校验、读写失败反馈和账号隔离由共享 store 管理，不带 DB/session 运行时。偏好不跨设备同步。此轮候选版本为 0.4.0-rc.1。
+
+## 项目会话、插件入口与联系方式 · 0.4.0-rc.2 · 2026-10-07
+
+用户继续授权输入框置底、按项目整理会话、交互动画、模型配置与插件入口，明确选择暂不发起模型请求。foundation 沿用 `codex/ai-settings-workspace`，负责共享 AI/导航/偏好、identity 个人中心和资料服务、追加 `personal_contacts` 表/迁移及发布包迁移列表；不调整成员业务模块、core、登录或依赖声明。
+
+公开 `getAccountProfile(actorId)` 返回值追加 `contacts: { phone, contactEmail, officeAddress, qq, wechat, x, github }`，字段均为字符串，未填写为空。`saveAccountProfile(actorId,input)` 追加可选 `contacts`，不传时保留原联系方式，传空串时清空；资料 action 以当前会话用户为唯一更新对象，成功返回 contacts 更新还原基线。联系方式不进入成员列表，不改变学术确认或职务权限。
+
+共享 `AiWorkspace` 接收已通过公开 `listMyProjects` 查询的 projects 摘要，悬浮窗复用 AppShell 的同一摘要；不加载任务、文件或成员信息。旧 v1 草稿追加可选 projectId/messages，读取保持兼容；每份最多 20 条本地记录，按项目过滤、搜索包括记录正文。偏好 v1 追加 ai.model/ai.plugins 并为旧数据补齐默认值；模型密钥只记录环境变量名。没有模型 API 或外部插件执行契约。
+
+## AI 本地资料与紧凑输入 · 0.4.0-rc.3 · 2026-10-08
+
+用户授权缩小输入框、整理加号菜单并增加文件资料读取与整理。foundation 沿用 `codex/ai-settings-workspace`，范围仅共享 `components/ai`、相关 tokens、契约检查与版本/体验文档。没有新增模块导出、业务 API、依赖或模型请求，保留 rc.2 的个人资料与启动修复。
+
+草稿/消息 v1 追加可选 `materials: {id,name,kind,size,createdAt}[]`；正文与 Blob 在 IndexedDB 按 `[userId,id]` 组织，旧草稿兼容，编辑正文合并最新资料元数据。每份会话最多 10 份、合计 50 MB，单文件 10 MB。文本读取、分页、搜索、标题/表格/JSON 字段整理完全在浏览器执行；PDF 与图片只预览，不宣称文字提取或 AI 总结。附件单独记录后仍随消息保留；移除或删除草稿清理不再引用的文件。用户手动选择文件，不自动读取项目任务、文件系统或服务端资料。
+
+## 评审修正 · 0.4.0-rc.4 · 2026-10-10
+
+对 rc.3 候选运行独立只读评审后，foundation 在同一分支修正并发与状态缺陷，范围仍为共享 `components/ai`、`components/preferences*`、identity 设置组合与对应契约用例，无新增导出、依赖或数据库变更。
+
+共享 `AiWorkspace` 的编辑器在自身未编辑时采用 store 中更新的正文，避免多标签覆盖与旧视图继续编辑；同一 store 的 `saveText` 语义与既有「未编辑不覆盖」约定不变。个人资料 action 仅在表单包含联系方式字段时传递 `contacts`，`saveAccountProfile` 的「缺省保留」契约不变。偏好 store 追加 `reset()`（需要 `removeItem`），identity 失败提示改为「重置偏好」。`SettingsWorkspace` 在软导航时同步请求分区，分区切换改用 `pushState` 并监听 `popstate`。

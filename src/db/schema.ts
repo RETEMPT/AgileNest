@@ -326,3 +326,15 @@ export const personalSchedules = pgTable("personal_schedules", {
   check("personal_schedules_version_check", sql`${t.version} > 0`),
   check("personal_schedules_time_check", sql`(${t.startTime} is null and ${t.endTime} is null) or (${t.startTime} is not null and ${t.endTime} is not null and ${t.startTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' and ${t.endTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' and ${t.startTime} < ${t.endTime})`),
 ]);
+
+export const personalContacts = pgTable("personal_contacts", {
+  userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  phone: text("phone").notNull().default(""),
+  contactEmail: text("contact_email").notNull().default(""),
+  officeAddress: text("office_address").notNull().default(""),
+  qq: text("qq").notNull().default(""),
+  wechat: text("wechat").notNull().default(""),
+  x: text("x").notNull().default(""),
+  github: text("github").notNull().default(""),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});

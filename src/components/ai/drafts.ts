@@ -1,16 +1,26 @@
 import { z } from "zod";
+import { materialRefSchema, MAX_MATERIALS, MAX_SESSION_BYTES } from "./materials";
 
 export const MAX_DRAFTS = 40;
 export const MAX_DRAFT_LENGTH = 6000;
 export const MAX_TITLE_LENGTH = 40;
+export const MAX_LOCAL_MESSAGES = 20;
 
 const draftId = z.union([z.literal("initial"), z.uuid()]);
+const materialsSchema = z.array(materialRefSchema).max(MAX_MATERIALS).refine((items) => new Set(items.map((item) => item.id)).size === items.length, "资料索引重复");
 const draftSchema = z.object({
   id: draftId,
   title: z.string().min(1).max(MAX_TITLE_LENGTH),
   customTitle: z.boolean().default(false),
   text: z.string().max(MAX_DRAFT_LENGTH),
   updatedAt: z.iso.datetime(),
+  projectId: z.uuid().nullable().optional(),
+  materials: materialsSchema.optional(),
+  messages: z.array(z.object({ id: z.uuid(), text: z.string().max(MAX_DRAFT_LENGTH), createdAt: z.iso.datetime(), materials: materialsSchema.optional() }).refine((message) => Boolean(message.text.trim() || message.materials?.length), "记录不能为空")).max(MAX_LOCAL_MESSAGES).optional(),
+}).superRefine((draft,ctx) => {
+  const materials = draftMaterials(draft);
+  if (materials.length > MAX_MATERIALS || materials.reduce((total,item) => total + item.size,0) > MAX_SESSION_BYTES)
+    ctx.addIssue({code:"custom",message:"会话资料超过数量或大小限制"});
 });
 const notebookSchema = z
   .object({
@@ -29,6 +39,9 @@ const notebookSchema = z
   });
 
 export type AiDraft = z.infer<typeof draftSchema>;
+export function draftMaterials(draft: Pick<AiDraft, "materials" | "messages">) {
+  return Array.from(new Map([...(draft.materials ?? []),...(draft.messages?.flatMap((message) => message.materials ?? []) ?? [])].map((item) => [item.id,item])).values());
+}
 export type DraftNotebook = z.infer<typeof notebookSchema>;
 export const EMPTY_NOTEBOOK: DraftNotebook = {
   version: 1,
@@ -55,7 +68,7 @@ export function searchDrafts(drafts: AiDraft[], query: string) {
   return drafts.filter(
     (draft) =>
       !term ||
-      `${draft.title}\n${draft.text}`.toLocaleLowerCase().includes(term),
+      `${draft.title}\n${draft.text}\n${draft.messages?.map((message) => message.text).join("\n") ?? ""}\n${draftMaterials(draft).map((item) => item.name).join("\n")}`.toLocaleLowerCase().includes(term),
   );
 }
 

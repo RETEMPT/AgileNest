@@ -5,6 +5,7 @@ param(
 )
 
 Set-Location -LiteralPath $ProjectRoot
+. (Join-Path $ProjectRoot 'scripts/windows/database-process.ps1')
 $webUrl = "http://localhost:$WebPort"
 
 function Get-PortOwnerIds([int]$Port) {
@@ -16,7 +17,7 @@ function Get-PortOwnerIds([int]$Port) {
 
 function Test-LocalDatabase {
   if (Test-Path -LiteralPath $pgIsReady) {
-    & $pgIsReady -h 127.0.0.1 -p 5432 2>$null | Out-Null
+    & $pgIsReady -h 127.0.0.1 -p 5432 -t 2 2>$null | Out-Null
     return $LASTEXITCODE -eq 0
   }
   return @(Get-PortOwnerIds 5432).Count -gt 0
@@ -49,10 +50,7 @@ function Invoke-LocalStart {
   if (-not (Test-LocalDatabase)) {
     if (Test-Path -LiteralPath $pgCtl) {
       Write-Host "[1/2] 启动内置 Postgres..." -ForegroundColor Yellow
-      & $pgCtl start -D $pgData -l $pgLog | Out-Host
-      if ($LASTEXITCODE -ne 0) {
-        throw "Postgres 启动失败，请检查 .tools/pg.log。"
-      }
+      Start-BundledPostgres -PgCtl $pgCtl -DataDirectory $pgData -LogFile $pgLog
     } elseif (Get-Command docker.exe -ErrorAction SilentlyContinue) {
       Write-Host "[1/2] 启动 Docker Postgres..." -ForegroundColor Yellow
       & docker.exe compose up -d db | Out-Host

@@ -2,6 +2,9 @@ import {
   decodeNotebook,
   draftStorageKey,
   EMPTY_NOTEBOOK,
+  saveDraft,
+  titleFromText,
+  type AiDraft,
   type DraftNotebook,
 } from "./drafts";
 
@@ -77,6 +80,24 @@ export function createDraftStore(userId: string, storage: () => StorageAccess) {
   return {
     getSnapshot,
     commit,
+    saveText(draft: AiDraft, text: string, baseline: string, canCreate = false) {
+      // Hydration and untouched editors must never overwrite stored content.
+      if (text === baseline) return true;
+      const current = getSnapshot().notebook.drafts.find((item) => item.id === draft.id);
+      if (!current && !canCreate) return false;
+      if (current?.text === text) return true;
+      return commit((notebook) => {
+        const latest = notebook.drafts.find((item) => item.id === draft.id);
+        if (!latest && !canCreate) throw new Error("草稿已删除");
+        return saveDraft(notebook, {
+          ...(latest ?? draft),
+          title: latest?.customTitle ? latest.title : titleFromText(latest?.messages?.[0]?.text || text),
+          customTitle: latest?.customTitle ?? false,
+          text,
+          updatedAt: new Date().toISOString(),
+        });
+      });
+    },
     refresh() {
       cachedRaw = undefined;
       emit();

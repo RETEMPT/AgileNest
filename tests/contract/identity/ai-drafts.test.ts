@@ -30,6 +30,40 @@ function memoryStorage() {
 }
 
 describe("foundation AI 本地草稿", () => {
+  it("首次加载的未编辑空输入及旧编辑器卸载不覆盖已有草稿", () => {
+    const storage = memoryStorage();
+    const store = createDraftStore("member-a",() => storage);
+    store.commit((notebook) => saveDraft(notebook,draft));
+    const original = storage.getItem(draftStorageKey("member-a"));
+    expect(store.saveText({...draft,text:""},"","",true)).toBe(true);
+    expect(storage.getItem(draftStorageKey("member-a"))).toBe(original);
+    const remote = createDraftStore("member-a",() => storage);
+    remote.commit((notebook) => saveDraft(notebook,{...draft,text:"其他编辑器的新内容"}));
+    expect(store.saveText(draft,draft.text,draft.text)).toBe(true);
+    expect(store.getSnapshot().notebook.drafts[0].text).toBe("其他编辑器的新内容");
+  });
+  it("编辑正文保留最新会话、项目与重命名，已删除草稿不复活", () => {
+    const storage = memoryStorage();
+    const store = createDraftStore("member-a",() => storage);
+    const message = {id:"ac7e2740-dc8e-43ad-b36c-eaef3c6a4ac5",text:"本地记录",createdAt:"2026-10-07T00:00:00.000Z"};
+    store.commit((notebook) => saveDraft(notebook,{...draft,customTitle:true,title:"保留名称",projectId:message.id,messages:[message]}));
+    expect(store.saveText(draft,"新输入",draft.text)).toBe(true);
+    expect(store.getSnapshot().notebook.drafts[0]).toMatchObject({title:"保留名称",projectId:message.id,messages:[message],text:"新输入"});
+    store.commit((notebook) => removeDraft(notebook,draft.id));
+    expect(store.saveText(draft,"迟到的保存",draft.text)).toBe(false);
+    expect(store.getSnapshot().notebook.drafts).toEqual([]);
+  });
+  it("兼容旧草稿，项目与本地会话记录可恢复并参与搜索", () => {
+    const old = decodeNotebook(JSON.stringify({...EMPTY_NOTEBOOK,drafts:[draft],activeId:draft.id}));
+    expect(old.drafts[0].messages).toBeUndefined();
+    const message = {id:"ac7e2740-dc8e-43ad-b36c-eaef3c6a4ac5",text:"阶段汇报问题",createdAt:"2026-10-07T00:00:00.000Z"};
+    const saved = saveDraft(old,{...draft,projectId:message.id,messages:[message]});
+    const restored = decodeNotebook(JSON.stringify(saved));
+    expect(restored.drafts[0].projectId).toBe(message.id);
+    expect(searchDrafts(restored.drafts,"汇报")).toHaveLength(1);
+    expect(() => saveDraft(old,{...draft,projectId:"bad-id"})).toThrow();
+    expect(() => saveDraft(old,{...draft,messages:Array.from({length:21},() => message)})).toThrow();
+  });
   it("首次使用为空，保存后重新创建 store 仍可恢复草稿与选择", () => {
     const storage = memoryStorage();
     const store = createDraftStore("member-a", () => storage);

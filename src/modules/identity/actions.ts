@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser, toFormError } from "@/modules/core";
 import { saveAccountProfile } from "./profile-service";
+import { EMPTY_CONTACTS, type PersonalContacts } from "./contact-schema";
 import {
   createProject,
   createTeam,
@@ -27,8 +28,15 @@ export type IdentityFormState = { error: string; ok?: string } | null;
 export type AccountFormState = {
   error: string;
   ok?: string;
-  saved?: { name: string; bio: string; avatarUrl: string | null };
+  saved?: { name: string; bio: string; avatarUrl: string | null; contacts: PersonalContacts };
 } | null;
+
+// A submission without the contact inputs must not erase saved contacts.
+function submittedContacts(data: FormData) {
+  const keys = Object.keys(EMPTY_CONTACTS) as (keyof PersonalContacts)[];
+  if (!keys.some((key) => data.has(key))) return undefined;
+  return Object.fromEntries(keys.map((key) => [key, String(data.get(key) ?? "")])) as PersonalContacts;
+}
 
 export async function saveAccountProfileAction(
   _prev: AccountFormState,
@@ -40,6 +48,7 @@ export async function saveAccountProfileAction(
       name: String(data.get("name") ?? ""),
       bio: String(data.get("bio") ?? ""),
       avatar: String(data.get("avatar") ?? "") || undefined,
+      contacts: submittedContacts(data),
     });
     revalidatePath("/", "layout");
     return {
@@ -49,6 +58,7 @@ export async function saveAccountProfileAction(
         name: profile.name,
         bio: profile.bio,
         avatarUrl: profile.avatarUrl,
+        contacts: profile.contacts,
       },
     };
   } catch (error) {

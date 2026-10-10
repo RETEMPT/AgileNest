@@ -38,11 +38,11 @@ $pgData = Join-Path $ProjectRoot ".tools\pgdata"
 $pgLog = Join-Path $ProjectRoot ".tools\pg.log"
 
 if (Test-Path $pgCtl) {
+  . (Join-Path $PSScriptRoot 'database-process.ps1')
   Write-Host "[1/5] Starting bundled Postgres..."
   & $pgCtl status -D $pgData | Out-Null
   if ($LASTEXITCODE -ne 0) {
-    & $pgCtl start -D $pgData -l $pgLog
-    if ($LASTEXITCODE -ne 0) { throw 'Postgres start failed. See .tools/pg.log.' }
+    Start-BundledPostgres -PgCtl $pgCtl -DataDirectory $pgData -LogFile $pgLog
   }
 } elseif (Get-Command docker -ErrorAction SilentlyContinue) {
   Write-Host "[1/5] Starting Docker Postgres..."
