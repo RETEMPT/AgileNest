@@ -31,11 +31,16 @@
   --icon-blue-soft: #edf2f9;
 
   /* 五态状态色 */
-  --status-unclaimed: #71717a;
-  --status-in-progress: #2563eb;
-  --status-submitted: #d97706;
-  --status-accepted: #16a34a;
-  --status-rejected: #dc2626;
+  --status-unclaimed: #52525b;
+  --status-in-progress: #1d4ed8;
+  --status-submitted: #92400e;
+  --status-accepted: #166534;
+  --status-rejected: #b91c1c;
+  --status-unclaimed-soft: #f1f5f9;
+  --status-in-progress-soft: #eff6ff;
+  --status-submitted-soft: #fffbeb;
+  --status-accepted-soft: #ecfdf5;
+  --status-rejected-soft: #fef2f2;
 
   /* 优先级 */
   --priority-high: #dc2626;
@@ -75,6 +80,16 @@
   --brand-accent: #e6a16d;
   --icon-blue: #92b6e8;
   --icon-blue-soft: #24364f;
+  --status-unclaimed: #c2cbd7;
+  --status-in-progress: #93baff;
+  --status-submitted: #f3c07a;
+  --status-accepted: #8bddad;
+  --status-rejected: #ffadb5;
+  --status-unclaimed-soft: #2b3442;
+  --status-in-progress-soft: #203653;
+  --status-submitted-soft: #45341f;
+  --status-accepted-soft: #203e32;
+  --status-rejected-soft: #472c35;
 }
 :root[data-theme="light"] { color-scheme: light; }
 
@@ -194,6 +209,8 @@ body {
 .sidebar-label { overflow: hidden; white-space: nowrap; transition: max-width 300ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease; }
 .sidebar-surface nav a { transition: gap 300ms ease, background-color 160ms ease, color 160ms ease, transform 120ms ease; }
 .sidebar-surface nav a:active { transform: scale(0.98); }
+.sidebar-surface { transition: width 240ms cubic-bezier(0.22, 1, 0.36, 1); }
+.sidebar-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 @media (min-width: 768px) { .sidebar-surface[data-collapsed="true"] nav a { gap: 0; } }
 @media (max-width: 767px) {
   .sidebar-surface { transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1), visibility 0ms; }

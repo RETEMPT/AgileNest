@@ -117,7 +117,14 @@ function EditTaskForm({
             placeholder="说明需要完成的内容，以及如何确认完成…"
           />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <details
+          className="rounded-xl border border-border p-3"
+          open={Boolean(task.startDate || task.dueDate || task.estimatedMinutes !== null || task.milestoneId || task.priority !== "medium")}
+        >
+          <summary className="cursor-pointer text-sm font-medium text-muted-foreground">
+            日期、优先级与里程碑
+          </summary>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div className={field}>
             <label htmlFor={`${id}-start`}>开始日期</label>
             <Input
@@ -161,8 +168,8 @@ function EditTaskForm({
               defaultValue={task.estimatedMinutes ?? ""}
             />
           </div>
-        </div>
-        <div className={field}>
+          </div>
+          <div className={`mt-4 ${field}`}>
           <label htmlFor={`${id}-milestone`}>关联里程碑</label>
           <select
             id={`${id}-milestone`}
@@ -177,7 +184,8 @@ function EditTaskForm({
               </option>
             ))}
           </select>
-        </div>
+          </div>
+        </details>
         <FormFeedback message={state?.error} />
         <div className="flex justify-end gap-2 border-t border-border pt-4">
           <Button variant="ghost" type="button" onClick={onClose}>

@@ -118,6 +118,39 @@ describe("board 纯函数契约", () => {
     expect(parsed).toEqual(f);
   });
 
+  it("多个状态与优先级、中文搜索和成员节点条件完整往返", () => {
+    const filters = {
+      status: ["submitted", "rejected"],
+      priority: ["high", "medium"],
+      assigneeId: "u1",
+      milestoneId: "m1",
+      q: "验收 & API",
+    };
+    const query = serializeFilters(filters);
+    query.set("groupBy", "assignee");
+    expect(parseFilters(new URLSearchParams(query.toString()))).toEqual(filters);
+    expect(query.get("groupBy")).toBe("assignee");
+  });
+
+  it("组合筛选后的分组数量仅计算匹配任务且不修改源列表", () => {
+    const input = [
+      task({ id: "match", title: "API 验收", status: "submitted", priority: "high", assigneeId: "u1", milestoneId: "m1" }),
+      task({ id: "other-status", title: "API 验收", status: "accepted", priority: "high", assigneeId: "u1", milestoneId: "m1" }),
+      task({ id: "other-member", title: "API 验收", status: "submitted", priority: "high", assigneeId: "u2", milestoneId: "m1" }),
+      task({ id: "other-milestone", title: "API 验收", status: "submitted", priority: "high", assigneeId: "u1", milestoneId: "m2" }),
+      task({ id: "other-priority", title: "API 验收", status: "submitted", priority: "low", assigneeId: "u1", milestoneId: "m1" }),
+    ];
+    const filtered = applyFilters(input, {
+      q: "api", status: ["submitted", "rejected"], priority: ["high", "medium"], assigneeId: "u1", milestoneId: "m1",
+    });
+    expect(filtered.map((entry) => entry.id)).toEqual(["match"]);
+    for (const groupBy of ["status", "assignee", "priority", "milestone"] as const) {
+      expect(deriveColumns(filtered, groupBy).reduce((total, column) => total + column.tasks.length, 0)).toBe(1);
+    }
+    expect(input).toHaveLength(5);
+    expect(applyFilters(input, { q: "无匹配关键词" })).toEqual([]);
+  });
+
   it("搜索标题与描述，并保留 URL 搜索条件", () => {
     const tasks = [
       task({ id: "a", title: "API 验证" }),

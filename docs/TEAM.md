@@ -57,6 +57,7 @@ main  ──  可部署
 |---|---|---|---|
 | foundation | `chore/foundation` | core · identity · ui · lib | `/login` `/register` `/t/*` `/settings` `/api/auth/**` |
 | foundation（本轮 AI 与个人中心） | `codex/ai-settings-workspace` | 共享 AI UI · 浏览器草稿与偏好 · identity 设置 | `/ai` `/settings`，仅界面与本地存储 |
+| foundation + A/B/C/D/E（本轮体验） | `codex/experience-integration` | 共享外壳/详情及各 Owner 的直接入口 | 项目任务、工作台、验收、统计、日历与通知；见执行记录 |
 | A | `feature/tasks-status` | tasks | `/p/[id]/tasks/**` |
 | B | `feature/board-views` | board | `/p/[id]/board` `/p/[id]/table` |
 | C | `feature/review-portal` | review | `/home/student` `/home/teacher` `/p/[id]/review` |
@@ -73,6 +74,36 @@ main  ──  可部署
 5. PR 必须 Windows 上 `npm test` + `npm run build` 全绿。
 
 ---
+
+## AgileNest 体验集成 · 0.4.0-rc.5 · 2026-10-10
+
+用户授权分步执行体验方案并使用子代理；基线为 `2301a6d` / `0.4.0-rc.4`，在 `codex/experience-integration` 按 Owner 集成。foundation 负责 AppShell/AppSidebar、共享 TaskDrawer/活动展示/状态 tokens、identity 项目上下文与空项目口径；A 负责任务内容和渐进表单；B 负责看板/表格及筛选；C 负责工作台/验收组合；D 负责工时口径与顶层任务下钻；E 负责项目日历与通知入口。各模块 service、状态机、登录、core、schema、依赖均保留原契约。
+
+新增公开 UI 入口如下，均不把 DB/session/service 运行时代码带入客户端：
+
+```ts
+// identity/ui：由项目布局消费，取代重复项目横向导航
+ProjectContextHeader({ projectId: string, name: string, positions: TeamPosition[] })
+
+// tasks/ui：共享只读展示，由独立详情页和共享抽屉消费
+TaskDetailSummary({
+  task: TaskDTO,
+  subtasks?: readonly TaskDTO[],
+  milestoneName?: string | null,
+  loggedMinutes?: number,
+  headingLevel?: "h1" | "h2" // 默认 h2
+})
+
+// review/views：服务端验收页组合，路由只做壳
+ReviewView({ params: Promise<{ projectId: string }> })
+
+// review/ui：客户端入口，由验收页消费
+ReviewTaskDetails({ task: TaskDTO, role: TeamRole, actorId: string })
+```
+
+共享 `TaskDrawer` 保留 `task/role/actorId/isOpen/onClose`，追加可选 `members?: AssigneeOption[]` 和 `milestoneName?: string | null`，由 board 直接传入已授权的成员和里程碑摘要。未加载工时/子任务的抽屉不伪造零值；完整页显示真实查询结果。活动使用既有任务事件接口，并按账号、任务、更新时间和重试标识隔离响应。
+
+看板与表格保留 `q/status/assigneeId/priority/milestoneId/groupBy`，搜索提交保留已存在的多值条件；任务池仍有独立入口和旧 URL。本轮后置 `task` query、任务池共享筛选、项目日历统一筛选。个人日程版本与隐私不变，日历里程碑通过公开 `board/client.serializeFilters` 下钻。证据与后续入口见 [执行记录](AGILENEST-EXECUTION.md)。
 
 ## 3. 公开契约（`index.ts`）
 

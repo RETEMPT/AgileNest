@@ -92,10 +92,10 @@ export function AppShell({
       {/* 主界面区域：随侧栏展开/收起平滑阻尼过渡 */}
       <div
         className={`app-panel flex flex-col ${workspacePage ? "min-h-[calc(100dvh-3.5rem)] md:min-h-dvh" : "min-h-screen"} transition-[padding] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-          collapsed ? "md:pl-18" : "md:pl-64"
+          collapsed ? "md:pl-18" : "md:pl-60"
         }`}
       >
-        <main className={workspacePage ? "w-full min-w-0 flex-1" : "flex-1 p-4 sm:p-6 md:p-8 max-w-7xl w-full mx-auto"}>
+        <main className={workspacePage ? "w-full min-w-0 flex-1" : "min-w-0 flex-1 p-4 sm:p-6 w-full"}>
           {children}
         </main>
       </div>

@@ -16,8 +16,8 @@ export async function NotificationsView({
     <div className="mx-auto max-w-4xl space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-semibold">消息中心</h1>
-          <p className="mt-3 text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold">消息中心</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
             查看任务分配、提交和验收通知。
           </p>
         </div>
@@ -69,9 +69,10 @@ export async function NotificationsView({
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap justify-between gap-2">
-                    <h2 className="break-words text-sm font-semibold">
-                      {item.title}
-                    </h2>
+                    <div className="min-w-0">
+                      <h2 className="break-words text-sm font-semibold">{item.title}</h2>
+                      <p className={`mt-1 text-xs ${item.readAt ? "text-muted-foreground" : "font-medium text-brand"}`}>{item.readAt ? "已读" : "未读"}</p>
+                    </div>
                     <time
                       className="text-xs text-muted-foreground"
                       dateTime={item.createdAt.toISOString()}
@@ -90,7 +91,7 @@ export async function NotificationsView({
                       {item.body}
                     </p>
                   )}
-                  <div className="mt-3 flex items-center justify-between gap-3">
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                     {item.link?.startsWith("/p/") && (
                       <Link
                         href={item.link}

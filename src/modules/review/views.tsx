@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import {
   ArrowUpRight,
   CheckCheck,
@@ -8,13 +9,15 @@ import {
   Search,
   SlidersHorizontal,
 } from "lucide-react";
-import { requireUser, isOverdue, todayISO } from "@/modules/core";
+import { requireUser, isOverdue, todayISO, getProjectForUser } from "@/modules/core";
 import { listMyProjects } from "@/modules/identity";
+import { listProjectTasks } from "@/modules/tasks";
 import { TaskActions } from "@/modules/tasks/ui";
 import { StatusPill, PriorityPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
-import { getWorkbench } from "./service";
+import { getWorkbench, listPendingReview, listOverdueRisks } from "./service";
+import { ReviewTaskDetails } from "./ui";
 import {
   parseWorkbenchQuery,
   selectWorkbenchItems,
@@ -51,11 +54,11 @@ export async function WorkbenchView({
   const resetUrl = workbenchUrl(query, { q: "", projectId: "", due: "all" });
   const overdue = work.mine.filter((task) => isOverdue(task.dueDate, today)).length;
   return (
-    <div className="space-y-7">
+    <div className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">工作台</h1>
-          <p className="mt-3 text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-tight">工作台</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
             跨项目查看负责、待验收和可认领的任务。
           </p>
         </div>
@@ -66,40 +69,20 @@ export async function WorkbenchView({
           </Link>
         </Button>
       </header>
-      <nav aria-label="工作台任务分类" className="grid grid-cols-3 gap-2 sm:gap-3">
+      <nav aria-label="工作台任务分类" className="flex flex-wrap gap-2">
         {tabs.map(({ key, title, count, icon: Icon }) => (
           <Link
             key={key}
             href={workbenchUrl(query, { view: key })}
             aria-current={view === key ? "page" : undefined}
-            className={`group rounded-xl border p-3 transition sm:p-4 ${view === key ? "border-brand/40 bg-brand-soft ring-1 ring-brand/10" : "border-border bg-card hover:border-brand/30"}`}
+            className={`inline-flex min-h-10 items-center gap-2 rounded-lg border px-3 py-2 text-sm transition ${view === key ? "border-brand/40 bg-brand-soft font-medium text-brand" : "border-border bg-card text-muted-foreground hover:border-brand/30"}`}
           >
-            <div>
-              <p
-                className={`flex items-center gap-1.5 text-xs font-medium sm:text-sm ${view === key ? "text-brand" : "text-muted-foreground"}`}
-              >
-                <Icon className="hidden h-4 w-4 sm:block" />
-                {title}
-              </p>
-              <p className="mt-2 text-2xl font-semibold tabular-nums">
-                {count}
-                <span className="ml-2 text-xs font-normal text-muted-foreground">
-                  项
-                </span>
-              </p>
-            </div>
+            <Icon aria-hidden="true" className="h-4 w-4" />
+            {title}
+            <span className="rounded bg-background/70 px-1.5 py-0.5 text-xs tabular-nums">{count}</span>
           </Link>
         ))}
       </nav>
-      {overdue > 0 && (
-        <Link
-          href={workbenchUrl(query, { view: "mine", due: "overdue", q: "", projectId: "" })}
-          className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 hover:bg-amber-100"
-        >
-          <span>我负责的任务中有 {overdue} 项已逾期</span>
-          <span className="shrink-0 text-xs font-medium">查看任务 →</span>
-        </Link>
-      )}
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_260px]">
         <section className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card">
           <form
@@ -230,10 +213,21 @@ export async function WorkbenchView({
                     </div>
                     <StatusPill status={task.status} />
                   </div>
-                  {view === "review" && task.completionNote && (
-                    <p className="line-clamp-3 whitespace-pre-wrap rounded-lg bg-brand-soft p-3 text-sm leading-6 text-brand">
-                      {task.completionNote}
-                    </p>
+                  {task.status === "rejected" && (
+                    <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm">
+                      <p className="mb-1 font-medium text-destructive">修改意见 · 修改后重新提交</p>
+                      <p className="line-clamp-3 whitespace-pre-wrap break-words leading-6">
+                        {task.rejectReason || "暂无修改意见，请打开任务查看活动记录。"}
+                      </p>
+                    </div>
+                  )}
+                  {task.status === "submitted" && (
+                    <div className="rounded-lg bg-brand-soft p-3 text-sm">
+                      <p className="mb-1 font-medium text-brand">{view === "review" ? "最新完成说明" : "已提交，等待验收"}</p>
+                      <p className="line-clamp-3 whitespace-pre-wrap break-words leading-6">
+                        {task.completionNote || "暂无完成说明，请打开任务查看活动记录。"}
+                      </p>
+                    </div>
                   )}
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
@@ -256,6 +250,15 @@ export async function WorkbenchView({
           )}
         </section>
         <aside className="space-y-5">
+          {overdue > 0 && (
+            <Link
+              href={workbenchUrl(query, { view: "mine", due: "overdue", q: "", projectId: "" })}
+              className="block rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-sm"
+            >
+              <span className="font-medium text-destructive">我负责的任务中有 {overdue} 项已逾期</span>
+              <span className="mt-2 block text-xs text-muted-foreground">查看逾期任务 →</span>
+            </Link>
+          )}
           <section>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-semibold">我的项目</h2>
@@ -301,5 +304,139 @@ export async function WorkbenchView({
         </aside>
       </div>
     </div>
+  );
+}
+
+export async function ReviewView({
+  params,
+}: {
+  params: Promise<{ projectId: string }>;
+}) {
+  const { projectId } = await params;
+  const user = await requireUser();
+  const access = await getProjectForUser(user.id, projectId);
+  if (!access) notFound();
+
+  if (!access.capabilities.review) {
+    return (
+      <main className="space-y-4">
+        <h1 className="text-2xl font-semibold">验收台</h1>
+        <div className="rounded-xl border border-dashed border-border p-6 text-sm leading-6 text-muted-foreground">
+          当前项目的验收由管理员或指导老师处理。你可以在
+          <Link href={`/p/${projectId}/tasks`} className="mx-1 text-brand hover:underline">
+            项目任务
+          </Link>
+          查看提交和修改进度。
+        </div>
+      </main>
+    );
+  }
+
+  const [pending, overdue, projectTasks] = await Promise.all([
+    listPendingReview(user.id, projectId),
+    listOverdueRisks(user.id, projectId),
+    listProjectTasks(user.id, projectId),
+  ]);
+  const children = new Map<string, typeof projectTasks>();
+  for (const task of projectTasks) {
+    if (!task.parentTaskId) continue;
+    const group = children.get(task.parentTaskId) ?? [];
+    group.push(task);
+    children.set(task.parentTaskId, group);
+  }
+
+  return (
+    <main className="space-y-5">
+      <header>
+        <h1 className="text-2xl font-semibold">验收台</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {access.project.name} · 待验收 {pending.length} 项 · 逾期 {overdue.length} 项
+        </p>
+      </header>
+      <section className="overflow-hidden rounded-xl border border-border bg-card" aria-labelledby="review-queue-heading">
+        <div className="border-b border-border px-4 py-3 sm:px-5">
+          <h2 id="review-queue-heading" className="text-sm font-semibold">待验收队列</h2>
+          <p className="mt-1 text-xs text-muted-foreground">先查看完成说明与子任务；详情中可查看完整修改历史。</p>
+        </div>
+        {pending.length === 0 ? (
+          <div className="px-5 py-12 text-center">
+            <CheckCheck aria-hidden="true" className="mx-auto mb-3 h-8 w-8 text-brand/50" />
+            <h3 className="text-sm font-medium">暂无待验收任务</h3>
+            <p className="mt-2 text-sm text-muted-foreground">成员提交完成说明后，任务会进入此队列。</p>
+            <Button asChild variant="outline" size="sm" className="mt-4">
+              <Link href={`/p/${projectId}/tasks`}>查看项目任务</Link>
+            </Button>
+          </div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {pending.map((task) => {
+              const subtasks = children.get(task.id) ?? [];
+              const accepted = subtasks.filter((child) => child.status === "accepted").length;
+              return (
+                <li key={task.id} className="space-y-3 p-4 sm:p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1 basis-48">
+                      <Link href={`/p/${projectId}/tasks/${task.id}`} className="break-words text-sm font-semibold hover:text-brand">
+                        {task.title}
+                      </Link>
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        {task.submitterName || "负责人未设置"}{task.parentTaskId ? " · 子任务" : " · 顶层任务"}
+                        {task.dueDate ? ` · 截止 ${task.dueDate}` : ""}
+                      </p>
+                    </div>
+                    <StatusPill status={task.status} />
+                  </div>
+                  <div className="rounded-lg bg-brand-soft p-3">
+                    <h3 className="mb-1 text-xs font-semibold text-brand">最新完成说明</h3>
+                    <p className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-6">{task.completionNote || "暂无完成说明，请打开详情核对活动记录。"}</p>
+                  </div>
+                  {task.rejectReason && (
+                    <details className="text-sm">
+                      <summary className="cursor-pointer text-muted-foreground">上次修改意见</summary>
+                      <p className="mt-2 whitespace-pre-wrap break-words border-l-2 border-destructive/30 pl-3 leading-6">{task.rejectReason}</p>
+                    </details>
+                  )}
+                  {subtasks.length > 0 && (
+                    <details className="text-sm">
+                      <summary className="cursor-pointer text-muted-foreground">直接子任务已验收 {accepted}/{subtasks.length}{accepted < subtasks.length ? " · 全部验收后才能通过父任务" : ""}</summary>
+                      <ul className="mt-2 space-y-2 border-l-2 border-border pl-3">
+                        {subtasks.map((child) => (
+                          <li key={child.id} className="flex flex-wrap items-center justify-between gap-2">
+                            <Link href={`/p/${projectId}/tasks/${child.id}`} className="min-w-0 break-words text-brand hover:underline">{child.title}</Link>
+                            <StatusPill status={child.status} />
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <ReviewTaskDetails task={task} role={access.role} actorId={user.id} />
+                    <TaskActions task={task} role={access.role} actorId={user.id} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+      <section className="space-y-3" aria-labelledby="review-overdue-heading">
+        <h2 id="review-overdue-heading" className="text-sm font-semibold">逾期事项 · {overdue.length}</h2>
+        {overdue.length === 0 ? (
+          <p className="text-sm text-muted-foreground">暂无进行中、待验收或待修改的逾期任务。</p>
+        ) : (
+          <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+            {overdue.map((task) => (
+              <li key={task.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1 basis-48">
+                  <Link href={`/p/${projectId}/tasks/${task.id}`} className="break-words text-sm font-medium hover:text-brand">{task.title}</Link>
+                  <p className="mt-1 text-xs text-muted-foreground">{task.assigneeName || "未认领"} · 截止 {task.dueDate}</p>
+                </div>
+                <StatusPill status={task.status} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </main>
   );
 }

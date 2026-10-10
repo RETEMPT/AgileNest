@@ -1,5 +1,7 @@
 "use client";
 
+export { ProjectContextHeader } from "./project-context";
+
 import { useActionState, useId, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import {

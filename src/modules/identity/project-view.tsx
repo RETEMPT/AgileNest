@@ -89,9 +89,8 @@ export async function ProjectOverviewView({
         <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[240px_1fr]">
           <div>
             <p className="text-sm text-muted-foreground">项目验收完成率</p>
-            <p className="mt-2 text-5xl font-semibold tracking-tight text-brand">
-              {pct}
-              <span className="text-xl">%</span>
+            <p className={`mt-2 font-semibold tracking-tight text-brand ${completion.total ? "text-5xl" : "text-2xl"}`}>
+              {completion.total ? <>{pct}<span className="text-xl">%</span></> : "暂无完成度"}
             </p>
             <p className="mt-3 text-xs leading-5 text-muted-foreground">
               {completion.done} / {completion.total} 个顶层任务已验收
@@ -102,7 +101,7 @@ export async function ProjectOverviewView({
           <div className="space-y-5">
             <div
               className="flex h-3 overflow-hidden rounded-full bg-muted"
-              aria-label={"已验收 " + pct + "%"}
+              aria-label={completion.total ? "已验收 " + pct + "%" : "尚无顶层任务"}
             >
               {states.map(({ key, color }) => {
                 const count = tasks.filter((t) => t.status === key).length;

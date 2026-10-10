@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireUser, getProjectForUser } from "@/modules/core";
-import { ProjectSidebar } from "./sidebar";
+import { ProjectContextHeader } from "@/modules/identity/ui";
 
 export default async function ProjectLayout({
   children,
@@ -16,10 +16,9 @@ export default async function ProjectLayout({
 
   return (
     <div className="space-y-6">
-      <ProjectSidebar
+      <ProjectContextHeader
         projectId={projectId}
         positions={access.positions}
-        canReview={access.capabilities.review}
         name={access.project.name}
       />
       <div className="min-w-0">{children}</div>

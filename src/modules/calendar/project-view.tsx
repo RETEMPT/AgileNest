@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { requireUser, getProjectForUser } from "@/modules/core";
 import { addDaysISO, todayISO } from "@/modules/core/dates";
 import { CalendarWorkspace } from "./project-ui";
@@ -54,17 +55,26 @@ export async function CalendarWorkspaceView({
       : days;
 
   return (
-    <CalendarWorkspace
-      projectId={projectId}
-      year={parsed.year}
-      month={parsed.month}
-      view={parsed.view}
-      today={today}
-      cells={cells}
-      days={agendaDays}
-      filters={parsed.filters}
-      canReview={access.capabilities.review}
-    />
+    <main className="space-y-5">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">项目日历</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{access.project.name} · 项目任务排期与里程碑，个人安排在个人日历管理。</p>
+        </div>
+        <Link href="/calendar" className="text-sm text-brand hover:underline">个人日历 →</Link>
+      </header>
+      <CalendarWorkspace
+        projectId={projectId}
+        year={parsed.year}
+        month={parsed.month}
+        view={parsed.view}
+        today={today}
+        cells={cells}
+        days={agendaDays}
+        filters={parsed.filters}
+        canReview={access.capabilities.review}
+      />
+    </main>
   );
 }
 

@@ -43,6 +43,8 @@
 
 用户授权仓库与单一启动入口整理：foundation 在 codex/single-launcher-cleanup 调整根目录脚本、scripts/windows、发布包生命周期、检查与文档；不改业务模块、core、登录、schema 或依赖。关闭启动窗口默认停止网站，开发数据与课设资料保留。
 
+用户授权本轮按 AgileNest 体验方案分步实施并使用子代理，集成分支为 `codex/experience-integration`。foundation 负责共享导航、详情容器、状态 tokens 和 identity 项目上下文；A/B/C/D/E 分别负责任务、看板、工作台与验收、统计、日历与通知入口。公开 UI 契约及验收范围登记于 `docs/TEAM.md`、`docs/AGILENEST-EXECUTION.md`；不修改 core、登录、schema 或依赖，不实现 Sprint、GitHub 同步或模型调用。
+
 ## 2. 架构不变量
 
 1. **模块化单体**：`src/modules/<m>/{schema,service,actions,api,ui,index}.ts`

@@ -7,6 +7,7 @@ import {
   listMyInProgress,
   listMyTodo,
   listPendingReview,
+  listTaskEvents,
 } from "@/modules/review";
 import { createTask, transitionTask } from "@/modules/tasks";
 import {
@@ -114,5 +115,23 @@ describe("统一工作台", () => {
     await expect(
       listPendingReview(fx.student.id, fx.project.id),
     ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+  it("修改后重交保留最新成果、上次修改意见和完整流转历史", async () => {
+    const task = await createTask(fx.student.id, fx.project.id, {
+      title: "检查交付上下文",
+      assigneeId: fx.student.id,
+    });
+    await transitionTask(fx.student.id, task.id, "submit", { note: "第一版成果" });
+    await transitionTask(fx.teacher.id, task.id, "reject", { note: "补充边界验证" });
+    const rejected = (await getWorkbench(fx.student.id)).mine.find((item) => item.id === task.id);
+    expect(rejected).toMatchObject({ status: "rejected", completionNote: "第一版成果", rejectReason: "补充边界验证" });
+    await transitionTask(fx.student.id, task.id, "resubmit", { note: "已补齐边界验证" });
+    const [pending] = await listPendingReview(fx.teacher.id, fx.project.id);
+    expect(pending).toMatchObject({ completionNote: "已补齐边界验证", rejectReason: "补充边界验证" });
+    expect(pending.permissions?.actions).toContain("accept");
+    expect((await listTaskEvents(fx.teacher.id, task.id)).filter((event) => ["submit", "reject", "resubmit"].includes(event.action)).map((event) => event.action)).toEqual(["submit", "reject", "resubmit"]);
+    await transitionTask(fx.teacher.id, task.id, "accept");
+    expect(await listPendingReview(fx.teacher.id, fx.project.id)).toHaveLength(0);
+    expect((await getWorkbench(fx.teacher.id)).review).toHaveLength(0);
   });
 });

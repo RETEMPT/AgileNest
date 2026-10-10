@@ -36,6 +36,8 @@ import {
   type TaskPermissions,
 } from "@/modules/identity/client";
 
+export { TaskDetailSummary, type TaskDetailSummaryProps } from "./detail-summary";
+
 function ErrorLine({ state }: { state: FormState }) {
   return <FormFeedback message={state?.error} className="text-xs" />;
 }
@@ -111,49 +113,63 @@ export function CreateTaskForm({
         required
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
       />
+      <label htmlFor={`${id}-description`} className="block text-xs font-medium">
+        目标与验收要求 <span className="font-normal text-muted-foreground">（可选）</span>
+      </label>
       <textarea
-        aria-label="任务描述"
+        id={`${id}-description`}
         name="description"
         value={fields.description}
         onChange={(event) =>
           setFields({ ...fields, description: event.target.value })
         }
-        placeholder="描述（可选）"
-        rows={2}
+        placeholder="说明工作目标、交付内容，以及如何确认完成"
+        rows={3}
+        maxLength={10000}
         disabled={pending}
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
       />
-      <div className="flex flex-wrap gap-2">
-        <input
-          aria-label="任务截止日期"
-          type="date"
-          name="dueDate"
-          value={fields.dueDate}
-          disabled={pending}
-          onChange={(event) =>
-            setFields({ ...fields, dueDate: event.target.value })
-          }
-          className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-        />
-        <select
-          aria-label="任务优先级"
-          name="priority"
-          value={fields.priority}
-          disabled={pending}
-          onChange={(event) =>
-            setFields({ ...fields, priority: event.target.value })
-          }
-          className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-        >
-          <option value="low">低优先</option>
-          <option value="medium">中优先</option>
-          <option value="high">高优先</option>
-        </select>
+      <details className="rounded-lg border border-border px-3 py-2">
+        <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+          日期与优先级（可选）
+        </summary>
+        <div className="mt-3 grid gap-3">
+          <div className="space-y-1.5">
+            <label htmlFor={`${id}-due`} className="block text-xs font-medium">截止日期</label>
+            <Input
+              id={`${id}-due`}
+              type="date"
+              name="dueDate"
+              value={fields.dueDate}
+              disabled={pending}
+              onChange={(event) => setFields({ ...fields, dueDate: event.target.value })}
+              className="w-full min-w-0"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor={`${id}-priority`} className="block text-xs font-medium">优先级</label>
+            <select
+              id={`${id}-priority`}
+              name="priority"
+              value={fields.priority}
+              disabled={pending}
+              onChange={(event) => setFields({ ...fields, priority: event.target.value })}
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="low">低优先</option>
+              <option value="medium">中优先</option>
+              <option value="high">高优先</option>
+            </select>
+          </div>
+        </div>
+      </details>
+      <ErrorLine state={state} />
+      <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
+        <p className="text-xs text-muted-foreground">创建后可认领或按权限指派。</p>
         <Button size="sm" disabled={pending} loading={pending}>
-          {pending ? "创建中…" : "创建"}
+          {pending ? "创建中…" : parentTaskId ? "创建子任务" : "创建任务"}
         </Button>
       </div>
-      <ErrorLine state={state} />
     </form>
   );
 }
@@ -208,9 +224,9 @@ export function TaskWorkflow({ status }: { status?: TaskDTO["status"] }) {
       </ol>
       <div
         aria-current={status === "rejected" ? "step" : undefined}
-        className={`mt-2 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-xs ${status === "rejected" ? "border-red-300 bg-red-50" : "border-dashed border-border"}`}
+        className={`mt-2 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-xs ${status === "rejected" ? "border-destructive/30 bg-destructive/5" : "border-dashed border-border"}`}
       >
-        <RotateCcw aria-hidden="true" className="h-3.5 w-3.5 text-red-600" />
+        <RotateCcw aria-hidden="true" className="h-3.5 w-3.5 text-destructive" />
         <StatusPill status="rejected" />
         <span className="text-muted-foreground">
           验收时打回 → 按意见修改 → 重新提交到待验收
@@ -307,12 +323,12 @@ export function TransitionDialog({
             <StatusPill status={rule.to} />
           </div>
           {task.status === "rejected" && task.rejectReason && (
-            <p className="mb-4 whitespace-pre-wrap rounded-lg bg-red-50 p-3 text-sm text-red-800">
+            <p className="mb-4 whitespace-pre-wrap break-words rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm [overflow-wrap:anywhere]">
               修改意见：{task.rejectReason}
             </p>
           )}
           {task.status === "submitted" && task.completionNote && (
-            <p className="mb-4 whitespace-pre-wrap rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+            <p className="mb-4 whitespace-pre-wrap break-words rounded-lg border border-brand/20 bg-brand-soft p-3 text-sm [overflow-wrap:anywhere]">
               完成说明：{task.completionNote}
             </p>
           )}
