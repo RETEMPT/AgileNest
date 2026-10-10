@@ -55,7 +55,7 @@ Copy-Item -LiteralPath $pgCopyright -Destination (Join-Path $licenses 'POSTGRESQ
 Copy-Item -LiteralPath 'scripts/release/start.bat' -Destination $bundleRoot
 $launcherPath = Join-Path $bundleRoot 'launcher'
 New-Item -ItemType Directory -Path $launcherPath -Force | Out-Null
-Copy-Item -LiteralPath 'scripts/release/start-release.ps1', 'scripts/release/bootstrap.mjs', 'scripts/release/validate-runtime.mjs', 'scripts/windows/web-process.cs' -Destination $launcherPath
+Copy-Item -LiteralPath 'scripts/release/start-release.ps1', 'scripts/release/bootstrap.mjs', 'scripts/release/validate-runtime.mjs', 'scripts/windows/web-process.cs', 'scripts/windows/database-process.ps1' -Destination $launcherPath
 Copy-Item -LiteralPath 'docs/RELEASE.md' -Destination (Join-Path $bundleRoot 'RELEASE.md')
 Copy-Item -LiteralPath 'CHANGELOG.md' -Destination $bundleRoot
 $dbFiles = Join-Path $bundleRoot 'release-db'

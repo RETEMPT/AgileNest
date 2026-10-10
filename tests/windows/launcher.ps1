@@ -98,6 +98,7 @@ try {
     & (Join-Path $configRoot 'start.bat') -ConfigOnly -NoPause
     if ($LASTEXITCODE -ne 0 -or (Get-FileHash -LiteralPath $environmentPath).Hash -ne $beforeEnvironment -or (Get-FileHash -LiteralPath $testEnvironmentPath).Hash -ne $beforeTestEnvironment) { throw 'Existing configuration was overwritten.' }
     Write-Host 'PASS: public launcher creates configuration once and preserves existing files in a Unicode path.'
+    & (Join-Path $PSScriptRoot 'database.ps1')
 } catch {
     Get-ChildItem -LiteralPath $fixtureRoot -Filter '*error.log' | ForEach-Object { Get-Content -LiteralPath $_.FullName | Write-Host }
     throw

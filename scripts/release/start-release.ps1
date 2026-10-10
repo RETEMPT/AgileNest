@@ -5,6 +5,7 @@ param(
     [ValidateRange(1024, 65535)][int]$DbPort = 55432
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'database-process.ps1')
 $releaseRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $dataPath = Join-Path $releaseRoot 'data'
 $logPath = Join-Path $dataPath 'logs'
@@ -148,8 +149,7 @@ try {
     if (!(Test-OwnedDatabase)) {
         if (Test-Port $config.dbPort) { throw "Database port $($config.dbPort) is in use. Set dbPort in data\config.json to an available port." }
         Write-Host 'Starting local database...'
-        & $pgCtl -D $pgData -l (Join-Path $logPath 'postgres.log') -o "-h 127.0.0.1 -p $($config.dbPort)" -w start
-        if ($LASTEXITCODE -ne 0) { throw 'Database start failed. See data\logs\postgres.log.' }
+        Start-BundledPostgres -PgCtl $pgCtl -DataDirectory $pgData -LogFile (Join-Path $logPath 'postgres.log') -ServerOptions "-h 127.0.0.1 -p $($config.dbPort)"
     }
     $stopDatabaseOnExit = $true
     # These variables apply only to child processes, never to machine settings.

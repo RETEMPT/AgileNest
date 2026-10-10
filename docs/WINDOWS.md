@@ -89,6 +89,7 @@ npx vitest run tests/contract/exports.test.ts tests/contract/core tests/contract
 | 已有启动窗口 | 关闭原窗口，待网站停止后重新启动 |
 | 端口占用 | 检查占用程序，或用 `-WebPort`；脚本不会终止其他程序 |
 | 数据库连接失败 | 检查连接配置、数据库是否存在及 Docker 状态 |
+| 显示 `server started` 后停住 | 使用 0.3.1-rc.2 或更新源码，关闭旧启动窗口后重新运行 start.bat；数据库启动输出见 `.tools/pg.log.startup.log`，错误见 `.tools/pg.log.startup-error.log` |
 | 依赖安装失败 | 检查 Node.js/npm 与网络后，用 `-Setup` 重试 |
 | 首次编译慢 | 等待 Next.js 编译；缓存由 `npm run clean` 清理 |
 | 中文乱码 | 使用 UTF-8；start.bat 已切换终端编码 |
