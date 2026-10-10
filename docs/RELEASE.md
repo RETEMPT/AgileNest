@@ -1,8 +1,8 @@
-# AgileNest · Windows 一键运行与阶段汇总（0.4.0-rc.6）
+# AgileNest · Windows 一键运行与阶段汇总（0.4.0-rc.7）
 
-当前源码候选版 **0.4.0-rc.6** 在 rc.5 体验基础上增加成果版本、逐项验收、团队信息/公告和共享资料；保留首轮改动：合并导航、统一任务详情、保留多值筛选、前置成果与修改意见，并衔接工作台、验收、统计与日历入口。本轮 39 文件、378 条测试与 Windows 构建通过；本轮记录见 [BUSINESS-COMPLETION.md](BUSINESS-COMPLETION.md)，rc.5 历史截图见 [AGILENEST-EXECUTION.md](AGILENEST-EXECUTION.md)。综合人工验收留到最后迭代。本轮尚未合入 main 或重新发布 Windows ZIP；沿用 rc.4 的本地 AI 草稿、资料读取、个人中心和启动修复。
+当前源码候选版 **0.4.0-rc.7** 增加项目协作路径、任务讨论/回复与附件、多文件上传和资料连续筛选，以及右下角通知机器人。本轮 43 文件、413 条测试与 Windows 构建通过；准确范围、真实截图和多轮执行计划见 [COLLABORATION-WORKSPACE.md](COLLABORATION-WORKSPACE.md)。rc.6 成果版本、逐项验收、团队信息/公告和共享资料保留，历史记录见 [BUSINESS-COMPLETION.md](BUSINESS-COMPLETION.md)；rc.5 体验历史见 [AGILENEST-EXECUTION.md](AGILENEST-EXECUTION.md)。综合人工验收留到最后迭代。本轮尚未合入 main 或重新发布 Windows ZIP。
 
-现有候选运行包仍为 [v0.4.0-rc.4](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.4)（`AgileNest-0.4.0-rc.4-windows-x64.zip`），不包含 rc.5/rc.6 改动。已发布稳定版为 **0.3.0**，集成 PR [#6](https://github.com/RETEMPT/AgileNest/pull/6) 已合入主分支，[下载稳定版](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0) 请选择 Windows ZIP；GitHub 自动生成的 Source code 是源码包。历史与本轮验收分别记录于 [UX.md](UX.md)。
+现有候选运行包仍为 [v0.4.0-rc.4](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.4)（`AgileNest-0.4.0-rc.4-windows-x64.zip`），不包含 rc.5/rc.6/rc.7 改动。已发布稳定版为 **0.3.0**，集成 PR [#6](https://github.com/RETEMPT/AgileNest/pull/6) 已合入主分支，[下载稳定版](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0) 请选择 Windows ZIP；GitHub 自动生成的 Source code 是源码包。历史与本轮验收分别记录于 [UX.md](UX.md)。
 
 ## 运行发布包
 

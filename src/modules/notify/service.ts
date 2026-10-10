@@ -1,7 +1,7 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
-import { db } from "@/db";
-import { notifications, projects, tasks, teamMembers, users } from "@/db/schema";
-import { NotFoundError } from "@/modules/core/errors";
+import { and, count, desc, eq, inArray, isNull } from "drizzle-orm";
+import { db, type DbTx } from "@/db";
+import { notifications, projects, taskDiscussionPosts, tasks, teamMembers, teams, users } from "@/db/schema";
+import { ConflictError, ForbiddenError, NotFoundError } from "@/modules/core/errors";
 import { isDueSoon, isOverdue, todayISO } from "@/modules/core/dates";
 
 export type NotificationDTO = {
@@ -118,6 +118,51 @@ export async function notifyRejected(taskId: string, reason: string): Promise<vo
   );
 }
 
+export async function notifyTaskDiscussion(actorId: string, taskId: string, postId: string, tx?: DbTx): Promise<void> {
+  const insert = async (database: DbTx) => {
+    const [initial] = await database.select({ teamId: projects.teamId }).from(tasks)
+      .innerJoin(projects, eq(projects.id, tasks.projectId)).where(eq(tasks.id, taskId));
+    if (!initial) throw new NotFoundError("任务不存在");
+    await database.select({ id: teams.id }).from(teams).where(eq(teams.id, initial.teamId)).for("update");
+    const [scope] = await database.select({ task: tasks, teamId: projects.teamId }).from(tasks)
+      .innerJoin(projects, eq(projects.id, tasks.projectId)).where(eq(tasks.id, taskId));
+    if (!scope) throw new NotFoundError("任务不存在");
+    if (scope.teamId !== initial.teamId) throw new ConflictError("项目归属已变化，请重新加载");
+    const members = await database.select({ userId: teamMembers.userId }).from(teamMembers).where(eq(teamMembers.teamId, scope.teamId));
+    if (!members.some((member) => member.userId === actorId)) throw new ForbiddenError("你不在此任务所属团队中");
+    const [post] = await database.select().from(taskDiscussionPosts)
+      .where(and(eq(taskDiscussionPosts.id, postId), eq(taskDiscussionPosts.taskId, taskId)));
+    if (!post) throw new NotFoundError("讨论不存在");
+    if (post.createdById !== actorId) throw new ForbiddenError("只能发送本人新讨论的通知");
+    if (post.withdrawn) throw new ConflictError("讨论已撤回");
+    let parentAuthor: string | null = null;
+    if (post.parentId) {
+      const [parent] = await database.select().from(taskDiscussionPosts)
+        .where(and(eq(taskDiscussionPosts.id, post.parentId), eq(taskDiscussionPosts.taskId, taskId)));
+      if (!parent || parent.parentId !== null) throw new NotFoundError("原讨论不存在");
+      parentAuthor = parent.createdById;
+    }
+    const candidates = new Set([scope.task.assigneeId, parentAuthor].filter((id): id is string => Boolean(id) && id !== actorId));
+    const recipients = members.filter((member) => candidates.has(member.userId)).map((member) => member.userId);
+    if (!recipients.length) return;
+    const type = post.parentId ? "task_discussion_reply" : "task_discussion";
+    const link = `/p/${scope.task.projectId}/tasks/${taskId}#discussion-${postId}`;
+    const existing = await database.select({ userId: notifications.userId }).from(notifications)
+      .where(and(eq(notifications.type, type), eq(notifications.link, link), inArray(notifications.userId, recipients)));
+    const sent = new Set(existing.map((item) => item.userId));
+    const fresh = recipients.filter((id) => !sent.has(id));
+    if (!fresh.length) return;
+    const excerpt = post.body.trim().slice(0, 300);
+    await database.insert(notifications).values(fresh.map((userId) => ({
+      userId, type, link,
+      title: `${post.parentId ? "讨论回复" : "任务讨论"}：${scope.task.title}`,
+      body: excerpt || (post.resources.length ? "新增了讨论附件。" : "新增了任务讨论。"),
+    })));
+  };
+  if (tx) await insert(tx);
+  else await db.transaction(insert);
+}
+
 export async function scanAndNotifyDue(): Promise<{
   scanned: number;
   notified: number;
@@ -195,6 +240,27 @@ export async function markRead(actorId: string, id: string): Promise<void> {
     .where(and(eq(notifications.id, id), eq(notifications.userId, actorId)))
     .returning();
   if (!updated) throw new NotFoundError("消息不存在");
+}
+
+export async function getMyNotificationFeed(actorId: string): Promise<{
+  notifications: NotificationDTO[];
+  unreadCount: number;
+}> {
+  const [rows, totals] = await Promise.all([
+    db.select().from(notifications)
+      .where(eq(notifications.userId, actorId))
+      .orderBy(desc(notifications.createdAt)).limit(20),
+    db.select({ unreadCount: count() }).from(notifications)
+      .where(and(eq(notifications.userId, actorId), isNull(notifications.readAt))),
+  ]);
+  return { notifications: rows.map(toDTO), unreadCount: totals[0].unreadCount };
+}
+
+export async function markAllRead(actorId: string): Promise<number> {
+  const updated = await db.update(notifications).set({ readAt: new Date() })
+    .where(and(eq(notifications.userId, actorId), isNull(notifications.readAt)))
+    .returning({ id: notifications.id });
+  return updated.length;
 }
 
 export async function userDisplayName(userId: string): Promise<string | null> {

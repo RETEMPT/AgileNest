@@ -49,6 +49,8 @@
 
 用户于本轮后续要求整理全部 Markdown、更新执行计划后继续业务/前端/交互；本轮保留必要自动检查，完整人工综合验收留到最后迭代按用户要求执行。统一提炼与计划见 `docs/PROJECT-STATE.md`；子代理交付后的 A/B/C 联调与遗漏由 root 在已登记集成范围接续，不覆盖成员分支。
 
+用户随后确认分多轮尽可能全面覆盖协作能力，以飞书为主参考、GitHub 为补充，并授权右下角通知 bot。本轮 `codex/collaboration-workspace`：foundation/identity 负责项目路径与团队入口；foundation/resources 负责多文件附件、资料范围/筛选与深链接；C/root 新增 discussions 模块及任务/共享详情入口，追加讨论/历史/文件引用表与独立迁移；E/foundation 负责本人通知摘要、已读操作与共享协作助手，保留 AI 草稿并协调浮窗。本轮通知为真实站内数据，不接系统 Web Push、飞书投递或模型。后续多轮范围见 `docs/COLLABORATION-WORKSPACE.md`，core、登录和依赖继续锁定。
+
 ## 2. 架构不变量
 
 1. **模块化单体**：`src/modules/<m>/{schema,service,actions,api,ui,index}.ts`

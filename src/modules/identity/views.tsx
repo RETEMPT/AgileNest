@@ -33,6 +33,7 @@ export { ProjectOverviewView, ProjectSettingsView } from "./project-view";
 export { SettingsView } from "./settings-view";
 export { TeamSettingsView } from "./team-settings-view";
 import { TeamMemberRemovalButton, TeamSectionLinks } from "./team-settings";
+import { TeamProjectGuide } from "./project-journey";
 import { ACADEMIC_LABELS, POSITION_META } from "./client";
 import {
   AcademicProfileForm,
@@ -262,7 +263,7 @@ export async function TeamProjectsView({
         </div>
       </header>
       <TeamSectionLinks teamId={teamId} current="projects" />
-      {projects.length === 0 && <CollaborationPath current={2} />}
+      <TeamProjectGuide teamId={teamId} />
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
         <div>
           <h2 className="text-sm font-semibold">邀请团队成员</h2>
@@ -272,6 +273,7 @@ export async function TeamProjectsView({
         </div>
         <InviteCode code={team.inviteCode} expiresOn={team.inviteExpiresOn} />
       </section>
+      <h2 id="team-project-list" tabIndex={-1} className="scroll-mt-6 text-base font-semibold">团队项目</h2>
       <nav aria-label="项目类型筛选" className="flex flex-wrap gap-2">
         <Button asChild variant={!selected ? "default" : "outline"} size="sm">
           <Link href={`/t/${teamId}/projects`}>全部项目 {projects.length}</Link>
@@ -346,7 +348,7 @@ export async function TeamProjectsView({
                   </div>
                   <CardTitle className="pt-2">
                     <Link
-                      href={`/p/${project.id}/board`}
+                      href={`/p/${project.id}`}
                       className="hover:text-brand"
                     >
                       {project.name}
@@ -406,12 +408,17 @@ export async function TeamProjectsView({
                       {project.startDate || "未设开始日期"} →{" "}
                       {project.endDate || "未设结束日期"}
                     </span>
-                    <Button asChild size="sm">
-                      <Link href={`/p/${project.id}/board`}>
-                        进入看板
-                        <ArrowRight className="h-3 w-3" />
-                      </Link>
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/p/${project.id}/board`}>看板</Link>
+                      </Button>
+                      <Button asChild size="sm">
+                        <Link href={`/p/${project.id}`}>
+                          项目概览
+                          <ArrowRight className="h-3 w-3" />
+                        </Link>
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

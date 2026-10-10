@@ -10,6 +10,7 @@ import * as calendar from "@/modules/calendar";
 import * as milestone from "@/modules/milestone";
 import * as notify from "@/modules/notify";
 import * as resources from "@/modules/resources";
+import * as discussions from "@/modules/discussions";
 import {
   TASK_STATUSES,
   STATUS_LABELS,
@@ -47,6 +48,12 @@ describe("core 契约导出", () => {
     ]) {
       expect(core, `core 缺少 ${name}`).toHaveProperty(name);
     }
+  });
+});
+
+describe("discussions 契约导出", () => {
+  it("任务讨论、历史与HTTP壳完整", () => {
+    for (const name of ["listTaskDiscussions", "createTaskDiscussion", "updateTaskDiscussion", "withdrawTaskDiscussion", "setDiscussionResolved", "listDiscussionRevisions", "taskDiscussionsGET", "taskDiscussionsPOST", "taskDiscussionGET", "taskDiscussionPATCH"]) expect(discussions).toHaveProperty(name);
   });
 });
 

@@ -22,6 +22,7 @@ import { SubmissionTimeline } from "@/modules/review/ui";
 import { TaskRequirementsEditor } from "./requirements-ui";
 import { applyFilters, parseFilters, serializeFilters, workspaceUrl, type GroupBy } from "@/modules/board/client";
 import { TaskPoolFilters } from "./pool-filters";
+import { TaskDiscussions } from "@/modules/discussions/ui";
 
 export async function TaskDetailView({
   params,
@@ -81,6 +82,7 @@ export async function TaskDetailView({
       </section>
 
       <TaskRequirementsEditor taskId={task.id} requirements={delivery.requirements} canEdit={Boolean(task.permissions?.actions.includes("update"))} />
+      <TaskDiscussions taskId={task.id} projectId={projectId} actorId={user.id} />
       <SubmissionTimeline taskId={task.id} updatedAt={task.updatedAt.toISOString()} />
 
       <section className="space-y-3 rounded-xl border border-border bg-card p-4 sm:p-5">

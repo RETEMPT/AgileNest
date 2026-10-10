@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db, type DbTx } from "@/db";
-import { memberPositions, projects, resourceReferences, resourceRevisions, teamMembers, teamResources, teams, users } from "@/db/schema";
+import { discussionResourceReferences, memberPositions, projects, resourceReferences, resourceRevisions, teamMembers, teamResources, teams, users } from "@/db/schema";
 import { AppError, ConflictError, ForbiddenError, NotFoundError, requireProjectForUser, requireTeamRole } from "@/modules/core";
 import { RESOURCE_MAX_BYTES, decodeMaterialText, type ResourceDTO } from "./client";
 import { resourceInputSchema, resourcePatchSchema, scopeSchema } from "./schema";
@@ -32,7 +32,7 @@ const metadata = {
   mimeType: teamResources.mimeType, size: teamResources.size, tags: teamResources.tags, category: teamResources.category,
   version: teamResources.version, createdById: teamResources.createdById, updatedById: teamResources.updatedById,
   createdAt: teamResources.createdAt, updatedAt: teamResources.updatedAt,
-  referenced: sql<boolean>`exists (select 1 from ${resourceReferences} where ${resourceReferences.resourceId} = ${teamResources.id})`,
+  referenced: sql<boolean>`exists (select 1 from ${resourceReferences} where ${resourceReferences.resourceId} = ${teamResources.id}) or exists (select 1 from ${discussionResourceReferences} where ${discussionResourceReferences.resourceId} = ${teamResources.id})`,
 };
 
 export async function listResources(actorId: string, scope: { teamId?: string; projectId?: string }): Promise<ResourceDTO[]> {
@@ -128,7 +128,8 @@ export async function deleteResource(actorId: string, id: string, version: numbe
     const row = await lockManaged(actorId, id, tx, resource);
     if (row.version !== version) throw new ConflictError("资料版本已变化，请刷新后重试");
     const [reference] = await tx.select({ id: resourceReferences.id }).from(resourceReferences).where(eq(resourceReferences.resourceId, id)).limit(1);
-    if (reference) throw new ConflictError("此文件已作为提交证据，不能删除");
+    const [discussionReference] = await tx.select({ id: discussionResourceReferences.id }).from(discussionResourceReferences).where(eq(discussionResourceReferences.resourceId, id)).limit(1);
+    if (reference || discussionReference) throw new ConflictError("此文件已关联成果或讨论，不能删除");
     await tx.delete(teamResources).where(eq(teamResources.id, id));
   });
 }
@@ -153,5 +154,16 @@ export async function bindSubmissionResources(actorId: string, projectId: string
   const rows = await tx.select().from(teamResources).where(inArray(teamResources.id, ids)).orderBy(teamResources.id).for("update");
   if (rows.length !== ids.length || rows.some((row) => row.teamId !== access.teamId || (row.projectId !== null && row.projectId !== projectId) || row.kind !== "file")) throw new ForbiddenError("只能关联当前项目或团队共享的文件");
   await tx.insert(resourceReferences).values(rows.map((row) => ({ resourceId: row.id, submissionId })));
+  return rows.map(({ id, title, fileName, mimeType, size }) => ({ id, title, fileName, mimeType, size }));
+}
+
+export async function bindDiscussionResources(actorId: string, projectId: string, resourceIds: string[], postId: string, tx: DbTx) {
+  const access = await accessScope(actorId, { projectId }, tx);
+  const ids = [...new Set(resourceIds)].sort();
+  if (ids.length > 10) throw new AppError("每条讨论最多关联 10 份文件");
+  if (!ids.length) return [];
+  const rows = await tx.select().from(teamResources).where(inArray(teamResources.id, ids)).orderBy(teamResources.id).for("update");
+  if (rows.length !== ids.length || rows.some((row) => row.teamId !== access.teamId || (row.projectId !== null && row.projectId !== projectId) || row.kind !== "file")) throw new ForbiddenError("只能关联当前项目或团队共享的文件");
+  await tx.insert(discussionResourceReferences).values(rows.map((row) => ({ resourceId: row.id, postId })));
   return rows.map(({ id, title, fileName, mimeType, size }) => ({ id, title, fileName, mimeType, size }));
 }

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { AppSidebar, type ProjectSummary } from "./app-sidebar";
 import { FeedbackProvider } from "./ui/feedback";
 import { AppearanceProvider, useUiPreferences } from "./preferences";
-import { AiFloating } from "./ai/floating";
+import { CollaborationDock } from "./ai/floating";
 
 const preferenceKey = "agilenest_sidebar_collapsed";
 const preferenceEvent = "agilenest:sidebar-preference";
@@ -99,7 +99,7 @@ export function AppShell({
           {children}
         </main>
       </div>
-      {preferences.aiFloating && pathname !== "/ai" && <AiFloating key={user.id} userId={user.id} projects={projects} />}
+      <CollaborationDock key={user.id} userId={user.id} projects={projects} aiEnabled={preferences.aiFloating && pathname !== "/ai"} />
     </div>
     </FeedbackProvider>
   );

@@ -421,3 +421,32 @@ export const taskSubmissionReviews = pgTable("task_submission_reviews", {
   checks: jsonb("checks").$type<{ criterionId: string; passed: boolean; note?: string }[]>().notNull(),
   reviewedAt: timestamp("reviewed_at").notNull().defaultNow(),
 }, (table) => [uniqueIndex("task_submission_reviews_submission_unique").on(table.submissionId)]);
+
+// discussions：讨论独立于状态机，编辑和撤回不删除原附件与历史。
+export const taskDiscussionPosts = pgTable("task_discussion_posts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  taskId: uuid("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+  parentId: uuid("parent_id").references((): AnyPgColumn => taskDiscussionPosts.id, { onDelete: "cascade" }),
+  body: text("body").notNull(),
+  version: integer("version").notNull().default(1),
+  createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  withdrawn: boolean("withdrawn").notNull().default(false),
+  resolved: boolean("resolved").notNull().default(false),
+  resources: jsonb("resources").$type<{ id: string; title: string; fileName: string | null; mimeType: string | null; size: number }[]>().notNull().default([]),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("task_discussion_posts_task_idx").on(t.taskId, t.createdAt), check("task_discussion_posts_version_check", sql`${t.version} > 0`), check("task_discussion_posts_body_check", sql`char_length(${t.body}) <= 10000`)]);
+export const taskDiscussionRevisions = pgTable("task_discussion_revisions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  postId: uuid("post_id").notNull().references(() => taskDiscussionPosts.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  body: text("body").notNull(),
+  kind: text("kind").$type<"create" | "edit" | "withdraw" | "resolve" | "reopen">().notNull(),
+  changedById: uuid("changed_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("task_discussion_revisions_version_idx").on(t.postId, t.version)]);
+export const discussionResourceReferences = pgTable("discussion_resource_references", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  resourceId: uuid("resource_id").notNull().references(() => teamResources.id, { onDelete: "restrict" }),
+  postId: uuid("post_id").notNull().references(() => taskDiscussionPosts.id, { onDelete: "cascade" }),
+}, (t) => [uniqueIndex("discussion_resource_references_pair_idx").on(t.resourceId, t.postId)]);

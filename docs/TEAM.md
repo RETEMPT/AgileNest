@@ -13,6 +13,7 @@ src/modules/
   core/        错误 · 权限 · session · 日期 · 表单     foundation
   identity/    团队 · 成员 · 角色 · 项目               foundation
   resources/   团队/项目文档 · 文件 · 交付证据          foundation
+  discussions/ 任务讨论 · 回复 · 历史 · 附件引用        C / root
   tasks/       任务 CRUD · 子任务 · 五态状态机         A
   board/       看板 + 表格 · 筛选 · 拖拽               B
   review/      双端工作台 · 验收台 · 活动流            C
@@ -38,6 +39,7 @@ views.tsx    可选：公开服务端页面组合
 
 数据表归属：`users/teams/team_members/projects/academic_profiles/member_positions/academic_confirmations` → identity · `tasks` → tasks · `milestones` → milestone · `worklogs` → worklog · `task_acceptance_events` → review · `notifications` → notify。
 新增表归属：`team_profiles/team_announcements` → identity；`task_requirements/task_submissions/task_submission_reviews` → tasks；`team_resources/resource_revisions/resource_references` → resources。
+rc.7 追加：`task_discussion_posts/task_discussion_revisions/discussion_resource_references` → discussions，原文件存储仍归 resources。
 `src/db/schema.ts` 是 barrel，本期集中放一份，**只追加不重排**。
 
 ---
@@ -303,7 +305,59 @@ type ResourceDTO
 
 资源分为可编辑 Markdown 文档、外部链接与原文件。文本/Markdown/CSV/JSON 文件有真实正文预览；图片/PDF 浏览器预览，Office/ZIP 下载，不宣称已提取正文。文档版本保存历史，文件原内容不可覆盖，引用文件禁止删除；ResourceDTO 追加 referenced，客户端据此禁用删除，服务端继续锁与重新检查。
 
-公开 `resources/client` 导出 DTO、类别/容量、真实文本整理及安全 URL/Marker 产物解析纯函数；`resources/ui` 导出 `ResourcesWorkspace({initialResources,teamId,projectId?,scopeName})`、`ResourcePicker({projectId,selectedIds,onChange,disabled?,onUploadingChange?})` 和 `ResourceMarkdown({text,idPrefix?})`。公开 `resources/views` 提供 `TeamResourcesView/ProjectResourcesView({params})`，路由只做壳。
+公开 `resources/client` 导出 DTO、类别/容量、真实文本整理及安全 URL/Marker 产物解析纯函数；`resources/ui` 导出 `ResourcesWorkspace({initialResources,teamId,projectId?,scopeName})`、`ResourcePicker({projectId,selectedIds,onChange,disabled?,onUploadingChange?,label?})` 和 `ResourceMarkdown({text,idPrefix?})`。公开 `resources/views` 提供 `TeamResourcesView/ProjectResourcesView({params})`，路由只做壳。
+
+## 飞书为主的协作空间 · rc.7
+
+分支 `codex/collaboration-workspace`，基线 `1fdce10` / rc.6。用户授权分多轮扩展协作与右下角通知入口；本轮按模块实施项目路径、讨论/附件、资料浏览和通知助手。范围/后续优先顺序见 [COLLABORATION-WORKSPACE](COLLABORATION-WORKSPACE.md)。foundation/identity 复用现有项目数据组织路径；foundation/resources 维护资料 UI；C/root 实施 discussions 和任务详情组合；E/foundation 实施 notify 与共享 bot。root 集成公开契约、追加迁移和版本，不改其他成员分支、core、登录或依赖。
+
+```ts
+// discussions 根入口：全部先检查当前项目成员；写入在事务中重新验证
+listTaskDiscussions(actorId, taskId): Promise<DiscussionListDTO>
+createTaskDiscussion(actorId, taskId, { body?, resourceIds?, parentId? }): Promise<DiscussionPostDTO>
+updateTaskDiscussion(actorId, taskId, postId, { version, body }): Promise<DiscussionPostDTO>
+withdrawTaskDiscussion(actorId, taskId, postId, version): Promise<DiscussionPostDTO>
+setDiscussionResolved(actorId, taskId, postId, { version, resolved }): Promise<DiscussionPostDTO>
+listDiscussionRevisions(actorId, taskId, postId): Promise<DiscussionRevisionDTO[]>
+taskDiscussionsGET / taskDiscussionsPOST / taskDiscussionGET / taskDiscussionPATCH
+
+// discussions/client：浏览器安全 DTO、输入与响应 Zod schema；不含 DB/session
+DiscussionListDTO // {posts, truncated, limit}，最近200条及回复所属根主题
+DiscussionPostDTO // 内容、版本、父主题、附件快照、撤回/解决、本人操作能力
+discussionListSchema / discussionPostSchema / discussionHistorySchema / discussionRevisionSchema
+discussionCreateSchema / discussionEditSchema / discussionResolveSchema
+
+// discussions/ui：完整页与共享任务抽屉共用
+TaskDiscussions({ taskId, projectId, actorId, onBusyChange?, onDirtyChange? })
+
+// resources 根入口：仅当前项目/团队共享文件，tx 内锁定并保留引用
+bindDiscussionResources(actorId, projectId, resourceIds, postId, tx): Promise<DiscussionResourceDTO[]>
+
+// resources/client：资料浏览连续性，不引入权限或服务运行时
+ResourceQuery / parseResourceQuery(params)
+resourceWorkspaceUrl(pathname, params, changes)
+selectResources(rows, query) / resourceUploadError({name, size})
+
+// notify 根入口：本人摘要与已读；旧接口继续兼容
+getMyNotificationFeed(actorId): Promise<{notifications: NotificationDTO[], unreadCount: number}>
+markAllRead(actorId): Promise<number>
+notificationsGET / notificationsPOST
+notifyTaskDiscussion(actorId, taskId, postId, tx?): Promise<void>
+
+// notify/client：浏览器安全的消息响应、内部链接校验与分类文案
+NotificationItem / NotificationFeed
+parseNotificationFeed(value) / notificationTarget(link) / notificationLabel(type)
+
+// notify/ui：右下角共享助手；旧 MarkReadButton 保留
+useNotificationFeed() // 摘要、等待/错误、更新时间、已读等待、refresh/mark
+NotificationDockPanel({ state, onNavigate })
+```
+
+API：`/api/v1/tasks/:taskId/discussions` GET/POST、`/:postId?history` GET、`/:postId` PATCH `op=edit|withdraw|resolve`。新讨论/回复只通知任务负责人和被回复作者，排除本人/离队成员，通知与新内容同事务提交。撤回保留历史与文件引用，不改任务状态。源码追加迁移 `discussions.sql`、`migrate-discussions.mjs`；开发/测试库分别应用，旧业务迁移不改哈希。
+
+资料 URL 为 `q/category/kind/scope/resource`（具体值以 `ResourceQuery` 为准），关闭资料详情保留筛选；复制链接仍需当前成员鉴权。`ResourcePicker.label?` 默认“成果附件”，讨论使用“任务附件”，其余签名兼容。
+
+通知摘要 API 为 `GET /api/v1/notify?summary=1`，最近 20 条与全部本人未读数一起返回，响应 private/no-store；原 GET 列表继续兼容。`POST ?all=1` 标记本人全部消息，`POST ?id=UUID` 保留单条语义；本人范围由会话确定，不接受 userId。客户端每 60 秒在可见页面更新，focus/visibility 与 `agilenest:notifications-changed` 触发刷新；错误保留上次消息，卸载终止请求。`CollaborationDock({userId,projects,aiEnabled?})` 按账号重新挂载，保留 `openAiFloating()` 事件和 AI 草稿保存保护；没有 Web Push、模型或飞书私信契约。
 
 ---
 

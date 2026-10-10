@@ -2,7 +2,7 @@
 
 面向课程设计、实验室课题和竞赛团队，覆盖团队空间 → 成员与职务 → 项目 → 任务协作 → 教师验收。
 
-当前源码版本：**0.4.0-rc.6**，完善成果提交证据、不可变版本、逐项验收核对、团队信息中心与团队/项目资料整理模块；项目任务统一导航、看板与表格保留筛选，共用任务详情；工作台前置待处理内容，验收、统计、项目日历与通知入口进一步连通。本轮已完成全套契约自动化测试与 Windows 生产构建；[业务完善实施契约](docs/BUSINESS-COMPLETION.md)、[体验方案与 Agent 任务卡](docs/AGILENEST-EXPERIENCE-PLAN.md) 可供后续协作者查阅。更新与升级要求见 [CHANGELOG.md](CHANGELOG.md)。
+当前源码版本：**0.4.0-rc.7**，以飞书日常协作为主参考，GitHub 补充研发协作。项目概览串联资料、任务、讨论、提交与验收；任务支持讨论/回复、附件、编辑历史与解决意见；资料库支持多文件上传、范围/类型筛选与深链接；右下角协作助手显示真实通知，与 AI 本地草稿共用入口。前轮成果版本、逐项验收、团队信息和日程能力保留。[当前协作范围与多轮计划](docs/COLLABORATION-WORKSPACE.md)、[业务完善契约](docs/BUSINESS-COMPLETION.md) 可供协作者查阅。准确检查结果与升级要求见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 开始使用
 
@@ -16,7 +16,7 @@
 
 本机 PostgreSQL 用户应先运行 `.\start.bat -ConfigOnly`，填写 `.env` / `.env.test` 的连接信息，再运行 `.\start.bat -Setup`。详细要求、已有库迁移和排错见 [Windows 使用说明](docs/WINDOWS.md)。
 
-无需开发环境的试用者可以下载 [上一候选 rc.4 的 Windows ZIP](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.4) 或已发布的 [0.3.0 稳定版](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0)，完整解压后运行其中的 start.bat。rc.4 包不包含 rc.5/rc.6 的改动。旧版 0.3.0 仍使用独立 stop.bat；rc.4 包采用窗口关闭即停止网站的方式。见 [发布与数据备份](docs/RELEASE.md)。
+无需开发环境的试用者可以下载 [上一候选 rc.4 的 Windows ZIP](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.4) 或已发布的 [0.3.0 稳定版](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0)，完整解压后运行其中的 start.bat。rc.4 包不包含 rc.5/rc.6/rc.7 的改动。旧版 0.3.0 仍使用独立 stop.bat；rc.4 包采用窗口关闭即停止网站的方式。见 [发布与数据备份](docs/RELEASE.md)。
 
 | 演示账号 | 初始密码 | 职务 |
 |---|---|---|
@@ -24,7 +24,7 @@
 | teacher@agilecampus.local | password123 | 指导老师 |
 | student@agilecampus.local | password123 | 队员 |
 
-已有数据库升级到 rc.6 时追加执行 `node scripts/migrate-business.mjs`（测试库加 `--test`），保留历史任务与文件；新数据库仍沿用初始化流程。
+已有数据库升级先执行 rc.6 的 `node scripts/migrate-business.mjs`，再执行 rc.7 的 `node scripts/migrate-discussions.mjs`（测试库均加 `--test`），保留历史任务与文件；新数据库仍沿用初始化流程。
 
 ## 已实现
 

@@ -73,3 +73,7 @@
 本轮核对 [Plane 任务详情](https://docs.plane.so/work-items/work-item-details)、[Plane Pages](https://docs.plane.so/pages/overview)、[Linear 看板](https://linear.app/docs/board-layout) 和 [Marker 仓库](https://github.com/datalab-to/marker)。采用任务详情内证据/活动分层、资料分类与文档历史、同一数据多视图及保留筛选的快速详情；实现与本仓五态、职务权限和指定提交版本验收相结合，未复制外部源码或引入产品运行时。
 
 Marker 用于真实转换产物兼容：用户可导入 Markdown 或含 markdown 内容的 JSON，预览后保存为共享文档；原文件单独保留。当前没有安装其 Python/PyTorch 环境或下载 OCR 模型，不把格式导入描述成 PDF 自动识别。任务提交引用服务器共享文件形成不可变成果快照，区别于 AI 页仅本机的 IndexedDB 资料。具体采用范围与接口见 [业务实施契约](BUSINESS-COMPLETION.md)。
+
+## 飞书协作与 GitHub 补充 · rc.7
+
+按用户最新方向核对飞书官方文档上传/评论/@引用、Lark 任务创建，以及 GitHub 官方协作沟通、附件、Projects、PR 与 Wiki 说明；链接和采用/后置范围见 [协作工作区](COLLABORATION-WORKSPACE.md#来源与采用)。本轮采用内容附近的讨论与文件选择、从资料到任务的明确入口、真实消息到事项的跳转，以及同数据筛选连续性；保持本仓五态与按版本验收。@、知识库目录、PR 差异与外部检查按后续轮次落实，没有照搬外部源码、安装运行时或连接外部账号。
