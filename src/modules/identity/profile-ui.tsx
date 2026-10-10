@@ -1,12 +1,13 @@
 "use client";
 
 import { useActionState, useId, useRef, useState } from "react";
-import { Camera, UserRound } from "lucide-react";
+import { Camera, UserRound, ExternalLink, Mail, MapPin, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormFeedback } from "@/components/ui/feedback";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { saveAccountProfileAction, type AccountFormState } from "./actions";
+import { type PersonalContacts } from "./contact-schema";
 
 async function prepareAvatar(file: File): Promise<string> {
   if (!["image/png", "image/jpeg", "image/webp"].includes(file.type))
@@ -48,6 +49,7 @@ export function AccountProfileForm({
     email: string;
     bio: string;
     avatarUrl: string | null;
+    contacts: PersonalContacts;
   };
   feishuName?: string | null;
 }) {
@@ -55,6 +57,7 @@ export function AccountProfileForm({
   const fileRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(profile.name);
   const [bio, setBio] = useState(profile.bio);
+  const [contacts, setContacts] = useState(profile.contacts);
   const [avatar, setAvatar] = useState("");
   const [imageError, setImageError] = useState("");
   const [processing, setProcessing] = useState(false);
@@ -67,6 +70,7 @@ export function AccountProfileForm({
         setSaved({ ...saved, ...result.saved });
         setName(result.saved.name);
         setBio(result.saved.bio);
+        setContacts(result.saved.contacts);
         setAvatar("");
       }
       setShowFeedback(true);
@@ -75,7 +79,7 @@ export function AccountProfileForm({
     null,
   );
   const preview = avatar === "remove" ? null : avatar || saved.avatarUrl;
-  const dirty = name !== saved.name || bio !== saved.bio || avatar !== "";
+  const dirty = name !== saved.name || bio !== saved.bio || avatar !== "" || JSON.stringify(contacts) !== JSON.stringify(saved.contacts);
   const importedName = feishuName?.trim().slice(0, 50);
   return (
     <form
@@ -205,9 +209,6 @@ export function AccountProfileForm({
               readOnly
               className="bg-muted/50 text-muted-foreground"
             />
-            <p className="text-xs text-muted-foreground">
-              邮箱用于登录与识别账号。
-            </p>
           </div>
         </div>
         <div className="space-y-2">
@@ -231,6 +232,18 @@ export function AccountProfileForm({
             {bio.length} / 300
           </p>
         </div>
+        <section className="space-y-4 border-t border-border pt-6">
+          <h3 className="flex items-center gap-2 text-sm font-semibold"><Mail size={17} className="text-brand" />联系方式 <span className="ml-auto text-xs font-normal text-muted-foreground">选填 · 仅本人可见</span></h3>
+          <div className="grid gap-5 sm:grid-cols-2">
+            {([{ key: "phone", label: "手机号", type: "tel", placeholder: "+86 138 0000 0000", max: 30 }, { key: "contactEmail", label: "联系邮箱", type: "email", placeholder: "工作或日常联系邮箱", max: 254 }, { key: "officeAddress", label: "办公地址", type: "text", placeholder: "学校、楼宇或房间号", max: 150 }] as const).map(({key,label,type,placeholder,max}) => <div key={key} className={`space-y-2 ${key === "officeAddress" ? "sm:col-span-2" : ""}`}><label className="flex items-center gap-1.5 text-sm font-medium" htmlFor={`${id}-${key}`}>{key === "officeAddress" && <MapPin size={14} />}{label}</label><Input id={`${id}-${key}`} name={key} type={type} maxLength={max} placeholder={placeholder} value={contacts[key]} onChange={(event) => { setContacts({...contacts,[key]:event.target.value}); setShowFeedback(false); }} /></div>)}
+          </div>
+        </section>
+        <section className="space-y-4 border-t border-border pt-6">
+          <h3 className="flex items-center gap-2 text-sm font-semibold"><Share2 size={17} className="text-brand" />社媒账号 <span className="ml-auto text-xs font-normal text-muted-foreground">选填</span></h3>
+          <div className="grid gap-5 sm:grid-cols-2">
+            {([{key:"qq",label:"QQ",placeholder:"QQ 号",max:12},{key:"wechat",label:"微信",placeholder:"微信号",max:50},{key:"x",label:"X",placeholder:"用户名，不含网址",max:16},{key:"github",label:"GitHub",placeholder:"用户名",max:39}] as const).map(({key,label,placeholder,max}) => <div key={key} className="space-y-2"><label className="text-sm font-medium" htmlFor={`${id}-${key}`}>{label}</label><Input id={`${id}-${key}`} name={key} maxLength={max} placeholder={placeholder} value={contacts[key]} onChange={(event) => { setContacts({...contacts,[key]:event.target.value}); setShowFeedback(false); }} />{(key === "x" && /^[A-Za-z\d_]{1,15}$/.test(contacts.x.replace(/^@/,"")) || key === "github" && /^(?!-)(?!.*--)[A-Za-z\d-]{1,39}(?<!-)$/.test(contacts.github)) && <a href={key === "x" ? `https://x.com/${contacts.x.replace(/^@/,"")}` : `https://github.com/${contacts.github}`} target="_blank" rel="noopener noreferrer" className="ui-press inline-flex items-center gap-1 text-xs text-brand">查看主页<ExternalLink size={12} /></a>}</div>)}
+          </div>
+        </section>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5">
           <p className="text-xs leading-6 text-muted-foreground">
             {dirty && (
@@ -246,6 +259,7 @@ export function AccountProfileForm({
               onClick={() => {
                 setName(saved.name);
                 setBio(saved.bio);
+                setContacts(saved.contacts);
                 setAvatar("");
                 setImageError("");
                 setShowFeedback(false);

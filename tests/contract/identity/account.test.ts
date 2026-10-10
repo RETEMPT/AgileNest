@@ -49,6 +49,24 @@ describe("个人资料契约", () => {
       saveAccountProfile("00000000-0000-4000-8000-000000000000", { name: "x" }),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
+  it("选填联系方式保存、规范化与清空，其他账号和成员列表不暴露", async () => {
+    const contacts = {phone:" +86 138 0000 0000 ",contactEmail:" lab@example.com ",officeAddress:" 实验楼 305 ",qq:"12345678",wechat:"agile_lab",x:"@agilenest",github:"agile-nest"};
+    const saved = await saveAccountProfile(fx.student.id,{name:"student",contacts});
+    expect(saved.contacts).toEqual({...contacts,phone:contacts.phone.trim(),contactEmail:"lab@example.com",officeAddress:"实验楼 305",x:"agilenest"});
+    expect((await getAccountProfile(fx.admin.id)).contacts.phone).toBe("");
+    expect((await listTeamMembers(fx.admin.id,fx.team.id)).find((member) => member.id === fx.student.id)).not.toHaveProperty("contacts");
+    await saveAccountProfile(fx.student.id,{name:"student",bio:"仅改简介"});
+    expect((await getAccountProfile(fx.student.id)).contacts.x).toBe("agilenest");
+    await saveAccountProfile(fx.student.id,{name:"student",contacts:{phone:"",contactEmail:"",officeAddress:"",qq:"",wechat:"",x:"",github:""}});
+    expect((await getAccountProfile(fx.student.id)).contacts.phone).toBe("");
+  });
+  it("联系方式或社媒无效时整笔更新回滚", async () => {
+    const contacts = {phone:"",contactEmail:"",officeAddress:"",qq:"",wechat:"",x:"",github:""};
+    for (const patch of [{phone:"hello"},{phone:"------"},{contactEmail:"not-an-email"},{officeAddress:"x".repeat(151)},{qq:"123"},{wechat:"a"},{x:"https://x.com/name"},{github:"-invalid"}]) {
+      await expect(saveAccountProfile(fx.student.id,{name:"不应保存",contacts:{...contacts,...patch}})).rejects.toBeInstanceOf(AppError);
+    }
+    expect((await getAccountProfile(fx.student.id)).name).toBe("student");
+  });
   it("拒绝外部地址、SVG、伪 PNG 和超大头像", async () => {
     for (const avatar of [
       "https://example.com/a.png",

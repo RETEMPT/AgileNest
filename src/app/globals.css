@@ -47,6 +47,37 @@
   --font-display: var(--font-display), -apple-system, "Segoe UI", sans-serif;
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #141a23;
+  --foreground: #e7ecf4;
+  --card: #1b2330;
+  --card-foreground: #e7ecf4;
+  --popover: #222c3a;
+  --popover-foreground: #e7ecf4;
+  --primary: #92b6e8;
+  --primary-foreground: #15253c;
+  --secondary: #263141;
+  --secondary-foreground: #e7ecf4;
+  --muted: #242e3c;
+  --muted-foreground: #a2afc2;
+  --accent: #2a3749;
+  --accent-foreground: #e7ecf4;
+  --destructive: #f47f87;
+  --destructive-foreground: #1b2330;
+  --border: #334054;
+  --input: #3a4960;
+  --ring: #92b6e8;
+  --brand: #92b6e8;
+  --brand-hover: #abc9ef;
+  --brand-soft: #24364f;
+  --brand-ring: #4c6c95;
+  --brand-accent: #e6a16d;
+  --icon-blue: #92b6e8;
+  --icon-blue-soft: #24364f;
+}
+:root[data-theme="light"] { color-scheme: light; }
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -140,12 +171,44 @@ body {
 }
 .ui-button:active:not(:disabled):not([aria-disabled="true"]) { transform: scale(0.98); }
 .ui-button[aria-busy="true"] { cursor: progress; }
+.ui-press { transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 120ms ease; touch-action: manipulation; }
+.ui-press:active { transform: scale(0.98); }
+.panel-enter:not([data-state="inactive"]) { animation: panel-in 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes panel-in { from { opacity: 0; translate: 0 6px; } to { opacity: 1; translate: 0 0; } }
+.ai-composer { transition: border-color 160ms ease, box-shadow 160ms ease; }
+.ai-composer textarea { transition: height 180ms ease; }
+.ai-add-menu[data-state="open"] { animation: menu-appear 140ms ease-out; }
+.ai-add-menu[data-state="closed"] { animation: menu-disappear 100ms ease-in; }
+.ai-menu-item { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 8px; font-size: 14px; line-height: 20px; cursor: pointer; outline: none; transition: background-color 120ms ease; }
+.ai-menu-item > svg { flex-shrink: 0; color: var(--muted-foreground); }
+.ai-menu-item[data-highlighted] { background: var(--accent); }
+.ai-menu-item[data-disabled] { opacity: 0.5; cursor: default; }
+.ai-material-dialog[data-state="open"] { animation: menu-appear 160ms ease-out; }
+@keyframes menu-appear { from { opacity: 0; } to { opacity: 1; } }
+@keyframes menu-disappear { from { opacity: 1; } to { opacity: 0; } }
+.ai-details { interpolate-size: allow-keywords; }
+.ai-details::details-content { height: 0; overflow: hidden; transition: height 220ms ease, content-visibility 220ms allow-discrete; }
+.ai-details[open]::details-content { height: auto; }
+.ai-details summary > svg { transition: rotate 220ms ease; }
+.ai-details[open] summary > svg { rotate: 180deg; }
+.sidebar-label { overflow: hidden; white-space: nowrap; transition: max-width 300ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease; }
+.sidebar-surface nav a { transition: gap 300ms ease, background-color 160ms ease, color 160ms ease, transform 120ms ease; }
+.sidebar-surface nav a:active { transform: scale(0.98); }
+@media (min-width: 768px) { .sidebar-surface[data-collapsed="true"] nav a { gap: 0; } }
+@media (max-width: 767px) {
+  .sidebar-surface { transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1), visibility 0ms; }
+  .sidebar-surface[data-mobile-open="false"] { visibility: hidden; transition-delay: 0ms, 300ms; }
+}
 .dialog-overlay[data-state="open"] { animation: overlay-in 140ms ease-out; }
 .dialog-overlay[data-state="closed"] { animation: overlay-out 120ms ease-in; }
 .dialog-surface[data-state="open"] { animation: surface-in 180ms cubic-bezier(0.16, 1, 0.3, 1); }
 .dialog-surface[data-state="closed"] { animation: surface-out 120ms ease-in; }
 .drawer-surface[data-state="open"] { animation: drawer-in 200ms cubic-bezier(0.16, 1, 0.3, 1); }
 .drawer-surface[data-state="closed"] { animation: drawer-out 150ms ease-in; }
+.drawer-left-surface[data-state="open"] { animation: drawer-left-in 240ms cubic-bezier(0.22, 1, 0.36, 1); }
+.drawer-left-surface[data-state="closed"] { animation: drawer-left-out 180ms ease-in; }
+@keyframes drawer-left-in { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+@keyframes drawer-left-out { from { transform: translateX(0); } to { transform: translateX(-100%); } }
 @keyframes drawer-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
 @keyframes drawer-out { from { transform: translateX(0); } to { transform: translateX(100%); } }
 .feedback-toast, .feedback-inline { animation: feedback-in 160ms ease-out; }
@@ -155,6 +218,7 @@ body {
 @keyframes surface-out { from { opacity: 1; scale: 1; } to { opacity: 0; scale: 0.98; } }
 @keyframes feedback-in { from { opacity: 0; translate: 0 5px; } to { opacity: 1; translate: 0 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .ui-button, .drawer-spring, .app-panel, .sidebar-surface { transition: none; }
-  .dialog-overlay, .dialog-surface, .drawer-surface, .feedback-toast, .feedback-inline, .animate-spin, .animate-pulse { animation: none !important; }
+  .ui-button, .ui-press, .drawer-spring, .app-panel, .sidebar-surface, .sidebar-label, .sidebar-surface nav a, .ai-history, .ai-history > div, .ai-composer, .ai-composer textarea, .ai-details::details-content, .ai-details summary > svg { transition: none; }
+  .panel-enter { animation: none !important; }
+  .dialog-overlay, .dialog-surface, .drawer-surface, .drawer-left-surface, .ai-add-menu, .ai-material-dialog, .feedback-toast, .feedback-inline, .animate-spin, .animate-pulse { animation: none !important; }
 }

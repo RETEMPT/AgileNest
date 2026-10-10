@@ -149,7 +149,7 @@ export function AppSidebar({
 
       {/* 侧栏主体 (支持可折叠桌面侧栏 & 移动端全宽滑出) */}
       <aside
-        className={`sidebar-surface fixed top-0 bottom-0 left-0 z-50 flex flex-col border-r border-border bg-card transition-[width,transform] duration-200 ease-out md:translate-x-0 ${
+        data-collapsed={isCollapsed} data-mobile-open={mobileOpen} className={`sidebar-surface fixed top-0 bottom-0 left-0 z-50 flex flex-col border-r border-border bg-card transition-[width,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] md:translate-x-0 ${
           isCollapsed ? "md:w-18" : "md:w-64"
         } ${mobileOpen ? "translate-x-0 w-64" : "-translate-x-full w-64"}`}
       >
@@ -357,7 +357,7 @@ export function AppSidebar({
                   size={16}
                   className={isHomeActive ? "text-background" : "text-brand"}
                 />
-                <span className={isCollapsed ? "md:hidden" : ""}>工作台</span>
+                <span className={`sidebar-label ${isCollapsed ? "md:max-w-0 md:opacity-0" : "md:max-w-48 md:opacity-100"}`}>工作台</span>
               </Link>
               <Link
                 href="/t"
@@ -373,7 +373,7 @@ export function AppSidebar({
                   size={16}
                   className={isTeamActive ? "text-background" : "text-brand"}
                 />
-                <span className={isCollapsed ? "md:hidden" : ""}>团队空间</span>
+                <span className={`sidebar-label ${isCollapsed ? "md:max-w-0 md:opacity-0" : "md:max-w-48 md:opacity-100"}`}>团队空间</span>
               </Link>
               <Link
                 href="/ai"
@@ -392,7 +392,7 @@ export function AppSidebar({
                   aria-hidden="true"
                   className={isAiActive ? "text-background" : "text-brand"}
                 />
-                <span className={isCollapsed ? "md:hidden" : ""}>AI 对话</span>
+                <span className={`sidebar-label ${isCollapsed ? "md:max-w-0 md:opacity-0" : "md:max-w-48 md:opacity-100"}`}>AI 对话</span>
               </Link>
               <Link
                 href="/calendar"
@@ -409,7 +409,7 @@ export function AppSidebar({
                     isCalendarActive ? "text-background" : "text-brand"
                   }
                 />
-                <span className={isCollapsed ? "md:hidden" : ""}>个人日历</span>
+                <span className={`sidebar-label ${isCollapsed ? "md:max-w-0 md:opacity-0" : "md:max-w-48 md:opacity-100"}`}>个人日历</span>
               </Link>
             </nav>
           </div>
@@ -504,7 +504,7 @@ export function AppSidebar({
                       : "text-brand"
                   }
                 />
-                <span className={isCollapsed ? "md:hidden" : ""}>消息中心</span>
+                <span className={`sidebar-label ${isCollapsed ? "md:max-w-0 md:opacity-0" : "md:max-w-48 md:opacity-100"}`}>消息中心</span>
               </Link>
               <Link
                 href="/settings"
@@ -522,7 +522,7 @@ export function AppSidebar({
                     isSettingsActive ? "text-background" : "text-brand"
                   }
                 />
-                <span className={isCollapsed ? "md:hidden" : ""}>个人中心</span>
+                <span className={`sidebar-label ${isCollapsed ? "md:max-w-0 md:opacity-0" : "md:max-w-48 md:opacity-100"}`}>个人中心</span>
               </Link>
             </nav>
           </div>

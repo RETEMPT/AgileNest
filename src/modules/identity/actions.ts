@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser, toFormError } from "@/modules/core";
 import { saveAccountProfile } from "./profile-service";
+import { EMPTY_CONTACTS, type PersonalContacts } from "./contact-schema";
 import {
   createProject,
   createTeam,
@@ -27,7 +28,7 @@ export type IdentityFormState = { error: string; ok?: string } | null;
 export type AccountFormState = {
   error: string;
   ok?: string;
-  saved?: { name: string; bio: string; avatarUrl: string | null };
+  saved?: { name: string; bio: string; avatarUrl: string | null; contacts: PersonalContacts };
 } | null;
 
 export async function saveAccountProfileAction(
@@ -40,6 +41,7 @@ export async function saveAccountProfileAction(
       name: String(data.get("name") ?? ""),
       bio: String(data.get("bio") ?? ""),
       avatar: String(data.get("avatar") ?? "") || undefined,
+      contacts: Object.fromEntries(Object.keys(EMPTY_CONTACTS).map((key) => [key, String(data.get(key) ?? "")] )) as PersonalContacts,
     });
     revalidatePath("/", "layout");
     return {
@@ -49,6 +51,7 @@ export async function saveAccountProfileAction(
         name: profile.name,
         bio: profile.bio,
         avatarUrl: profile.avatarUrl,
+        contacts: profile.contacts,
       },
     };
   } catch (error) {

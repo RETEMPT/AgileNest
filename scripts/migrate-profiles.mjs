@@ -15,6 +15,7 @@ try {
         "utf8",
       ),
     );
+    await tx.unsafe(await readFile(new URL("../src/db/migrations/personal-contacts.sql", import.meta.url), "utf8"));
   });
   console.log("个人资料与头像表已就绪，既有数据保留。");
 } finally {
