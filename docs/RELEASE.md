@@ -1,10 +1,10 @@
-# AgileNest 0.3 · Windows 一键运行与阶段汇总
+# AgileNest · Windows 一键运行与阶段汇总（0.4.0-rc.3）
 
-当前源码候选版 **0.3.1-rc.1** 整理了启动入口，尚未正式发布。已发布稳定版为 **0.3.0**，集成 PR [#6](https://github.com/RETEMPT/AgileNest/pull/6) 已合入主分支。[下载稳定版](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0)，请选择 Windows ZIP；GitHub 自动生成的 Source code 是源码包。稳定版通过 29 个文件、283 条测试与 Windows 生产构建，验收记录见 [UX.md](UX.md)。
+当前源码候选版 **0.4.0-rc.3** 增加紧凑 AI 输入框、文件与图片资料、本地读取与结构整理，保留项目会话、模型配置与插件、选填联系方式和数据库启动修复，尚未正式发布；候选包见 [v0.4.0-rc.3](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.3)（`AgileNest-0.4.0-rc.3-windows-x64.zip`）。已发布稳定版为 **0.3.0**，集成 PR [#6](https://github.com/RETEMPT/AgileNest/pull/6) 已合入主分支，[下载稳定版](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0) 请选择 Windows ZIP；GitHub 自动生成的 Source code 是源码包。候选版通过 32 个文件、308 条测试与 Windows 生产构建，验收记录见 [UX.md](UX.md)。
 
 ## 运行发布包
 
-在 GitHub Releases 下载 `AgileNest-0.3.0-windows-x64.zip`，完整解压到可写的本地文件夹后双击 **start.bat**。需要 Windows 10/11 x64；自带 Node.js、PostgreSQL 和已编译网站，无需安装 npm、Docker 或数据库，首次启动也不需要联网下载依赖。请先解压，不要在压缩包里直接运行。
+在 GitHub Releases 下载 `AgileNest-0.4.0-rc.3-windows-x64.zip`（稳定版对应 `AgileNest-0.3.0-windows-x64.zip`），完整解压到可写的本地文件夹后双击 **start.bat**。需要 Windows 10/11 x64；自带 Node.js、PostgreSQL 和已编译网站，无需安装 npm、Docker 或数据库，首次启动也不需要联网下载依赖。请先解压，不要在压缩包里直接运行。
 
 首次启动创建本机数据库和示例空间，完成后自动打开 `http://localhost:3000`。**从 0.3.1-rc.1 构建的新包只有 start.bat 一个运行入口，保持窗口打开，关闭窗口或按 Ctrl+C 即停止网站。** 重复启动会提示原窗口仍在运行；个人资料、任务和日程保留。
 
@@ -27,7 +27,7 @@
 - 默认网站端口 3000，数据库端口 55432。端口占用时会保留错误提示，不关闭其他程序。需要并行试用可在本包目录执行 `.\start.bat -WebPort 3001`。
 - 首次安装如需更换数据库端口，可给同一命令增加 `-DbPort 55433`。已有安装应先停止，然后修改 data/config.json 的 dbPort。诊断启动可增加 `-NoBrowser`。
 - 启动失败会保留窗口，请查看对应日志；不要通过删除 data 来尝试修复已有资料。
-- 可用 `Get-FileHash .\AgileNest-0.3.0-windows-x64.zip -Algorithm SHA256` 对照 Release 附件校验文件。
+- 可用 `Get-FileHash .\AgileNest-0.4.0-rc.3-windows-x64.zip -Algorithm SHA256` 对照 Release 附件 `AgileNest-0.4.0-rc.3-windows-x64.sha256.txt` 校验文件。
 
 ## 阶段完成情况
 
