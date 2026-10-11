@@ -69,6 +69,10 @@ node scripts/migrate-business.mjs
 node scripts/migrate-business.mjs --test
 node scripts/migrate-discussions.mjs
 node scripts/migrate-discussions.mjs --test
+node scripts/migrate-collaboration-foundations.mjs
+node scripts/migrate-collaboration-foundations.mjs --test
+node scripts/migrate-member-deputy.mjs
+node scripts/migrate-member-deputy.mjs --test
 .\start.bat
 ```
 

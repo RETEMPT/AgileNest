@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { markReadAction } from "./actions";
 import { NOTIFICATIONS_CHANGED_EVENT } from "./dock";
 export { NotificationDockPanel, useNotificationFeed } from "./dock";
+export { FollowButton, NotificationPreferencesPanel } from "./subscription-ui";
 
 export function MarkReadButton({ id }: { id: string }) {
   const [state, action, pending] = useActionState(markReadAction, null);

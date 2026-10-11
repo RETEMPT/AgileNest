@@ -53,6 +53,8 @@ export function TaskDetailSummary({
         </p>
       </div>
 
+      {task.actionItemOrigin && <section aria-label="行动项来源" className="rounded-xl border border-brand/20 bg-brand-soft/40 p-4"><SectionHeading className="text-xs font-semibold text-brand">文档行动项</SectionHeading>{task.actionItemOrigin.accessible ? <Link href={`/p/${task.projectId}/resources?resource=${task.actionItemOrigin.resourceId}&revision=${task.actionItemOrigin.sourceVersion}`} className="mt-1 block break-words text-sm font-medium hover:text-brand hover:underline">{task.actionItemOrigin.resourceTitle} · 创建时版本 v{task.actionItemOrigin.sourceVersion}</Link> : <p className="mt-1 text-xs text-muted-foreground">来源版本 v{task.actionItemOrigin.sourceVersion} · 当前无法访问来源文档</p>}{task.actionItemOrigin.accessible && task.actionItemOrigin.quote && <blockquote className="mt-2 border-l-2 border-brand/25 pl-3 text-xs leading-6 text-muted-foreground"><p className="whitespace-pre-wrap break-words">{task.actionItemOrigin.quote}</p></blockquote>}<p className="mt-2 text-[11px] text-muted-foreground">资料链接遵循当前访问权限；文档更新不会改写此来源快照。</p></section>}
+
       {(currentNote || task.status === "rejected" || task.status === "submitted") && (
         <section
           aria-label={currentLabel}

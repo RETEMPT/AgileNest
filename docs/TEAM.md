@@ -463,3 +463,63 @@ foundation 在 `codex/fix-postgres-launch-hang` 修复 Windows PowerShell 等待
 对 rc.3 候选运行独立只读评审后，foundation 在同一分支修正并发与状态缺陷，范围仍为共享 `components/ai`、`components/preferences*`、identity 设置组合与对应契约用例，无新增导出、依赖或数据库变更。
 
 共享 `AiWorkspace` 的编辑器在自身未编辑时采用 store 中更新的正文，避免多标签覆盖与旧视图继续编辑；同一 store 的 `saveText` 语义与既有「未编辑不覆盖」约定不变。个人资料 action 仅在表单包含联系方式字段时传递 `contacts`，`saveAccountProfile` 的「缺省保留」契约不变。偏好 store 追加 `reset()`（需要 `removeItem`），identity 失败提示改为「重置偏好」。`SettingsWorkspace` 在软导航时同步请求分区，分区切换改用 `pushState` 并监听 `popstate`。
+
+## 协作基础与知识库 · 0.4.0-rc.8
+
+集成分支 `codex/collaboration-foundations`，用户授权尽可能完善协作、参考官方资料并清理失效文档。foundation/root负责identity目录、共享详情/个人设置、讨论提及分页、schema/迁移/版本；A负责任务组织与行动项；resources Owner负责知识库；E负责站内订阅与本人提醒；B/root委托代理负责board和tasks/pool-filters单文件、本人保存视图。各模块服务与API仍通过根入口调用，共享schema由root串行追加，不改core/登录/依赖。
+
+### identity
+
+- 根入口 `getProjectDirectory(actorId,teamId):Promise<ProjectDirectoryDTO>`、`mutateProjectDirectory(actorId,teamId,ProjectSpaceMutation):Promise<void>`；HTTP薄壳 `projectDirectoryGET/POST`。
+- `identity/client` 导出目录DTO/变更类型、Zod、`projectSpacePath`、`projectSpaceMoveError`；`identity/ui.ProjectDirectory({teamId,initial,kind?})`。
+- POST `/api/v1/teams/:teamId/project-spaces` op=create/update/delete/place：update/delete带目录version；place带projectId/spaceId和placement version（首次0）。管理员/副管理员整理、成员读取，团队锁后复核，四层子树/循环/范围保护，空目录才能删除。
+- `SettingsView` 的section新增notifications，复用notify公开面板。本人项目、学术资料与可选飞书连接契约不变。
+- 用户后续职务授权：`TEAM_POSITIONS` 增加deputy，member显示组员；`capabilitiesFor` 增加manageTeamInformation/manageProjectDirectory/manageResources，admin/deputy均可日常管理，manageMembers仅admin。`canRemoveTeamMember(actorPositions,targetPositions)`供成员入口计算移除权限。
+- 根入口`requireTeamCapability(actorId,teamId,capability,tx?)`，capability为manageMembers/manageTeamInformation/manageProjectDirectory/manageResources；identity事务在团队锁后重查实际职务。`updateMemberPositions(actorId,teamId,targetUserId,positions,positionVersion?)`新增可选版本参数，返回positionVersion；`listTeamMembers`增加positionVersion:string|null，页面强制携带。旧服务调用保留兼容，最后主管理员不因副管理员存在而放行降级/退出。
+
+### tasks
+
+- 根入口 `listProjectTaskLabels(actorId,projectId)`、`createProjectTaskLabel(actorId,projectId,{name,color?})`、`updateProjectTaskLabel(actorId,projectId,labelId,{name,color?,version})`、`deleteProjectTaskLabel(actorId,projectId,labelId,version)`。
+- `getTaskOrganization(actorId,taskId,query?)` 与 `changeTaskOrganization(actorId,taskId,TaskOrganizationMutation)`：op=labels带labelIds和organization version；addDependency带otherTaskId/direction=blockedBy|blocking，removeDependency带dependencyId，均按公开Zod校验，前置与后续同项目，无环，版本和权限统一检查。组织读取使用repeatable-read。
+- `createTaskActionItem(actorId,projectId,{resourceId,sourceVersion,requestKey,title,description?,dueDate?,quote?}):Promise<TaskDTO>`；POST `/api/v1/projects/:projectId/task-action-items`，先锁团队，调用resources公开源绑定，再原子创建任务/事件/来源；稳定requestKey重试仅复用本人同项目记录。
+- TaskDTO可选追加labels/blockedByIds/blockingIds/blocked/reopenBlocked/actionItemOrigin。`listProjectTasks`过滤追加labelId/blocked；`availableTransitions`与服务端依赖守卫同时检查，无第六状态。被阻塞禁止提交/重交/通过；已提交或通过的后续任务保护前置重开；删除不能绕过关系。
+- `tasks/client`导出组织DTO、schemas、颜色、`matchesTaskOrganization`、`wouldCreateTaskDependencyCycle`；`tasks/ui`导出`TaskOrganization({taskId,projectId,onBusyChange?})`、`TaskLabelFilter({projectId,value,onChange,disabled?})`、`TaskLabelPill`。TaskDetailSummary展示带accessible标志的来源卡片；不可见来源标题/摘录置null且隐藏链接。
+- API：`/tasks/:taskId/organization` GET/PATCH；`/projects/:projectId/task-labels` GET/POST；`/:labelId` PATCH/DELETE。API薄壳均从tasks根入口导出。
+
+### resources
+
+- 原有ResourceDTO追加folderId/folderName/placementVersion/pinned、canEdit/canComment；getResource/listResources仍按团队/项目当前读取范围计算。作者/admin/deputy管理，协作者edit可改文档/link正文，不能管理授权/删除或改原文件。
+- 根入口新增`listResourceFolders(actorId,scope)`、`createResourceFolder(actorId,input)`、`updateResourceFolder(actorId,input)`、`placeResource(actorId,input)`。folder输入teamId/projectId、name/parentId；update带folderId/version，placement带resourceId/version/folderId/pinned。八层限制计算完整子树，同名/循环/范围和版本冲突明确返回。
+- `getResourceCollaboration(actorId,resourceId)`、`setResourceCollaboration(actorId,{resourceId,version,commentScope,collaborators})`；commentScope=team/collaborators，授权comment/edit只向当前成员授予；读取仍同团队。
+- `linkResource(actorId,{sourceResourceId,targetResourceId?|targetTaskId?})`、`unlinkResource(actorId,linkId)`、`listResourceLinks(actorId,resourceId)`、`listTaskResourceLinks(actorId,taskId)`、`getResourceWorkspace(actorId,scope)`。资料双方读写与任务项目归属校验；双向展示不重复存边。
+- `listResourceComments(actorId,resourceId)`、`createResourceComment(actorId,{resourceId,body,resourceVersion,parentId?,selectedQuote?,line?,mentionedUserIds?})`、`updateResourceComment(actorId,{commentId,version,action,body?,mentionedUserIds?})`、`listResourceCommentHistory(actorId,commentId)`；action=edit/withdraw/resolve/reopen。正文引文必须真实，版本/行号核对；作者编辑、作者或管理者撤回、管理者处理顶层评论。结构处理复制提及快照，通知/评论/版本同事务。
+- `bindTaskActionItemSource(actorId,projectId,{resourceId,sourceVersion,quote?},tx)`返回{id,title,version}；仅可读真实文档、同项目或团队共享，摘录校验；来源引用保护删除。`accessibleResourceIds(actorId,ids,tx?)`批量过滤当前可见ID，供任务DTO掩码。
+- `/api/v1/resources/workspace` GET读取scope/资料知识区、POST op+data调用上述服务。公开`resourceWorkspaceGET/POST`根入口；Zod在resources内部，不让消费方深链schema/service。
+- `resources/ui.ResourceTaskLinks({taskId,projectId,onBusyChange?})`用于完整详情/抽屉。`ResourcesWorkspace`新增必选actorId（服务端会话传入），评论草稿按本人/资料保存；URL revision显示真实源版本，历史模式不创建当前引文/行动项。
+
+### discussions
+
+- `listDiscussionMembers(actorId,taskId)`只返回当前团队姓名/ID供明确选择。
+- `createTaskDiscussion`增加mentionedUserIds默认[]；`updateTaskDiscussion`可传mentionedUserIds，缺省延续旧快照而不重新提醒离队成员；编辑显式新提及仍要求当前成员。resolve/withdraw复制该版快照，DTO/history可选mentions={userId,name}[]。
+- `listTaskDiscussions(actorId,taskId,{before?,around?}={})`返回nextCursor可空。createdAt+id稳定分页，补齐回复根主题；before必须当前任务，around用于旧通知定位。裁剪游标保留边界，避免遗漏旧回复。GET列表?members读取名单，?before/?around浏览历史。
+- 原TaskDiscussions共享UI增加姓名提及、任务关注、加载较早记录；草稿与409输入保留，文件引用和五态不变。
+
+### notify / calendar
+
+- 根入口 `getFollowState(actorId,target)`、`updateFollowState(actorId,{target,following,version})`、`listMyFollows(actorId)`。target={kind:project/task/resource,id}，首次version0，取消保留版本墓碑；每次当前团队ACL，事项取消覆盖项目继承。
+- `getNotificationPreferences(actorId)`、`updateNotificationPreferences(actorId,input)`：version初次0，taskUpdates/discussions/mentions/resourceUpdates/reminders/showBubble。本人持久化，409不覆盖；关闭类别记录已处理事件，不在事后重放。
+- `enqueueCollaborationNotice(actorId,{target,event,title,body?,link,mentionedUserIds?,participantUserIds?,eventKey},tx?)`，event=discussion/resource_comment/resource_update/task_update。提供调用方tx时事务一致；内部参与者去重后按当前团队过滤，无100名协作者加作者的隐含失败。长业务正文在生产者取通知摘要，原业务内容保留。
+- `notifyAssigned/Submitted/Accepted(taskId,actorId?)`、`notifyRejected(taskId,reason,actorId?)`；兼容旧调用，传actor走关注/偏好/排本人。`notifyTaskDiscussion(actorId,taskId,postId,tx?,mentionedUserIds?)`同事务通知负责人/根作者/@成员与关注者。
+- API：`/notify/follows` GET/PUT、`/notify/preferences` GET/PUT，no-store；summary追加preferences.showBubble并收集本人到期提醒。共享bot消费该开关。
+- `notify/ui.FollowButton({target})`、`NotificationPreferencesPanel({compact?})`；项目、任务、资料和设置/消息中心复用。失败保留输入，动态取消不改其他成员。
+- `calendar`新增`getMyScheduleReminder(actorId,scheduleId)`、`saveMyScheduleReminder(actorId,scheduleId,{scheduleVersion,reminderVersion,enabled,minutes})`、`collectMyScheduleReminders(actorId,now?)`，及scheduleReminderGET/PUT薄壳。
+- `/calendar/schedules/:scheduleId/reminder` GET/PUT；提醒初次version0，双版本当前本人校验，提前量0/5/10/15/30/60/1440分钟；明确+08换算、全天09:00、24小时补发、unique收据与通知同事务。关闭提醒类别仍处理收据，仅本人，无calendar→notify运行时循环。
+
+### board
+
+- BoardFilters新增labelId?:string、blocked?:boolean；URL labelId合法UUID、blocked=1/0，重复/非法忽略，parse/serialize/applyFilters统一。看板、表格和任务池复用TaskLabelFilter/Pill，显示真实阻塞信息。
+- `board/ui.CopyWorkspaceLink({href})`，失败提供手动复制；`SavedTaskViews({projectId,layout,groupBy,filters})`用于三个视图。保存项只存白名单条件、布局和分组，私有/项目范围与更新版本保护；失效标签条件保留，不偷换成全部任务。
+- 根入口 `listMyTaskViews(actorId,projectId)`、`createMyTaskView(actorId,projectId,input)`、`updateMyTaskView(actorId,projectId,viewId,{version,name,layout,groupBy,filters})`、`deleteMyTaskView(actorId,projectId,viewId,version)`；API `/projects/:projectId/task-views` GET/POST、`/:viewId` PATCH/DELETE。团队锁后复核当前成员，view按本人过滤。
+- `board/client`导出SavedTaskViewDTO/Input/Update/Layout、白名单Zod与savedTaskViewUrl/Summary；schemaVersion1，名字忽略大小写在本人/项目唯一。分享用workspaceUrl，保存项不存任意URL、task详情或授予访问权。
+
+22张表仅在schema末尾追加，独立可重复迁移`collaboration-foundations.sql`与脚本（dev/--test）。副管理员为用户后续授权的最小额外增量：既有team_position枚举末尾增加deputy，另立`member-deputy.sql`与脚本；不改旧表或历史SQL/hash。root串行应用并保留旧数据，运行包迁移列表末尾追加。全文实时共同编辑和群聊仅方案，当前服务不声称WebSocket、外部投递或模型调用已实现。

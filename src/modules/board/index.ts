@@ -12,6 +12,9 @@ import { requireProjectForUser, AppError, ConflictError } from "@/modules/core";
 import { getMoveTransition } from "./model";
 
 export * from "./model";
+export { createMyTaskView, deleteMyTaskView, listMyTaskViews, updateMyTaskView } from "./saved-views-service";
+export { taskViewsGET, taskViewsPOST, taskViewPATCH, taskViewDELETE } from "./saved-views-api";
+export type { SavedTaskViewDTO, SavedTaskViewInput, SavedTaskViewUpdate, SavedTaskViewLayout } from "./saved-views-client";
 
 export const movePatchSchema = z.object({
   status: z.enum(TASK_STATUSES).optional(),

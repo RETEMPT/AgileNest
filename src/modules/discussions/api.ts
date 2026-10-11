@@ -4,7 +4,7 @@ import { jsonError, requireApiUser } from "@/lib/api";
 import { AppError } from "@/modules/core";
 import { discussionCreateSchema } from "./client";
 import { discussionPatchSchema } from "./schema";
-import { createTaskDiscussion, listDiscussionRevisions, listTaskDiscussions, setDiscussionResolved, updateTaskDiscussion, withdrawTaskDiscussion } from "./service";
+import { createTaskDiscussion, listDiscussionMembers, listDiscussionRevisions, listTaskDiscussions, setDiscussionResolved, updateTaskDiscussion, withdrawTaskDiscussion } from "./service";
 
 type TaskContext = { params: Promise<{ taskId: string }> };
 type PostContext = { params: Promise<{ taskId: string; postId: string }> };
@@ -26,12 +26,14 @@ async function jsonBody(request: Request): Promise<unknown> {
   catch { throw new AppError("请求格式无效"); }
 }
 
-export async function taskDiscussionsGET(_request: Request, context: TaskContext) {
+export async function taskDiscussionsGET(request: Request, context: TaskContext) {
   try {
     const user = await requireApiUser();
     const { taskId } = await context.params;
     z.uuid().parse(taskId);
-    return NextResponse.json(await listTaskDiscussions(user.id, taskId));
+    const query = new URL(request.url).searchParams;
+    const value = query.has("members") ? { members: await listDiscussionMembers(user.id, taskId) } : await listTaskDiscussions(user.id, taskId, { before: query.get("before") || undefined, around: query.get("around") || undefined });
+    return NextResponse.json(value, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return jsonError(error); }
 }
 export async function taskDiscussionsPOST(request: Request, context: TaskContext) {

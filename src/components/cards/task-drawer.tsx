@@ -7,12 +7,13 @@ import { ArrowUpRight, X } from "lucide-react";
 import { z } from "zod";
 import type { TaskDTO } from "@/modules/tasks";
 import type { TeamRole } from "@/db/schema";
-import { TaskActions, TaskDetailSummary, type AssigneeOption } from "@/modules/tasks/ui";
+import { TaskActions, TaskDetailSummary, TaskOrganization, type AssigneeOption } from "@/modules/tasks/ui";
 import { TaskAuditStream, type AuditEvent } from "./task-audit-stream";
 import { FormFeedback } from "@/components/ui/feedback";
 import { Button } from "@/components/ui/button";
 import { SubmissionTimeline } from "@/modules/review/ui";
 import { TaskDiscussions } from "@/modules/discussions/ui";
+import { ResourceTaskLinks } from "@/modules/resources/ui";
 
 const activitySchema = z.object({
   events: z.array(z.object({
@@ -37,6 +38,8 @@ export function TaskDrawer({ task, role, actorId, isOpen, onClose, members, mile
   const [retry, setRetry] = useState(0);
   const [actionPending, setActionPending] = useState(false);
   const [discussionPending, setDiscussionPending] = useState(false);
+  const [organizationPending, setOrganizationPending] = useState(false);
+  const [resourcePending, setResourcePending] = useState(false);
   const returnFocus = useRef<HTMLElement | null>(null);
   const updatedAt = task?.updatedAt instanceof Date ? task.updatedAt.toISOString() : task?.updatedAt;
   const requestKey = `${actorId}:${task?.id}:${updatedAt}:${retry}`;
@@ -62,7 +65,7 @@ export function TaskDrawer({ task, role, actorId, isOpen, onClose, members, mile
 
   if (!task) return null;
   const detailUrl = `/p/${task.projectId}/tasks/${task.id}`;
-  const busy = actionPending || discussionPending;
+  const busy = actionPending || discussionPending || organizationPending || resourcePending;
   return <Dialog.Root open={isOpen} onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
     <Dialog.Portal>
       <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-black/35" />
@@ -82,6 +85,8 @@ export function TaskDrawer({ task, role, actorId, isOpen, onClose, members, mile
         </header>
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
           <TaskDetailSummary task={task} milestoneName={milestoneName} loggedMinutes={task.loggedMinutes} />
+          <TaskOrganization taskId={task.id} projectId={task.projectId} onBusyChange={setOrganizationPending} />
+          <ResourceTaskLinks taskId={task.id} projectId={task.projectId} onBusyChange={setResourcePending} />
           <SubmissionTimeline taskId={task.id} updatedAt={task.updatedAt instanceof Date ? task.updatedAt.toISOString() : String(task.updatedAt)} compact />
           <TaskDiscussions taskId={task.id} projectId={task.projectId} actorId={actorId} onBusyChange={setDiscussionPending} />
           <details className="border-t border-border pt-4">

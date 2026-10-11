@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Bell, ArrowUpRight } from "lucide-react";
 import { requireUser } from "@/modules/core";
 import { listMyNotifications } from "./service";
-import { MarkReadButton } from "./ui";
+import { MarkReadButton, NotificationPreferencesPanel } from "./ui";
+import { notificationLabel, notificationTarget } from "./client";
 
 export async function NotificationsView({
   searchParams,
@@ -18,14 +19,14 @@ export async function NotificationsView({
         <div>
           <h1 className="text-2xl font-semibold">消息中心</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            查看任务分配、提交和验收通知。
+            查看任务、讨论、资料更新与直接提及，按个人偏好接收提醒。
           </p>
         </div>
         <Link
-          href="/settings#notify"
+          href="#notification-preferences"
           className="text-sm text-brand hover:underline"
         >
-          管理飞书绑定 ↗
+          通知偏好 ↗
         </Link>
       </header>
       <section className="overflow-hidden rounded-2xl border border-border bg-card">
@@ -54,7 +55,7 @@ export async function NotificationsView({
               {unreadOnly ? "暂无未读消息" : "暂无消息"}
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              新的任务分配和验收通知将显示在此处。
+              与你有关或你关注的事项更新将按通知偏好显示在这里。
             </p>
           </div>
         ) : (
@@ -71,7 +72,7 @@ export async function NotificationsView({
                   <div className="flex flex-wrap justify-between gap-2">
                     <div className="min-w-0">
                       <h2 className="break-words text-sm font-semibold">{item.title}</h2>
-                      <p className={`mt-1 text-xs ${item.readAt ? "text-muted-foreground" : "font-medium text-brand"}`}>{item.readAt ? "已读" : "未读"}</p>
+                      <p className={`mt-1 text-xs ${item.readAt ? "text-muted-foreground" : "font-medium text-brand"}`}>{notificationLabel(item.type)} · {item.readAt ? "已读" : "未读"}</p>
                     </div>
                     <time
                       className="text-xs text-muted-foreground"
@@ -92,12 +93,12 @@ export async function NotificationsView({
                     </p>
                   )}
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                    {item.link?.startsWith("/p/") && (
+                    {notificationTarget(item.link) && (
                       <Link
-                        href={item.link}
+                        href={notificationTarget(item.link)!}
                         className="flex items-center gap-1 text-xs font-medium text-brand"
                       >
-                        查看对应任务
+                        查看相关内容
                         <ArrowUpRight className="h-3 w-3" />
                       </Link>
                     )}
@@ -112,6 +113,7 @@ export async function NotificationsView({
           显示最近 100 条{unreadOnly ? "未读" : ""}消息。
         </p>
       </section>
+      <NotificationPreferencesPanel />
     </div>
   );
 }

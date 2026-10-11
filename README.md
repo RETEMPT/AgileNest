@@ -2,7 +2,7 @@
 
 面向课程设计、实验室课题和竞赛团队，覆盖团队空间 → 成员与职务 → 项目 → 任务协作 → 教师验收。
 
-当前源码版本：**0.4.0-rc.7**，以飞书日常协作为主参考，GitHub 补充研发协作。项目概览串联资料、任务、讨论、提交与验收；任务支持讨论/回复、附件、编辑历史与解决意见；资料库支持多文件上传、范围/类型筛选与深链接；右下角协作助手显示真实通知，与 AI 本地草稿共用入口。前轮成果版本、逐项验收、团队信息和日程能力保留。[当前协作范围与多轮计划](docs/COLLABORATION-WORKSPACE.md)、[业务完善契约](docs/BUSINESS-COMPLETION.md) 可供协作者查阅。准确检查结果与升级要求见 [CHANGELOG.md](CHANGELOG.md)。
+当前源码版本：**0.4.0-rc.8**，以飞书协作为主参考，GitHub补充任务组织。项目目录、资料文件夹/互链、引文评论、协作者、提及/关注、通知偏好、任务标签/依赖、文档与会议行动项、本人保存视图和日程提醒已加入源码；原有成果版本与逐项验收保留。实时共同编辑、群聊及GitHub同步仍是独立后续方案。[当前能力与分步计划](docs/COLLABORATION-WORKSPACE.md)、[Agent文档入口](docs/PROJECT-STATE.md)、[模块契约](docs/TEAM.md)。实际检查与升级记录见 [CHANGELOG](CHANGELOG.md)。
 
 ## 开始使用
 
@@ -16,27 +16,29 @@
 
 本机 PostgreSQL 用户应先运行 `.\start.bat -ConfigOnly`，填写 `.env` / `.env.test` 的连接信息，再运行 `.\start.bat -Setup`。详细要求、已有库迁移和排错见 [Windows 使用说明](docs/WINDOWS.md)。
 
-无需开发环境的试用者可以下载 [上一候选 rc.4 的 Windows ZIP](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.4) 或已发布的 [0.3.0 稳定版](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0)，完整解压后运行其中的 start.bat。rc.4 包不包含 rc.5/rc.6/rc.7 的改动。旧版 0.3.0 仍使用独立 stop.bat；rc.4 包采用窗口关闭即停止网站的方式。见 [发布与数据备份](docs/RELEASE.md)。
+无需开发环境的试用者可以下载 [上一候选 rc.4 的 Windows ZIP](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.4) 或已发布的 [0.3.0 稳定版](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0)，完整解压后运行其中的 start.bat。rc.4 包不包含 rc.5–rc.8 的改动。旧版 0.3.0 仍使用独立 stop.bat；rc.4 包采用窗口关闭即停止网站的方式。见 [发布与数据备份](docs/RELEASE.md)。
 
 | 演示账号 | 初始密码 | 职务 |
 |---|---|---|
-| admin@agilecampus.local | password123 | 管理员、队员 |
+| admin@agilecampus.local | password123 | 管理员、组员 |
 | teacher@agilecampus.local | password123 | 指导老师 |
-| student@agilecampus.local | password123 | 队员 |
+| student@agilecampus.local | password123 | 组员 |
 
-已有数据库升级先执行 rc.6 的 `node scripts/migrate-business.mjs`，再执行 rc.7 的 `node scripts/migrate-discussions.mjs`（测试库均加 `--test`），保留历史任务与文件；新数据库仍沿用初始化流程。
+已有数据库升级先执行 rc.6 的 `node scripts/migrate-business.mjs`、rc.7 的 `node scripts/migrate-discussions.mjs`，再执行 rc.8 的 `node scripts/migrate-collaboration-foundations.mjs` 和 `node scripts/migrate-member-deputy.mjs`（测试库均加 `--test`），保留历史任务与文件；新数据库仍沿用初始化流程。
 
 ## 已实现
 
-- 团队、学术身份确认与可叠加职务，课程、实验室和竞赛项目。
+- 团队、学术身份确认与可叠加管理员/副管理员/指导老师/队长/组员职务，课程、实验室和竞赛项目。
 - 五态任务、子任务、姓名指派、看板拖动与表格筛选，成果提交和教师验收。
 - 成果说明、验证结果、链接/文件证据、逐项自检及不可变提交版本；按指定版本逐项验收与打回。
 - 团队资料、公告、邀请码有效期、成员退出/移除保护；团队/项目资料分类、搜索、文档历史与文件预览下载。
+- 项目与资料目录、互链、引文评论、协作者权限、文档/会议行动项；资料/任务/项目关注与提及。
+- 任务标签、依赖守卫、统一筛选与本人保存视图；通知偏好和本人日程提醒。
 - 工作台、工时、贡献统计、里程碑、站内消息与个人资料。
 - 个人日历、项目日历和跨天排期；个人安排仅本人可访问。
 - 可选飞书账号连接；AI 对话界面与按账号区分的浏览器草稿，模型尚未接入。
 
-任务状态为待认领、进行中、待验收、待修改、已完成；提交后由教师验收。权限按团队职务与项目场景计算，学术身份不赋予权限。详细功能与边界见 [阶段汇总](docs/RELEASE.md) 和 [体验验收](docs/UX.md)。
+任务状态为待认领、进行中、待验收、待修改、已完成；提交后由具有验收职务的成员核对。权限按团队职务与项目场景计算，学术身份不赋予权限。详细功能与边界见 [阶段汇总](docs/RELEASE.md) 和 [体验验收](docs/UX.md)。
 
 ## 仓库导航
 

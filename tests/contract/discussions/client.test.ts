@@ -3,7 +3,7 @@ import { discussionCreateSchema, discussionEditSchema, discussionHistorySchema, 
 
 describe("讨论浏览器公开边界", () => {
   it("正文或真实文件 ID 可独立创建，正文去除首尾空白", () => {
-    expect(discussionCreateSchema.parse({ body: " 内容 " })).toEqual({ body: "内容", resourceIds: [] });
+    expect(discussionCreateSchema.parse({ body: " 内容 " })).toEqual({ body: "内容", resourceIds: [], mentionedUserIds: [] });
     expect(discussionCreateSchema.parse({ resourceIds: [crypto.randomUUID()] }).body).toBe("");
   });
   it("拒绝空讨论和非法附件", () => {

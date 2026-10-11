@@ -40,6 +40,7 @@ import { StructuredTransitionFields } from "./delivery-fields";
 import { DiscardChangesDialog } from "./form-guards";
 
 export { TaskDetailSummary, type TaskDetailSummaryProps } from "./detail-summary";
+export { TaskOrganization, TaskLabelFilter, TaskLabelPill } from "./organization-ui";
 
 function ErrorLine({ state }: { state: FormState }) {
   return <FormFeedback message={state?.error} className="text-xs" />;
@@ -389,7 +390,7 @@ export function TransitionDialog({
                         {member.positions
                           ?.map((position) => POSITION_META[position].label)
                           .join("、") ??
-                          (member.role === "student" ? "队员" : "管理员")}
+                          (member.role === "student" ? "组员" : "管理员")}
                       </option>
                     ))}
                 </select>
@@ -504,7 +505,7 @@ export function TaskActions({
     return (
       <p className="text-xs text-muted-foreground">
         {task.status === "submitted"
-          ? "等待管理员或指导老师验收"
+          ? "等待管理员、副管理员或指导老师验收"
           : task.status === "accepted"
             ? "任务已验收完成"
             : "由负责人推进任务"}

@@ -135,7 +135,7 @@ export function MemberPositionsForm({
   member,
 }: {
   teamId: string;
-  member: { id: string; name: string; positions: TeamPosition[] };
+  member: { id: string; name: string; positions: TeamPosition[]; positionVersion: string | null };
 }) {
   const [state, action, pending] = useActionState(updatePositionsAction, null);
   const [selected, setSelected] = useState(member.positions);
@@ -147,16 +147,18 @@ export function MemberPositionsForm({
     >
       <input type="hidden" name="teamId" value={teamId} />
       <input type="hidden" name="userId" value={member.id} />
+      <input type="hidden" name="positionVersion" value={state?.positionVersion ?? member.positionVersion ?? ""} />
       <fieldset disabled={pending}>
         <legend className="mb-2 text-xs font-medium">
           {member.name}的团队职务（可多选）
         </legend>
-        <div className="grid grid-cols-2 gap-2">
+        <p className="mb-3 text-xs leading-5 text-muted-foreground">职务可以叠加。管理员负责授权，副管理员负责日常协作；学术身份不会增加权限。</p>
+        <div className="grid gap-2 sm:grid-cols-2">
           {TEAM_POSITIONS.map((position) => (
             <label
               key={position}
               title={POSITION_META[position].description}
-              className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2 py-2 text-xs ${selected.includes(position) ? "border-brand/40 bg-brand-soft" : "border-border"}`}
+              className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-3 text-xs transition-colors ${selected.includes(position) ? "border-brand/40 bg-brand-soft" : "border-border hover:bg-muted/50"}`}
             >
               <input
                 type="checkbox"
@@ -170,9 +172,9 @@ export function MemberPositionsForm({
                       : selected.filter((value) => value !== position),
                   )
                 }
-                className="accent-brand"
+                className="mt-0.5 accent-brand"
               />
-              {POSITION_META[position].label}
+              <span><span className="block font-medium">{POSITION_META[position].label}</span><span className="mt-1 block leading-5 text-muted-foreground">{POSITION_META[position].description}</span></span>
             </label>
           ))}
         </div>

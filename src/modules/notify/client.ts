@@ -12,6 +12,7 @@ const notificationSchema = z.object({
 const feedSchema = z.object({
   notifications: z.array(notificationSchema).max(20),
   unreadCount: z.number().int().nonnegative(),
+  preferences: z.object({ showBubble: z.boolean() }).optional(),
 });
 export type NotificationItem = z.infer<typeof notificationSchema>;
 export type NotificationFeed = z.infer<typeof feedSchema>;
@@ -41,6 +42,48 @@ export function notificationLabel(type: string): string {
     task_overdue: "任务逾期",
     task_discussion: "任务讨论",
     task_discussion_reply: "讨论回复",
+    task_update: "任务更新",
+    resource_comment: "资料评论",
+    resource_update: "资料更新",
+    collaboration_mention: "提及了你",
+    personal_reminder: "本人日程提醒",
   };
   return labels[type] ?? "协作消息";
+}
+
+export const followTargetSchema = z.object({ kind: z.enum(["project", "task", "resource"]), id: z.uuid("关注目标无效") }).strict();
+export type FollowTarget = z.infer<typeof followTargetSchema>;
+export const followStateSchema = z.object({
+  target: followTargetSchema,
+  following: z.boolean(),
+  version: z.number().int().nonnegative(),
+});
+export type FollowState = z.infer<typeof followStateSchema>;
+export const notificationPreferencesSchema = z.object({
+  version: z.number().int().nonnegative(),
+  taskUpdates: z.boolean(), discussions: z.boolean(), mentions: z.boolean(),
+  resourceUpdates: z.boolean(), reminders: z.boolean(), showBubble: z.boolean(),
+}).strict();
+export type NotificationPreferences = z.infer<typeof notificationPreferencesSchema>;
+export type NotificationCategory = "taskUpdates" | "discussions" | "mentions" | "resourceUpdates" | "reminders";
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  version: 0, taskUpdates: true, discussions: true, mentions: true, resourceUpdates: true, reminders: true, showBubble: true,
+};
+
+export function parseFollowState(value: unknown): FollowState | null {
+  const parsed = followStateSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export function parseNotificationPreferences(value: unknown): NotificationPreferences | null {
+  const parsed = notificationPreferencesSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export function notificationCategoryFor(type: string): NotificationCategory {
+  if (type === "collaboration_mention") return "mentions";
+  if (["task_discussion", "task_discussion_reply", "resource_comment"].includes(type)) return "discussions";
+  if (type === "resource_update") return "resourceUpdates";
+  if (["task_due_soon", "task_overdue", "personal_reminder"].includes(type)) return "reminders";
+  return "taskUpdates";
 }

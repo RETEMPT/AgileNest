@@ -16,6 +16,7 @@ import { Badge, StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight, CheckCircle2 } from "lucide-react";
 import { ProjectJourney } from "./project-journey";
+import { FollowButton } from "@/modules/notify/ui";
 
 export async function ProjectOverviewView({
   params,
@@ -86,11 +87,11 @@ export async function ProjectOverviewView({
             {p.description || "未填写项目说明"}
           </p>
         </div>
-        <Button asChild>
+        <div className="flex flex-wrap items-center gap-2"><FollowButton target={{ kind: "project", id: projectId }} /><Button asChild>
           <Link href={"/p/" + projectId + "/tasks"}>
             进入任务池 <ArrowUpRight className="h-4 w-4" />
           </Link>
-        </Button>
+        </Button></div>
       </header>
       <ProjectJourney
         projectId={projectId}

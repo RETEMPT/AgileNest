@@ -136,6 +136,8 @@ export type TransitionContext = {
   status: TaskStatus;
   assigneeId: string | null;
   permissions?: TaskPermissions;
+  blocked?: boolean;
+  reopenBlocked?: boolean;
 };
 
 export function availableTransitions(
@@ -144,6 +146,8 @@ export function availableTransitions(
   actorId: string,
 ): TransitionRule[] {
   return TRANSITIONS.filter((rule) => {
+    if (task.blocked && ["submit", "resubmit", "accept"].includes(rule.action)) return false;
+    if (task.reopenBlocked && rule.action === "reopen") return false;
     if (
       !rule.from.includes(task.status) ||
       !(task.permissions
@@ -170,7 +174,7 @@ export function availableTransitions(
 export const STATUS_DESCRIPTIONS: Record<TaskStatus, string> = {
   unclaimed: "由有执行职务的成员认领，或按权限指派",
   in_progress: "推进工作，完成后提交说明",
-  submitted: "由管理员或指导老师查看成果并验收",
+  submitted: "由管理员、副管理员或指导老师查看成果并验收",
   accepted: "验收通过，成果已确认",
   rejected: "按修改意见完善后重新提交",
 };

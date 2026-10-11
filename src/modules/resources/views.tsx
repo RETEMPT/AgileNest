@@ -9,10 +9,10 @@ export async function TeamResourcesView({ params }: { params: Promise<{ teamId: 
   if (!await getTeamMembership(user.id, teamId)) notFound();
   const team = (await listMyTeams(user.id)).find((item) => item.id === teamId);
   if (!team) notFound();
-  return <ResourcesWorkspace teamId={teamId} scopeName={team.name} initialResources={await listResources(user.id, { teamId })} />;
+  return <ResourcesWorkspace actorId={user.id} teamId={teamId} scopeName={team.name} initialResources={await listResources(user.id, { teamId })} />;
 }
 export async function ProjectResourcesView({ params }: { params: Promise<{ projectId: string }> }) {
   const user = await requireUser(); const { projectId } = await params; const access = await getProjectForUser(user.id, projectId);
   if (!access) notFound();
-  return <ResourcesWorkspace teamId={access.project.teamId} projectId={projectId} scopeName={access.project.name} initialResources={await listResources(user.id, { projectId })} />;
+  return <ResourcesWorkspace actorId={user.id} teamId={access.project.teamId} projectId={projectId} scopeName={access.project.name} initialResources={await listResources(user.id, { projectId })} />;
 }

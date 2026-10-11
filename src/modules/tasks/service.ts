@@ -13,6 +13,7 @@ import {
 import { db, type DbTx } from "@/db";
 import {
   taskAcceptanceEvents,
+  taskActionItemOrigins,
   tasks,
   milestones,
   teamMembers,
@@ -35,6 +36,7 @@ import {
   notifyAssigned,
   notifyRejected,
   notifySubmitted,
+  enqueueCollaborationNotice,
 } from "@/modules/notify";
 import { availableTransitions, findTransition } from "./states";
 import { taskCreateSchema, taskPatchSchema, assertTaskDates } from "./schema";
@@ -46,6 +48,10 @@ import {
 import type { DeliveryInput, ReviewInput } from "./delivery-types";
 import { writeSubmission, writeReview } from "./delivery";
 import { lockTeamTaskAccess } from "./task-locks";
+import { assertTaskDependencyDeletion, assertTaskDependencyTransition, loadTaskOrganizationSummaries } from "./organization-service";
+import { matchesTaskOrganization, type TaskOrganizationSummary } from "./organization-client";
+import { taskActionItemCreateSchema, type TaskActionItemInput, type TaskActionItemOrigin } from "./organization-client";
+import { accessibleResourceIds, bindTaskActionItemSource } from "@/modules/resources";
 
 export { getTaskDelivery, saveTaskRequirements } from "./delivery";
 
@@ -70,6 +76,12 @@ export type TaskDTO = {
   createdAt: Date;
   updatedAt: Date;
   permissions?: TaskPermissions;
+  labels?: TaskOrganizationSummary["labels"];
+  blockedByIds?: string[];
+  blockingIds?: string[];
+  blocked?: boolean;
+  reopenBlocked?: boolean;
+  actionItemOrigin?: TaskActionItemOrigin;
 };
 
 export type TaskPatch = {
@@ -138,6 +150,19 @@ function toActorDTO(row: TaskRow, permissions: TaskPermissions): TaskDTO {
   return { ...toDTO(row), permissions };
 }
 
+async function withOrganization(task: TaskDTO, actorId: string): Promise<TaskDTO> {
+  const summary = (await loadTaskOrganizationSummaries([task.id])).get(task.id)!;
+  const origins = await loadActionItemOrigins(actorId, [task.id]);
+  return { ...task, ...summary, ...(origins.get(task.id) ? { actionItemOrigin: origins.get(task.id)! } : {}) };
+}
+
+async function loadActionItemOrigins(actorId: string, taskIds: string[]) {
+  if (!taskIds.length) return new Map<string, TaskActionItemOrigin>();
+  const origins = await db.select({ taskId: taskActionItemOrigins.taskId, resourceId: taskActionItemOrigins.resourceId, resourceTitle: taskActionItemOrigins.resourceTitle, sourceVersion: taskActionItemOrigins.sourceVersion, quote: taskActionItemOrigins.quote }).from(taskActionItemOrigins).where(inArray(taskActionItemOrigins.taskId, taskIds));
+  const visible = new Set(await accessibleResourceIds(actorId, [...new Set(origins.map((origin) => origin.resourceId))]));
+  return new Map(origins.map(({ taskId, ...origin }) => [taskId, visible.has(origin.resourceId) ? { ...origin, accessible: true } : { resourceId: origin.resourceId, sourceVersion: origin.sourceVersion, resourceTitle: null, quote: null, accessible: false }]));
+}
+
 async function loadTaskRow(
   taskId: string,
   connection: DbTx = db,
@@ -184,6 +209,8 @@ export async function listProjectTasks(
     assigneeId?: string;
     milestoneId?: string;
     parentTaskId?: string | null;
+    labelId?: string;
+    blocked?: boolean;
   },
 ): Promise<TaskDTO[]> {
   const access = await requireProjectForUser(actorId, projectId);
@@ -203,7 +230,10 @@ export async function listProjectTasks(
     .leftJoin(users, eq(tasks.assigneeId, users.id))
     .where(and(...conds))
     .orderBy(asc(tasks.sortOrder), asc(tasks.createdAt));
-  return rows.map((row) => toActorDTO(row, access.capabilities.task));
+  const organization = await loadTaskOrganizationSummaries(rows.map((row) => row.id));
+  const origins = await loadActionItemOrigins(actorId, rows.map((row) => row.id));
+  return rows.map((row) => ({ ...toActorDTO(row, access.capabilities.task), ...organization.get(row.id)!, ...(origins.get(row.id) ? { actionItemOrigin: origins.get(row.id)! } : {}) }))
+    .filter((task) => matchesTaskOrganization(task, filters ?? {}));
 }
 
 export async function getTaskDetail(
@@ -215,7 +245,7 @@ export async function getTaskDetail(
   const subtasks = await listProjectTasks(actorId, row.projectId, {
     parentTaskId: taskId,
   });
-  return { ...toActorDTO(row, access.capabilities.task), subtasks };
+  return { ...await withOrganization(toActorDTO(row, access.capabilities.task), actorId), subtasks };
 }
 
 async function validateTaskLinks(
@@ -249,21 +279,12 @@ async function validateTaskLinks(
   }
 }
 
-export async function createTask(
-  actorId: string,
-  projectId: string,
-  input: {
-    title: string;
-    description?: string;
-    assigneeId?: string;
-    milestoneId?: string;
-    parentTaskId?: string;
-    startDate?: string;
-    dueDate?: string;
-    estimatedMinutes?: number;
-    priority?: TaskPriority;
-  },
-): Promise<TaskDTO> {
+type TaskCreateInput = {
+  title: string; description?: string; assigneeId?: string; milestoneId?: string; parentTaskId?: string;
+  startDate?: string; dueDate?: string; estimatedMinutes?: number; priority?: TaskPriority;
+};
+
+export async function createTask(actorId: string, projectId: string, input: TaskCreateInput): Promise<TaskDTO> {
   const access = await assertRole(actorId, projectId, "create");
   const parsed = taskCreateSchema.safeParse(input);
   if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
@@ -273,8 +294,13 @@ export async function createTask(
   assertISODate(input.startDate, "开始日期");
   assertISODate(input.dueDate, "截止日期");
 
-  const row = await db.transaction(async (tx) => {
-    const latestAccess = await lockTeamTaskAccess(tx, actorId, projectId, access.project.teamId, "create");
+  const row = await db.transaction((tx) => createTaskInTransaction(tx, actorId, projectId, input, access.project.teamId));
+  if (input.assigneeId) await fireNotify(() => notifyAssigned(row.created.id, actorId));
+  return withOrganization(toActorDTO({ ...row.created, assigneeName: null }, row.permissions), actorId);
+}
+
+async function createTaskInTransaction(tx: DbTx, actorId: string, projectId: string, input: TaskCreateInput, teamId: string) {
+    const latestAccess = await lockTeamTaskAccess(tx, actorId, projectId, teamId, "create");
     if (input.assigneeId) {
     if (
       !latestAccess.capabilities.task.actions.includes("assign") &&
@@ -305,7 +331,7 @@ export async function createTask(
         latestAccess.project.kind,
       ).execute
     )
-      throw new AppError("请选择有队员、队长或管理员职务的成员作为负责人");
+      throw new AppError("请选择有组员、队长、副管理员或管理员职务的成员作为负责人");
     }
     await validateTaskLinks(
       tx,
@@ -317,7 +343,7 @@ export async function createTask(
       .insert(tasks)
       .values({
         projectId,
-        title,
+        title: input.title.trim(),
         description: input.description ?? null,
         assigneeId: input.assigneeId ?? null,
         createdById: actorId,
@@ -331,9 +357,9 @@ export async function createTask(
         claimedAt: input.assigneeId ? new Date() : null,
       })
       .returning();
-    await tx
+    const [createdEvent] = await tx
       .insert(taskAcceptanceEvents)
-      .values({ taskId: created.id, actorId, action: "create" });
+      .values({ taskId: created.id, actorId, action: "create" }).returning({ id: taskAcceptanceEvents.id });
     if (input.assigneeId)
       await tx.insert(taskAcceptanceEvents).values({
         taskId: created.id,
@@ -341,13 +367,30 @@ export async function createTask(
         action: "assign",
         note: input.assigneeId,
       });
+    else await enqueueCollaborationNotice(actorId, { target: { kind: "task", id: created.id }, event: "task_update", eventKey: `created:${createdEvent.id}`, title: `新任务：${created.title}`.slice(0, 200), link: `/p/${projectId}/tasks/${created.id}` }, tx);
     return { created, permissions: latestAccess.capabilities.task };
-  });
+}
 
-  if (input.assigneeId) {
-    await fireNotify(() => notifyAssigned(row.created.id));
-  }
-  return toActorDTO({ ...row.created, assigneeName: null }, row.permissions);
+export async function createTaskActionItem(actorId: string, projectId: string, input: TaskActionItemInput): Promise<TaskDTO> {
+  const access = await assertRole(actorId, projectId, "create");
+  const parsed = taskActionItemCreateSchema.safeParse(input);
+  if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
+  const item = parsed.data;
+  const row = await db.transaction(async (tx) => {
+    const latestAccess = await lockTeamTaskAccess(tx, actorId, projectId, access.project.teamId, "create");
+    const [existing] = await tx.select().from(taskActionItemOrigins).where(and(eq(taskActionItemOrigins.resourceId, item.resourceId), eq(taskActionItemOrigins.requestKey, item.requestKey)));
+    if (existing) {
+      const previous = await loadTaskRow(existing.taskId, tx);
+      if (existing.createdById !== actorId || previous.projectId !== projectId) throw new ConflictError("该行动项请求已被使用，请重新创建");
+      return toActorDTO(previous, latestAccess.capabilities.task);
+    }
+    const created = await createTaskInTransaction(tx, actorId, projectId, { title: item.title, description: item.description, dueDate: item.dueDate }, access.project.teamId);
+    const source = await bindTaskActionItemSource(actorId, projectId, { resourceId: item.resourceId, sourceVersion: item.sourceVersion, quote: item.quote }, tx);
+    await tx.insert(taskActionItemOrigins).values({ taskId: created.created.id, resourceId: source.id, resourceTitle: source.title, sourceVersion: source.version, quote: item.quote || null, requestKey: item.requestKey, createdById: actorId });
+    await tx.insert(taskAcceptanceEvents).values({ taskId: created.created.id, actorId, action: "update", note: `来自文档「${source.title}」v${source.version}的行动项` });
+    return toActorDTO({ ...created.created, assigneeName: null }, created.permissions);
+  });
+  return withOrganization(row, actorId);
 }
 
 export async function updateTask(
@@ -408,15 +451,16 @@ export async function updateTask(
       })
       .where(eq(tasks.id, taskId))
       .returning();
-    await tx
+    const [event] = await tx
       .insert(taskAcceptanceEvents)
-      .values({ taskId, actorId, action: "update", note: "更新任务信息" });
+      .values({ taskId, actorId, action: "update", note: "更新任务信息" }).returning({ id: taskAcceptanceEvents.id });
+    await enqueueCollaborationNotice(actorId, { target: { kind: "task", id: taskId }, event: "task_update", eventKey: `updated:${event.id}`, title: `任务已更新：${changed.title}`.slice(0, 200), link: `/p/${row.projectId}/tasks/${taskId}`, participantUserIds: changed.assigneeId ? [changed.assigneeId] : [] }, tx);
     return { changed, permissions: latestAccess.capabilities.task };
   });
-  return toActorDTO(
+  return withOrganization(toActorDTO(
     { ...updated.changed, assigneeName: row.assigneeName },
     updated.permissions,
-  );
+  ), actorId);
 }
 
 export async function deleteTask(
@@ -430,6 +474,7 @@ export async function deleteTask(
     if (row.parentTaskId) await tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, row.parentTaskId)).for("update");
     const [current] = await tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, taskId)).for("update");
     if (!current) throw new NotFoundError("任务不存在");
+    await assertTaskDependencyDeletion(tx, taskId);
     await tx.insert(taskAcceptanceEvents).values({ taskId, actorId, action: "delete" });
     await tx.delete(tasks).where(eq(tasks.id, taskId));
   });
@@ -473,6 +518,7 @@ export async function transitionTask(
       throw new ForbiddenError("只能操作自己认领的任务");
     }
 
+    await assertTaskDependencyTransition(tx, taskId, action);
     if (action === "submit" || action === "resubmit") note = await writeSubmission(tx, actorId, row, input?.delivery);
     else if (action === "accept" || action === "reject") note = await writeReview(tx, actorId, row, action, input?.review);
     else if (note && note.length > 5000) throw new AppError("说明最多 5000 字");
@@ -515,7 +561,7 @@ export async function transitionTask(
           latestAccess.project.kind,
         ).execute
       )
-        throw new AppError("请选择有队员、队长或管理员职务的成员作为负责人");
+        throw new AppError("请选择有组员、队长、副管理员或管理员职务的成员作为负责人");
       nextAssignee = target;
     }
 
@@ -580,16 +626,16 @@ export async function transitionTask(
   });
 
   if (action === "claim" || action === "assign") {
-    await fireNotify(() => notifyAssigned(taskId));
+    await fireNotify(() => notifyAssigned(taskId, actorId));
   } else if (action === "submit" || action === "resubmit") {
-    await fireNotify(() => notifySubmitted(taskId));
+    await fireNotify(() => notifySubmitted(taskId, actorId));
   } else if (action === "accept") {
-    await fireNotify(() => notifyAccepted(taskId));
+    await fireNotify(() => notifyAccepted(taskId, actorId));
   } else if (action === "reject") {
-    await fireNotify(() => notifyRejected(taskId, note ?? ""));
+    await fireNotify(() => notifyRejected(taskId, note ?? "", actorId));
   }
 
-  return result;
+  return withOrganization(result, actorId);
 }
 
 export async function createSubtask(

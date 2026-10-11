@@ -75,7 +75,7 @@ export function ProjectJourney({
     {
       title: "验收与交付",
       icon: ClipboardCheck,
-      owner: "管理员或指导老师",
+      owner: "管理员、副管理员或指导老师",
       description: "按指定提交版本逐项检查；通过完成交付，打回后修改重交。",
       output: "验收结论与修改意见",
       href: canReview ? `${base}/review` : `${base}/table?status=submitted`,

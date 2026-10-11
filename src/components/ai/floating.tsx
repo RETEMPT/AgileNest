@@ -57,7 +57,7 @@ export function CollaborationDock({ userId, projects, aiEnabled = true }: {
   const count = state.feed?.unreadCount;
   const notice = state.feed?.notifications.find((item) => !item.readAt);
   const bubbleKey = `${count}:${state.feed?.notifications[0]?.id ?? ""}`;
-  const showBubble = Boolean(count && !panel && dismissed !== bubbleKey);
+  const showBubble = Boolean(count && state.feed?.preferences?.showBubble !== false && !panel && dismissed !== bubbleKey);
   return <>
     <div data-collaboration-dock className="fixed z-40 flex items-end gap-2" style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))", right: "calc(1rem + env(safe-area-inset-right))" }}>
       {showBubble && <div className="absolute bottom-17 right-0 w-[min(280px,calc(100vw-2rem))] rounded-2xl border border-brand/20 bg-card p-3 shadow-lg">

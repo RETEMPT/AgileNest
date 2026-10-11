@@ -10,6 +10,7 @@ import { settingsSection } from "./settings-sections";
 import { SettingsProjects } from "./settings-projects";
 import { AiSettings, AppearanceSettings } from "./settings-preferences";
 import { POSITION_META } from "./client";
+import { NotificationPreferencesPanel } from "@/modules/notify/ui";
 
 export async function SettingsView({ searchParams }: {
   searchParams: Promise<{ section?: string; feishu?: string; notice?: string }>;
@@ -25,6 +26,7 @@ export async function SettingsView({ searchParams }: {
       profile: <AccountProfileForm profile={profile} feishuName={connection.name} />,
       academic: <AcademicProfileForm profile={academic} />,
       projects: <SettingsProjects projects={projects.map((project) => ({ ...project, positions: teams.find((team) => team.id === project.teamId)!.positions.map((position) => POSITION_META[position].label) }))} />,
+      notifications: <div className="space-y-5"><div><h1 className="text-xl font-semibold">通知与关注</h1><p className="mt-2 text-sm text-muted-foreground">按个人偏好管理站内提醒。在项目、任务和资料详情中关注相关内容。</p></div><NotificationPreferencesPanel /></div>,
       ai: <AiSettings userId={user.id} />,
       appearance: <AppearanceSettings userId={user.id} />,
       connections: <FeishuConnectionPanel connection={connection} notice={query.feishu ?? query.notice ?? null} />,

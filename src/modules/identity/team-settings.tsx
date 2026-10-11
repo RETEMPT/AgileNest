@@ -144,10 +144,10 @@ function TeamInvitation({ initial, canManage }: { initial: TeamInformationDTO; c
   const [open, setOpen] = useState(false);
   const expired = Boolean(initial.inviteExpiresOn && initial.inviteExpiresOn < todayISO());
   return <section className="space-y-4 rounded-xl border border-border bg-card p-5">
-    <div><h2 className="text-base font-semibold">邀请成员</h2><p className="mt-1 text-sm text-muted-foreground">加入后拥有队员职务，管理员可在成员页调整分工。</p></div>
-    {expired ? <p className="text-sm text-destructive">当前邀请码已过期，请由管理员刷新后再分享。</p> : <InviteCode code={initial.inviteCode} />}
+    <div><h2 className="text-base font-semibold">邀请成员</h2><p className="mt-1 text-sm text-muted-foreground">加入后拥有组员职务，管理员可在成员页设置多项职务。</p></div>
+    {expired ? <p className="text-sm text-destructive">当前邀请码已过期，请由管理员或副管理员刷新后再分享。</p> : <InviteCode code={initial.inviteCode} />}
     <p className="text-sm text-muted-foreground">{initial.inviteExpiresOn ? `有效至 ${initial.inviteExpiresOn}（含当天）` : "当前邀请码长期有效"}</p>
-    {canManage ? <Button variant="outline" onClick={() => setOpen(true)}><RefreshCw className="h-4 w-4" />刷新邀请码与有效期</Button> : <p className="text-xs text-muted-foreground">邀请码与有效期由团队管理员维护。</p>}
+    {canManage ? <Button variant="outline" onClick={() => setOpen(true)}><RefreshCw className="h-4 w-4" />刷新邀请码与有效期</Button> : <p className="text-xs text-muted-foreground">邀请码与有效期由管理员或副管理员维护。</p>}
     {open && <InviteRotationDialog initial={initial} onClose={() => setOpen(false)} />}
   </section>;
 }

@@ -1,8 +1,8 @@
-# AgileNest · Windows 一键运行与阶段汇总（0.4.0-rc.7）
+# AgileNest · Windows 一键运行与阶段汇总（0.4.0-rc.8）
 
-当前源码候选版 **0.4.0-rc.7** 增加项目协作路径、任务讨论/回复与附件、多文件上传和资料连续筛选，以及右下角通知机器人。本轮 43 文件、413 条测试与 Windows 构建通过；准确范围、真实截图和多轮执行计划见 [COLLABORATION-WORKSPACE.md](COLLABORATION-WORKSPACE.md)。rc.6 成果版本、逐项验收、团队信息/公告和共享资料保留，历史记录见 [BUSINESS-COMPLETION.md](BUSINESS-COMPLETION.md)；rc.5 体验历史见 [AGILENEST-EXECUTION.md](AGILENEST-EXECUTION.md)。综合人工验收留到最后迭代。本轮尚未合入 main 或重新发布 Windows ZIP。
+当前源码候选版 **0.4.0-rc.8** 增加项目目录、知识库协作、任务标签/依赖/行动项、提及/关注/通知偏好、本人提醒和保存视图，并支持独立可叠加的副管理员职务。实际检查结果见[更新日志](../CHANGELOG.md)，准确范围与多轮执行计划见[COLLABORATION-WORKSPACE.md](COLLABORATION-WORKSPACE.md)，真实页面点验见[UX](UX.md)。rc.6成果版本与逐项验收、rc.7附件讨论和通知助手保留。综合人工验收留到最后迭代，本轮尚未合入main或重新发布Windows ZIP。
 
-现有候选运行包仍为 [v0.4.0-rc.4](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.4)（`AgileNest-0.4.0-rc.4-windows-x64.zip`），不包含 rc.5/rc.6/rc.7 改动。已发布稳定版为 **0.3.0**，集成 PR [#6](https://github.com/RETEMPT/AgileNest/pull/6) 已合入主分支，[下载稳定版](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0) 请选择 Windows ZIP；GitHub 自动生成的 Source code 是源码包。历史与本轮验收分别记录于 [UX.md](UX.md)。
+已有候选运行包 [v0.4.0-rc.4](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.4)（`AgileNest-0.4.0-rc.4-windows-x64.zip`）不包含rc.5–rc.8改动。已有稳定运行包为 **0.3.0**，集成PR [#6](https://github.com/RETEMPT/AgileNest/pull/6) 已合入主分支，[下载稳定版](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0) 请选择Windows ZIP；GitHub自动生成的Source code是源码包。历史与本轮验收分别记录于[UX.md](UX.md)。
 
 ## 运行发布包
 
@@ -14,9 +14,9 @@
 
 | 演示账号 | 初始密码 | 职务 |
 |---|---|---|
-| admin@agilecampus.local | password123 | 管理员、队员 |
+| admin@agilecampus.local | password123 | 管理员、组员 |
 | teacher@agilecampus.local | password123 | 指导老师 |
-| student@agilecampus.local | password123 | 队员 |
+| student@agilecampus.local | password123 | 组员 |
 
 示例仅初始化一次，后续启动不覆盖姓名、职务、头像或任务。也可在登录页注册个人账号，建立自己的团队。网站和数据库均只监听本机地址。
 

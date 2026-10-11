@@ -1,5 +1,6 @@
 "use client";
 export { CalendarWorkspace, MonthGrid, AgendaList, EventChip } from "./project-ui";
+export { ReminderControls } from "./reminder-ui";
 
 import {
   useActionState,
@@ -22,6 +23,7 @@ import {
   type ScheduleDTO,
 } from "./client";
 import { deleteScheduleAction, saveScheduleAction } from "./actions";
+import { ReminderControls } from "./reminder-ui";
 
 const dialogClass =
   "dialog-surface fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-xl";
@@ -298,7 +300,7 @@ export function ScheduleControls({
         </Button>
       ) : (
         schedule && (
-          <div className="flex gap-1">
+          <div className="flex flex-wrap gap-1">
             <Button
               size="sm"
               variant="ghost"
@@ -318,6 +320,7 @@ export function ScheduleControls({
               <Trash2 className="h-3 w-3" />
               删除
             </Button>
+            <ReminderControls schedule={schedule} />
           </div>
         )
       )}

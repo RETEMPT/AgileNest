@@ -1,16 +1,19 @@
 import { nanoid } from "nanoid";
 import { and, desc, eq, ne } from "drizzle-orm";
 import { db, type DbTx } from "@/db";
-import { projects, tasks, teamAnnouncements, teamMembers, teamProfiles, teams, users } from "@/db/schema";
+import { memberPositions, projects, tasks, teamAnnouncements, teamMembers, teamProfiles, teams, users } from "@/db/schema";
 import { AppError, ConflictError, ForbiddenError, NotFoundError, requireTeamRole, todayISO } from "@/modules/core";
 import { teamAnnouncementSchema, teamAnnouncementUpdateSchema, teamInformationSchema, teamInviteSchema, teamVersionSchema } from "./team-schema";
 import type { TeamAnnouncementDTO, TeamInformationDTO } from "./team-client";
+import { canRemoveTeamMember, positionsFromRole } from "./client";
+import { requireTeamCapability } from "./permissions";
 
-async function lockTeam(tx: DbTx, actorId: string, teamId: string, adminOnly: boolean) {
+async function lockTeam(tx: DbTx, actorId: string, teamId: string, manageDaily: boolean) {
   const [team] = await tx.select().from(teams).where(eq(teams.id, teamId)).for("update");
   const members = await tx.select().from(teamMembers).where(eq(teamMembers.teamId, teamId)).for("update");
   const actor = members.find((member) => member.userId === actorId);
-  if (!team || !actor || (adminOnly && actor.role !== "admin")) throw new ForbiddenError();
+  if (!team || !actor) throw new ForbiddenError();
+  if (manageDaily) await requireTeamCapability(actorId, teamId, "manageTeamInformation", tx);
   return { team, members };
 }
 
@@ -38,7 +41,7 @@ export async function getTeamInformation(actorId: string, teamId: string): Promi
 export async function updateTeamInformation(actorId: string, teamId: string, input: {
   version: number; name: string; description: string; website?: string | null; contactEmail?: string | null;
 }): Promise<TeamInformationDTO> {
-  await requireTeamRole(actorId, teamId, ["admin"]);
+  await requireTeamCapability(actorId, teamId, "manageTeamInformation");
   const parsed = teamInformationSchema.safeParse(input);
   if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
   return db.transaction(async (tx) => {
@@ -56,7 +59,7 @@ export async function updateTeamInformation(actorId: string, teamId: string, inp
 export async function rotateTeamInvite(actorId: string, teamId: string, input: {
   version: number; inviteExpiresOn?: string | null;
 }): Promise<TeamInformationDTO> {
-  await requireTeamRole(actorId, teamId, ["admin"]);
+  await requireTeamCapability(actorId, teamId, "manageTeamInformation");
   const parsed = teamInviteSchema.safeParse(input);
   if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
   if (parsed.data.inviteExpiresOn && parsed.data.inviteExpiresOn < todayISO()) throw new AppError("邀请码有效期不能早于今天");
@@ -85,7 +88,7 @@ export async function listTeamAnnouncements(actorId: string, teamId: string): Pr
 export async function createTeamAnnouncement(actorId: string, teamId: string, input: {
   title: string; body: string; pinned?: boolean;
 }) {
-  await requireTeamRole(actorId, teamId, ["admin"]);
+  await requireTeamCapability(actorId, teamId, "manageTeamInformation");
   const parsed = teamAnnouncementSchema.safeParse(input);
   if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
   return db.transaction(async (tx) => {
@@ -98,7 +101,7 @@ export async function createTeamAnnouncement(actorId: string, teamId: string, in
 export async function updateTeamAnnouncement(actorId: string, teamId: string, announcementId: string, input: {
   version: number; title: string; body: string; pinned: boolean;
 }) {
-  await requireTeamRole(actorId, teamId, ["admin"]);
+  await requireTeamCapability(actorId, teamId, "manageTeamInformation");
   const parsed = teamAnnouncementUpdateSchema.safeParse(input);
   if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
   return db.transaction(async (tx) => {
@@ -114,7 +117,7 @@ export async function updateTeamAnnouncement(actorId: string, teamId: string, an
 }
 
 export async function deleteTeamAnnouncement(actorId: string, teamId: string, announcementId: string, version: number): Promise<void> {
-  await requireTeamRole(actorId, teamId, ["admin"]);
+  await requireTeamCapability(actorId, teamId, "manageTeamInformation");
   const parsed = teamVersionSchema.safeParse(version);
   if (!parsed.success) throw new AppError("公告版本无效");
   await db.transaction(async (tx) => {
@@ -131,6 +134,11 @@ async function removeMembership(actorId: string, teamId: string, targetUserId: s
     const { members } = await lockTeam(tx, actorId, teamId, adminOnly);
     const target = members.find((member) => member.userId === targetUserId);
     if (!target) throw new NotFoundError("该成员已不在团队中");
+    if (adminOnly) {
+      const actor = await requireTeamCapability(actorId, teamId, "manageTeamInformation", tx);
+      const [assignment] = await tx.select().from(memberPositions).where(eq(memberPositions.membershipId, target.id));
+      if (!canRemoveTeamMember(actor.positions, assignment?.positions ?? positionsFromRole(target.role))) throw new ForbiddenError("只有管理员可以移除管理员或副管理员");
+    }
     if (target.role === "admin" && members.filter((member) => member.role === "admin").length === 1) {
       throw new ConflictError("团队至少需要一位管理员，请先完成管理员交接");
     }
@@ -142,7 +150,7 @@ async function removeMembership(actorId: string, teamId: string, targetUserId: s
 }
 
 export async function removeTeamMember(actorId: string, teamId: string, targetUserId: string): Promise<void> {
-  await requireTeamRole(actorId, teamId, ["admin"]);
+  await requireTeamCapability(actorId, teamId, "manageTeamInformation");
   if (actorId === targetUserId) throw new AppError("退出自己的团队请使用退出团队入口");
   return removeMembership(actorId, teamId, targetUserId, true);
 }

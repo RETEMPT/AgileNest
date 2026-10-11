@@ -182,3 +182,44 @@ export function scheduleTimeLabel(
     ? `${schedule.startTime}–${schedule.endTime}`
     : "全天";
 }
+
+export const SCHEDULE_REMINDER_MINUTES = [0, 5, 10, 15, 30, 60, 1440] as const;
+export type ScheduleReminderMinutes = (typeof SCHEDULE_REMINDER_MINUTES)[number];
+export const scheduleReminderInputSchema = z.strictObject({
+  scheduleVersion: z.number().int().positive("日程版本无效，请重新加载"),
+  reminderVersion: z.number().int().nonnegative("提醒版本无效，请重新加载"),
+  enabled: z.boolean(),
+  minutes: z.union([z.literal(0), z.literal(5), z.literal(10), z.literal(15), z.literal(30), z.literal(60), z.literal(1440)]),
+});
+export type ScheduleReminderInput = z.infer<typeof scheduleReminderInputSchema>;
+export const scheduleReminderSchema = scheduleReminderInputSchema.extend({
+  scheduleId: z.uuid(), title: z.string(), scheduleDate: scheduleDateSchema,
+  startTime: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/).nullable(),
+  remindAt: z.iso.datetime(),
+});
+export type ScheduleReminderDTO = z.infer<typeof scheduleReminderSchema>;
+export function parseScheduleReminder(value: unknown): ScheduleReminderDTO | null {
+  const parsed = scheduleReminderSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export function scheduleReminderTime(schedule: Pick<ScheduleDTO, "scheduleDate" | "startTime">, minutes: number): string | null {
+  if (!scheduleDateSchema.safeParse(schedule.scheduleDate).success || !SCHEDULE_REMINDER_MINUTES.some((value) => value === minutes)) return null;
+  const startTime = schedule.startTime ?? "09:00";
+  if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(startTime)) return null;
+  const timestamp = Date.parse(`${schedule.scheduleDate}T${startTime}:00+08:00`) - minutes * 60000;
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null;
+}
+
+export function scheduleReminderIsDue(remindAt: string, now: Date): boolean {
+  const elapsed = now.getTime() - Date.parse(remindAt);
+  return Number.isFinite(elapsed) && elapsed >= 0 && elapsed <= 24 * 60 * 60000;
+}
+
+export function beijingCalendarDate(now: Date): string | null {
+  return Number.isFinite(now.getTime()) ? new Date(now.getTime() + 8 * 60 * 60000).toISOString().slice(0, 10) : null;
+}
+
+export function reminderMinutesLabel(minutes: ScheduleReminderMinutes): string {
+  return minutes === 0 ? "开始时" : minutes === 1440 ? "提前 1 天" : minutes === 60 ? "提前 1 小时" : `提前 ${minutes} 分钟`;
+}

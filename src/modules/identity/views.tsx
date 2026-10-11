@@ -6,12 +6,10 @@ import {
   ArrowRight,
   BookOpen,
   FlaskConical,
-  FolderKanban,
   Trophy,
   Users,
 } from "lucide-react";
 import { requireUser, getTeamMembership } from "@/modules/core";
-import { listProjectTasks } from "@/modules/tasks";
 import {
   Card,
   CardContent,
@@ -19,12 +17,11 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { Badge, StatusPill } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   listMyTeams,
   listTeamMembers,
-  listTeamProjects,
   listTeamSpaces,
   getAcademicProfile,
 } from "./service";
@@ -34,7 +31,9 @@ export { SettingsView } from "./settings-view";
 export { TeamSettingsView } from "./team-settings-view";
 import { TeamMemberRemovalButton, TeamSectionLinks } from "./team-settings";
 import { TeamProjectGuide } from "./project-journey";
-import { ACADEMIC_LABELS, POSITION_META } from "./client";
+import { getProjectDirectory } from "./space-service";
+import { ProjectDirectory } from "./space-ui";
+import { ACADEMIC_LABELS, POSITION_META, capabilitiesFor, canRemoveTeamMember } from "./client";
 import {
   AcademicProfileForm,
   ConfirmIdentityButton,
@@ -195,19 +194,16 @@ export async function TeamProjectsView({
   const user = await requireUser();
   const membership = await getTeamMembership(user.id, teamId);
   if (!membership) notFound();
-  const [teams, projects, members] = await Promise.all([
+  const [teams, directory, members] = await Promise.all([
     listMyTeams(user.id),
-    listTeamProjects(user.id, teamId),
+    getProjectDirectory(user.id, teamId),
     listTeamMembers(user.id, teamId),
   ]);
+  const projects = directory.projects;
   const team = teams.find((item) => item.id === teamId);
   if (!team) notFound();
-  const canCreate =
-    membership.positions.includes("admin") ||
-    membership.positions.includes("leader");
-  const allowedKinds: ProjectKind[] = membership.positions.includes("admin")
-    ? ["course", "lab", "contest"]
-    : ["lab", "contest"];
+  const allowedKinds: ProjectKind[] = (["course", "lab", "contest"] as const).filter((projectKind) => capabilitiesFor(membership.positions, projectKind).manageProject);
+  const canCreate = allowedKinds.length > 0;
   const selected: ProjectKind | undefined = [
     "course",
     "lab",
@@ -215,17 +211,6 @@ export async function TeamProjectsView({
   ].includes(kind ?? "")
     ? (kind as ProjectKind)
     : undefined;
-  const visible = projects.filter(
-    (project) => !selected || project.kind === selected,
-  );
-  const summaries = await Promise.all(
-    visible.map(async (project) => ({
-      project,
-      tasks: await listProjectTasks(user.id, project.id, {
-        parentTaskId: null,
-      }),
-    })),
-  );
   return (
     <main className="space-y-6">
       <header>
@@ -268,7 +253,7 @@ export async function TeamProjectsView({
         <div>
           <h2 className="text-sm font-semibold">邀请团队成员</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            分享邀请码；加入后，管理员可设置指导老师、队长等可叠加职务。
+            分享邀请码；加入后，管理员可设置副管理员、指导老师、队长和组员等可叠加职务。
           </p>
         </div>
         <InviteCode code={team.inviteCode} expiresOn={team.inviteExpiresOn} />
@@ -293,139 +278,7 @@ export async function TeamProjectsView({
           </Button>
         ))}
       </nav>
-      {summaries.length === 0 ? (
-        <section className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
-          <FolderKanban className="mx-auto mb-4 h-10 w-10 text-brand" />
-          <h2 className="text-lg font-semibold">
-            {projects.length === 0
-              ? "暂无项目"
-              : "此分类暂无项目"}
-          </h2>
-          <p className="mb-5 mt-2 text-sm text-muted-foreground">
-            {canCreate
-              ? "选择课程、实验室课题或竞赛，建立项目后即可拆分任务。"
-              : "请联系团队管理员创建项目，你可以先在成员页了解团队分工。"}
-          </p>
-          {canCreate && (
-            <CreateProjectButton
-              key={selected ?? "all"}
-              teamId={teamId}
-              defaultKind={selected}
-              allowedKinds={allowedKinds}
-            />
-          )}
-        </section>
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {summaries.map(({ project, tasks }) => {
-            const meta = project.kind
-              ? KIND_META[project.kind]
-              : { title: "团队项目", icon: FolderKanban };
-            const accepted = tasks.filter(
-              (task) => task.status === "accepted",
-            ).length;
-            const percent = tasks.length
-              ? Math.round((accepted / tasks.length) * 100)
-              : 0;
-            return (
-              <Card
-                key={project.id}
-                className="transition hover:border-brand/35 hover:shadow-sm"
-              >
-                <CardHeader>
-                  <div className="flex justify-between gap-2">
-                    <span className="inline-flex items-center gap-2 text-xs font-medium text-brand">
-                      <meta.icon className="h-4 w-4" />
-                      {meta.title}
-                    </span>
-                    <Badge
-                      variant={
-                        project.status === "active" ? "default" : "secondary"
-                      }
-                    >
-                      {project.status === "active" ? "进行中" : "已归档"}
-                    </Badge>
-                  </div>
-                  <CardTitle className="pt-2">
-                    <Link
-                      href={`/p/${project.id}`}
-                      className="hover:text-brand"
-                    >
-                      {project.name}
-                    </Link>
-                  </CardTitle>
-                  <CardDescription className="line-clamp-2">
-                    {project.description || "未填写项目说明"}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <div className="mb-2 flex justify-between text-xs">
-                      <span className="text-muted-foreground">
-                        验收完成 {accepted}/{tasks.length}
-                      </span>
-                      <span className="font-semibold">{percent}%</span>
-                    </div>
-                    <div
-                      role="progressbar"
-                      aria-label={`${project.name}验收完成度`}
-                      aria-valuenow={percent}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      className="h-1.5 overflow-hidden rounded-full bg-muted"
-                    >
-                      <div
-                        className="h-full rounded-full bg-brand"
-                        style={{ width: `${percent}%` }}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-3 text-xs">
-                    {(
-                      [
-                        "unclaimed",
-                        "in_progress",
-                        "submitted",
-                        "rejected",
-                      ] as const
-                    ).map((status) => (
-                      <span
-                        key={status}
-                        className="inline-flex items-center gap-1"
-                      >
-                        <StatusPill status={status} />
-                        <span>
-                          {
-                            tasks.filter((task) => task.status === status)
-                              .length
-                          }
-                        </span>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
-                    <span className="text-xs text-muted-foreground">
-                      {project.startDate || "未设开始日期"} →{" "}
-                      {project.endDate || "未设结束日期"}
-                    </span>
-                    <div className="flex gap-2">
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/p/${project.id}/board`}>看板</Link>
-                      </Button>
-                      <Button asChild size="sm">
-                        <Link href={`/p/${project.id}`}>
-                          项目概览
-                          <ArrowRight className="h-3 w-3" />
-                        </Link>
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+      <ProjectDirectory key={teamId} teamId={teamId} initial={directory} kind={selected} />
     </main>
   );
 }
@@ -452,14 +305,13 @@ export async function TeamMembersView({ teamId }: { teamId: string }) {
         </Link>
         <h1 id="team-members-heading" tabIndex={-1} className="mt-3 text-3xl font-semibold">成员与分工</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          学术身份展示成长阶段，团队职务明确分工；一位成员可以承担多项职务。
+          设置管理员、副管理员和组员等协作职务；一位成员可以承担多项职务，权限按职务叠加。
         </p>
       </header>
       <TeamSectionLinks teamId={teamId} current="members" />
       <CollaborationPath current={1} />
-      {!profile && <AcademicProfileForm profile={null} />}
       <section
-        className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-4"
+        className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2 xl:grid-cols-5"
         aria-label="团队职务权限说明"
       >
         {Object.entries(POSITION_META).map(([key, meta]) => (
@@ -476,12 +328,13 @@ export async function TeamMembersView({ teamId }: { teamId: string }) {
         <Link className="text-brand underline" href="/settings">
           个人设置
         </Link>
-        填写，团队管理员确认。身份不自动授予权限；队长的项目管理与指派权限限实验室和竞赛。
+        填写，团队管理员确认，作为补充资料展示。身份不自动授予权限；队长的项目管理与指派权限限实验室和竞赛。
       </p>
+      {!profile && <details className="rounded-xl border border-border bg-card p-4"><summary className="cursor-pointer text-sm font-medium">补充我的学术资料（选填）</summary><div className="mt-4"><AcademicProfileForm profile={null} /></div></details>}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {members.map((member) => (
           <Card
-            key={`${member.id}-${member.positions.join("-")}-${member.profile?.version}`}
+            key={`${member.id}-${member.positions.join("-")}-${member.positionVersion}-${member.profile?.version}`}
           >
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -519,6 +372,7 @@ export async function TeamMembersView({ teamId }: { teamId: string }) {
                 </p>
               )}
               <div className="rounded-xl bg-muted/50 p-3 space-y-2">
+                <p className="text-xs text-muted-foreground">学术资料 · 不决定协作权限</p>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium">
                     {member.profile
@@ -569,10 +423,10 @@ export async function TeamMembersView({ teamId }: { teamId: string }) {
                     </p>
                   )}
               </div>
-              {membership.role === "admin" && (
+              {capabilitiesFor(membership.positions).manageMembers && (
                 <MemberPositionsForm teamId={teamId} member={member} />
               )}
-              {(member.id === user.id || membership.role === "admin") && <div className="border-t border-border pt-3">
+              {(member.id === user.id || canRemoveTeamMember(membership.positions, member.positions)) && <div className="border-t border-border pt-3">
                 <TeamMemberRemovalButton teamId={teamId} userId={member.id} name={member.id === user.id ? team.name : member.name} self={member.id === user.id} />
               </div>}
             </CardContent>

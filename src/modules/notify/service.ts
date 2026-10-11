@@ -1,8 +1,10 @@
-import { and, count, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, count, desc, eq, isNull } from "drizzle-orm";
 import { db, type DbTx } from "@/db";
-import { notifications, projects, taskDiscussionPosts, tasks, teamMembers, teams, users } from "@/db/schema";
+import { memberPositions, notifications, projects, taskDiscussionPosts, tasks, teamMembers, teams, users } from "@/db/schema";
+import { capabilitiesFor, positionsFromRole } from "@/modules/identity/client";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/modules/core/errors";
 import { isDueSoon, isOverdue, todayISO } from "@/modules/core/dates";
+import { deliverCollaborationNotice, eligibleNotificationRecipients, getNotificationPreferences } from "./subscriptions";
 
 export type NotificationDTO = {
   id: string;
@@ -41,18 +43,20 @@ async function taskContext(taskId: string) {
   if (!task) throw new NotFoundError("任务不存在");
 
   const members = await db
-    .select({ userId: teamMembers.userId, role: teamMembers.role })
+    .select({ userId: teamMembers.userId, role: teamMembers.role, positions: memberPositions.positions, kind: projects.kind })
     .from(teamMembers)
     .innerJoin(projects, eq(projects.teamId, teamMembers.teamId))
+    .leftJoin(memberPositions, eq(memberPositions.membershipId, teamMembers.id))
     .where(eq(projects.id, task.projectId));
 
   const reviewerIds = members
-    .filter((m) => m.role === "teacher" || m.role === "admin")
+    .filter((m) => capabilitiesFor(m.positions ?? positionsFromRole(m.role), m.kind).review)
     .map((m) => m.userId);
 
   return {
     task,
     reviewers: reviewerIds,
+    memberIds: members.map((member) => member.userId),
     link: `/p/${task.projectId}/tasks/${task.id}`,
   };
 }
@@ -64,61 +68,64 @@ async function insertFor(
   body: string | null,
   link: string | null,
 ) {
-  const unique = [...new Set(userIds)].filter(Boolean);
-  if (unique.length === 0) return;
+  const unique = await eligibleNotificationRecipients(db, userIds.filter(Boolean), type);
+  if (unique.length === 0) return 0;
   await db
     .insert(notifications)
-    .values(unique.map((userId) => ({ userId, type, title, body, link })));
+    .values(unique.map((userId) => ({ userId, type, title: title.slice(0, 200), body: body?.slice(0, 2000) ?? null, link })));
+  return unique.length;
 }
 
-export async function notifyAssigned(taskId: string): Promise<void> {
-  const { task, link } = await taskContext(taskId);
-  if (!task.assigneeId) return;
-  await insertFor(
-    [task.assigneeId],
+async function sendTaskNotice(taskId: string, type: string, title: (task: typeof tasks.$inferSelect) => string, body: (task: typeof tasks.$inferSelect) => string, toReviewers: boolean, actorId?: string) {
+  const { task, link, memberIds, reviewers } = await taskContext(taskId);
+  const recipients = toReviewers ? reviewers : task.assigneeId && memberIds.includes(task.assigneeId) ? [task.assigneeId] : [];
+  if (actorId) {
+    await db.transaction((tx) => deliverCollaborationNotice(actorId, {
+      target: { kind: "task", id: taskId }, event: "task_update", title: title(task).slice(0, 200), body: body(task).slice(0, 2000), link,
+      participantUserIds: recipients, eventKey: `${type}:${task.updatedAt.toISOString()}`,
+    }, tx, type));
+    return;
+  }
+  await insertFor(recipients, type, title(task), body(task), link);
+}
+
+export async function notifyAssigned(taskId: string, actorId?: string): Promise<void> {
+  await sendTaskNotice(taskId,
     "task_assigned",
-    `新任务：${task.title}`,
-    "任务已分配给你。",
-    link,
+    (task) => `新任务：${task.title}`,
+    () => "任务已分配给你。",
+    false, actorId,
   );
 }
 
-export async function notifySubmitted(taskId: string): Promise<void> {
-  const { task, reviewers, link } = await taskContext(taskId);
-  await insertFor(
-    reviewers,
+export async function notifySubmitted(taskId: string, actorId?: string): Promise<void> {
+  await sendTaskNotice(taskId,
     "task_submitted",
-    `待验收：${task.title}`,
-    task.completionNote ?? "任务已提交，等待验收。",
-    link,
+    (task) => `待验收：${task.title}`,
+    (task) => task.completionNote ?? "任务已提交，等待验收。",
+    true, actorId,
   );
 }
 
-export async function notifyAccepted(taskId: string): Promise<void> {
-  const { task, link } = await taskContext(taskId);
-  if (!task.assigneeId) return;
-  await insertFor(
-    [task.assigneeId],
+export async function notifyAccepted(taskId: string, actorId?: string): Promise<void> {
+  await sendTaskNotice(taskId,
     "task_accepted",
-    `已通过：${task.title}`,
-    "任务已验收通过。",
-    link,
+    (task) => `已通过：${task.title}`,
+    () => "任务已验收通过。",
+    false, actorId,
   );
 }
 
-export async function notifyRejected(taskId: string, reason: string): Promise<void> {
-  const { task, link } = await taskContext(taskId);
-  if (!task.assigneeId) return;
-  await insertFor(
-    [task.assigneeId],
+export async function notifyRejected(taskId: string, reason: string, actorId?: string): Promise<void> {
+  await sendTaskNotice(taskId,
     "task_rejected",
-    `待修改：${task.title}`,
-    reason || "请按验收意见修改后重新提交",
-    link,
+    (task) => `待修改：${task.title}`,
+    () => reason || "请按验收意见修改后重新提交",
+    false, actorId,
   );
 }
 
-export async function notifyTaskDiscussion(actorId: string, taskId: string, postId: string, tx?: DbTx): Promise<void> {
+export async function notifyTaskDiscussion(actorId: string, taskId: string, postId: string, tx?: DbTx, mentionedUserIds?: string[]): Promise<void> {
   const insert = async (database: DbTx) => {
     const [initial] = await database.select({ teamId: projects.teamId }).from(tasks)
       .innerJoin(projects, eq(projects.id, tasks.projectId)).where(eq(tasks.id, taskId));
@@ -142,22 +149,16 @@ export async function notifyTaskDiscussion(actorId: string, taskId: string, post
       if (!parent || parent.parentId !== null) throw new NotFoundError("原讨论不存在");
       parentAuthor = parent.createdById;
     }
-    const candidates = new Set([scope.task.assigneeId, parentAuthor].filter((id): id is string => Boolean(id) && id !== actorId));
-    const recipients = members.filter((member) => candidates.has(member.userId)).map((member) => member.userId);
-    if (!recipients.length) return;
     const type = post.parentId ? "task_discussion_reply" : "task_discussion";
     const link = `/p/${scope.task.projectId}/tasks/${taskId}#discussion-${postId}`;
-    const existing = await database.select({ userId: notifications.userId }).from(notifications)
-      .where(and(eq(notifications.type, type), eq(notifications.link, link), inArray(notifications.userId, recipients)));
-    const sent = new Set(existing.map((item) => item.userId));
-    const fresh = recipients.filter((id) => !sent.has(id));
-    if (!fresh.length) return;
     const excerpt = post.body.trim().slice(0, 300);
-    await database.insert(notifications).values(fresh.map((userId) => ({
-      userId, type, link,
-      title: `${post.parentId ? "讨论回复" : "任务讨论"}：${scope.task.title}`,
+    await deliverCollaborationNotice(actorId, {
+      target: { kind: "task", id: taskId }, event: "discussion", link,
+      title: `${post.parentId ? "讨论回复" : "任务讨论"}：${scope.task.title}`.slice(0, 200),
       body: excerpt || (post.resources.length ? "新增了讨论附件。" : "新增了任务讨论。"),
-    })));
+      mentionedUserIds, participantUserIds: [scope.task.assigneeId, parentAuthor].filter((id): id is string => Boolean(id)),
+      eventKey: `discussion:${postId}`,
+    }, database, type);
   };
   if (tx) await insert(tx);
   else await db.transaction(insert);
@@ -205,14 +206,16 @@ export async function scanAndNotifyDue(): Promise<{
       .orderBy(desc(notifications.createdAt))
       .limit(1);
     if (dup && dup.createdAt >= dayStart) continue;
-    await insertFor(
+    const { memberIds } = await taskContext(t.id);
+    if (!memberIds.includes(t.assigneeId!)) continue;
+    const inserted = await insertFor(
       [t.assigneeId!],
       type,
       overdue ? `已逾期：${t.title}` : `即将到期：${t.title}`,
       `截止 ${t.dueDate}`,
       link,
     );
-    notified += 1;
+    notified += inserted;
   }
 
   return { scanned: candidates.length, notified };
@@ -245,15 +248,17 @@ export async function markRead(actorId: string, id: string): Promise<void> {
 export async function getMyNotificationFeed(actorId: string): Promise<{
   notifications: NotificationDTO[];
   unreadCount: number;
+  preferences: { showBubble: boolean };
 }> {
-  const [rows, totals] = await Promise.all([
+  const [rows, totals, preferences] = await Promise.all([
     db.select().from(notifications)
       .where(eq(notifications.userId, actorId))
       .orderBy(desc(notifications.createdAt)).limit(20),
     db.select({ unreadCount: count() }).from(notifications)
       .where(and(eq(notifications.userId, actorId), isNull(notifications.readAt))),
+    getNotificationPreferences(actorId),
   ]);
-  return { notifications: rows.map(toDTO), unreadCount: totals[0].unreadCount };
+  return { notifications: rows.map(toDTO), unreadCount: totals[0].unreadCount, preferences: { showBubble: preferences.showBubble } };
 }
 
 export async function markAllRead(actorId: string): Promise<number> {

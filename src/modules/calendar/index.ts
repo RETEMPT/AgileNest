@@ -26,3 +26,6 @@ export {
   scheduleDELETE,
 } from "./api";
 export type { ScheduleDTO, ScheduleInput, SchedulePriority } from "./client";
+export { getMyScheduleReminder, saveMyScheduleReminder, collectMyScheduleReminders } from "./reminder-service";
+export { scheduleReminderGET, scheduleReminderPUT } from "./reminder-api";
+export type { ScheduleReminderDTO, ScheduleReminderInput, ScheduleReminderMinutes } from "./client";

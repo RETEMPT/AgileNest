@@ -322,7 +322,7 @@ export async function ReviewView({
       <main className="space-y-4">
         <h1 className="text-2xl font-semibold">验收台</h1>
         <div className="rounded-xl border border-dashed border-border p-6 text-sm leading-6 text-muted-foreground">
-          当前项目的验收由管理员或指导老师处理。你可以在
+          当前项目的验收由管理员、副管理员或指导老师处理。你可以在
           <Link href={`/p/${projectId}/tasks`} className="mx-1 text-brand hover:underline">
             项目任务
           </Link>

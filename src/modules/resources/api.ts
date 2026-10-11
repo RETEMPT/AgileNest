@@ -7,6 +7,7 @@ import { resourceInputSchema, resourcePatchSchema } from "./schema";
 import { RESOURCE_MAX_BYTES } from "./client";
 
 type Context = { params: Promise<{ resourceId: string }> };
+const privateHeaders = { "Cache-Control": "private, no-store" };
 async function jsonBody(request: Request) {
   const reader = request.body?.getReader();
   if (!reader) throw new AppError("请求格式无效");
@@ -23,7 +24,7 @@ async function jsonBody(request: Request) {
   try { return JSON.parse(text) as unknown; } catch { throw new AppError("请求格式无效"); }
 }
 export async function resourcesGET(request: Request) {
-  try { const user = await requireApiUser(); const q = new URL(request.url).searchParams; return NextResponse.json({ resources: await listResources(user.id, { teamId: q.get("teamId") || undefined, projectId: q.get("projectId") || undefined }) }); }
+  try { const user = await requireApiUser(); const q = new URL(request.url).searchParams; return NextResponse.json({ resources: await listResources(user.id, { teamId: q.get("teamId") || undefined, projectId: q.get("projectId") || undefined }) }, { headers: privateHeaders }); }
   catch (e) { return jsonError(e); }
 }
 export async function resourcesPOST(request: Request) {
@@ -46,7 +47,7 @@ export async function resourcesPOST(request: Request) {
   } catch (e) { return jsonError(e); }
 }
 export async function resourceGET(request: Request, context: Context) {
-  try { const user = await requireApiUser(); const { resourceId } = await context.params; z.uuid().parse(resourceId); if (new URL(request.url).searchParams.has("history")) return NextResponse.json({ revisions: await listResourceRevisions(user.id, resourceId) }); return NextResponse.json({ resource: await getResource(user.id, resourceId) }); }
+  try { const user = await requireApiUser(); const { resourceId } = await context.params; z.uuid().parse(resourceId); if (new URL(request.url).searchParams.has("history")) return NextResponse.json({ revisions: await listResourceRevisions(user.id, resourceId) }, { headers: privateHeaders }); return NextResponse.json({ resource: await getResource(user.id, resourceId) }, { headers: privateHeaders }); }
   catch (e) { return jsonError(e); }
 }
 export async function resourcePATCH(request: Request, context: Context) {

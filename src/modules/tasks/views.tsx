@@ -15,6 +15,7 @@ import {
   TaskCard,
   CreateTaskForm,
   TaskDetailSummary,
+  TaskOrganization,
 } from "./ui";
 import { Button } from "@/components/ui/button";
 import { TaskAuditStream } from "@/components/cards/task-audit-stream";
@@ -22,7 +23,9 @@ import { SubmissionTimeline } from "@/modules/review/ui";
 import { TaskRequirementsEditor } from "./requirements-ui";
 import { applyFilters, parseFilters, serializeFilters, workspaceUrl, type GroupBy } from "@/modules/board/client";
 import { TaskPoolFilters } from "./pool-filters";
+import { SavedTaskViews } from "@/modules/board/ui";
 import { TaskDiscussions } from "@/modules/discussions/ui";
+import { ResourceTaskLinks } from "@/modules/resources/ui";
 
 export async function TaskDetailView({
   params,
@@ -81,6 +84,8 @@ export async function TaskDetailView({
         />
       </section>
 
+      <TaskOrganization taskId={task.id} projectId={projectId} />
+      <ResourceTaskLinks taskId={task.id} projectId={projectId} />
       <TaskRequirementsEditor taskId={task.id} requirements={delivery.requirements} canEdit={Boolean(task.permissions?.actions.includes("update"))} />
       <TaskDiscussions taskId={task.id} projectId={projectId} actorId={user.id} />
       <SubmissionTimeline taskId={task.id} updatedAt={task.updatedAt.toISOString()} />
@@ -190,6 +195,7 @@ export async function TaskPoolView({ projectId, query = {} }: { projectId: strin
         <Button asChild variant="ghost" size="sm"><Link href={workspaceUrl({ projectId, view: "table", filters, groupBy })}>表格</Link></Button>
       </nav>
       <TaskPoolFilters projectId={projectId} filters={filters} members={members} milestones={milestones} groupBy={groupBy} />
+      <SavedTaskViews projectId={projectId} layout="tasks" groupBy={groupBy} filters={filters} />
       <details className="rounded-xl border border-border bg-card p-4" open={tasks.length === 0}>
         <summary className="cursor-pointer text-sm font-medium text-muted-foreground">任务流程与权限</summary>
         <div className="mt-4"><TaskWorkflow /></div>

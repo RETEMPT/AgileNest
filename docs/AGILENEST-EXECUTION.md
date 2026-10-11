@@ -2,7 +2,7 @@
 
 日期：2026-10-10 · 候选：`0.4.0-rc.5` · 分支：`codex/experience-integration`
 
-用户授权按 [完整体验方案](AGILENEST-EXPERIENCE-PLAN.md) 分步实施，并使用子代理。基线为 `codex/ai-settings-workspace` 的 `2301a6d` / `0.4.0-rc.4`。本轮交付源码候选；不等同于合入 main、部署或发布 Windows ZIP。
+用户授权按 [完整体验方案](FRONTEND-DESIGN-GUIDE.md) 分步实施，并使用子代理。基线为 `codex/ai-settings-workspace` 的 `2301a6d` / `0.4.0-rc.4`。本轮交付源码候选；不等同于合入 main、部署或发布 Windows ZIP。
 
 ## 分步结果
 
@@ -26,7 +26,7 @@
 - 不实施 `task` query 深链接、任务池共享筛选或项目日历统一筛选。这些需要单独冻结数据与导航契约。
 - 不修改登录、core、schema、依赖或任务状态机；Sprint、GitHub 同步、历史燃尽图和 AI 执行仍在路线图范围。
 
-公开入口和具体 props 见 [TEAM.md](TEAM.md)。后续 agent 使用 [任务卡](AGILENEST-AGENT-BRIEFS.md) 派工，先核对当前分支与未提交改动，不重新创建已完成的容器或状态规则。
+公开入口和具体 props 见 [TEAM.md](TEAM.md)。后续 agent 使用 [任务卡](TEAM.md) 派工，先核对当前分支与未提交改动，不重新创建已完成的容器或状态规则。
 
 ## 自动验证
 

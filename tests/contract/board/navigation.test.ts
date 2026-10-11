@@ -3,7 +3,7 @@ import { parseFilters, parseTaskQuery, serializeFilters, taskDetailUrl, workspac
 
 const taskId = "75d0dbf3-1943-4324-8f99-9e8a9195eedd";
 const otherTaskId = "d9bb677c-7d7f-4f8c-a758-99aa6bf703be";
-const filters = { q: "验收 & API", status: ["submitted", "rejected"], priority: ["high", "medium"], assigneeId: "member", milestoneId: "node" };
+const filters = { q: "验收 & API", status: ["submitted", "rejected"], priority: ["high", "medium"], assigneeId: "member", milestoneId: "node", labelId: "38b626fa-e050-48cd-9848-9f6ea252ea48", blocked: false };
 const parseUrl = (value: string) => new URL(value, "http://localhost");
 
 describe("任务详情与视图 URL", () => {

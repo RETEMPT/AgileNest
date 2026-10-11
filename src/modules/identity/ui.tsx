@@ -1,4 +1,5 @@
 "use client";
+export { ProjectDirectory } from "./space-ui";
 
 export { ProjectContextHeader } from "./project-context";
 export { TeamSectionLinks, TeamMemberRemovalButton, TeamSettingsWorkspace } from "./team-settings";
@@ -192,7 +193,7 @@ export function JoinTeamForm() {
           autoComplete="off"
         />
         <p className="text-xs text-muted-foreground">
-          加入后拥有队员职务；管理员可在成员页设置指导老师、队长等职务。
+          加入后拥有组员职务；管理员可在成员页设置副管理员、指导老师、队长等可叠加职务。
         </p>
       </div>
       <Feedback state={state} />
@@ -383,7 +384,7 @@ export function ProjectForm({
         </div>
       </div>
       <p className="rounded-lg bg-muted p-3 text-xs text-muted-foreground">
-        创建后进入任务看板。管理员或指导老师可验收；实验室和竞赛队长可指派任务。
+        创建后进入任务看板。管理员、副管理员或指导老师可验收；实验室和竞赛队长可指派任务。
       </p>
       <Feedback state={state} />
       <Button disabled={pending} className="w-full" loading={pending}>

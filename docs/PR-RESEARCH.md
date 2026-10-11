@@ -76,4 +76,14 @@ Marker 用于真实转换产物兼容：用户可导入 Markdown 或含 markdown
 
 ## 飞书协作与 GitHub 补充 · rc.7
 
-按用户最新方向核对飞书官方文档上传/评论/@引用、Lark 任务创建，以及 GitHub 官方协作沟通、附件、Projects、PR 与 Wiki 说明；链接和采用/后置范围见 [协作工作区](COLLABORATION-WORKSPACE.md#来源与采用)。本轮采用内容附近的讨论与文件选择、从资料到任务的明确入口、真实消息到事项的跳转，以及同数据筛选连续性；保持本仓五态与按版本验收。@、知识库目录、PR 差异与外部检查按后续轮次落实，没有照搬外部源码、安装运行时或连接外部账号。
+按用户最新方向核对飞书官方文档上传/评论/@引用、Lark 任务创建，以及 GitHub 官方协作沟通、附件、Projects、PR 与 Wiki 说明；链接和采用/后置范围见 [协作工作区](COLLABORATION-WORKSPACE.md#官方来源与采用)。本轮采用内容附近的讨论与文件选择、从资料到任务的明确入口、真实消息到事项的跳转，以及同数据筛选连续性；保持本仓五态与按版本验收。@、知识库目录、PR 差异与外部检查按后续轮次落实，没有照搬外部源码、安装运行时或连接外部账号。
+
+## 协作基础调研与采用 · rc.8
+
+核对飞书[文档快速上手](https://www.feishu.cn/hc/zh-CN/articles/945900971706-%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8B%E6%96%87%E6%A1%A3)、[权限FAQ](https://www.feishu.cn/hc/zh-CN/articles/360044508113-%E4%BA%91%E6%96%87%E6%A1%A3%E6%9D%83%E9%99%90%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98)、[知识库权限](https://www.feishu.cn/hc/zh-CN/articles/821998241087-%E5%BF%AB%E9%80%9F%E4%BA%86%E8%A7%A3%E7%9F%A5%E8%AF%86%E5%BA%93%E6%9D%83%E9%99%90)；采用目录/路径、内容附近的引文评论、评论/编辑/管理分层、姓名提及与项目资料上下文。本轮读取仍为当前团队，不声称完整复制外部权限体系。
+
+GitHub[任务依赖](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/creating-issue-dependencies)、[标签](https://docs.github.com/en/issues/using-labels-and-milestones-to-track-work/managing-labels)、[订阅](https://docs.github.com/en/subscriptions-and-notifications/how-tos/managing-subscriptions-for-activity-on-github/managing-your-subscriptions)补充任务组织与关注；Linear[筛选](https://linear.app/docs/filters)、[看板](https://linear.app/docs/board-layout)、[自定义视图](https://linear.app/docs/custom-views)补充同数据多表达、筛选chips、保存与分享。阻塞时禁止提交/验收是本项目结合验收链自行确定的规则，不把GitHub的关系展示描述成同样的强制流程。
+
+依赖保持锁定，自行实现数据/交互，没有复制外部源码或图形、运行Marker/OCR或连接外部同步。真实文档摘录变成有来源版本的任务，通知偏好/收件过滤与本人提醒按本平台账户持久化。实时共同编辑与群聊的独立协议、权限和恢复方案见 [当前协作工作区](COLLABORATION-WORKSPACE.md)。
+
+用户新增副管理员要求后，核对[飞书管理员类型与角色](https://www.feishu.cn/hc/zh-CN/articles/927897012636-%E7%AE%A1%E7%90%86%E5%91%98%E7%B1%BB%E5%9E%8B%E5%92%8C%E8%A7%92%E8%89%B2%E4%BB%8B%E7%BB%8D)，采用日常管理与权限授予分层。平台固定五项职务可叠加，副管理员参与项目和验收，主管理员保留职务授权；学术资料不授予任何权限，没有实现自定义角色后台。

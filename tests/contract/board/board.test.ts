@@ -8,6 +8,10 @@ import {
 } from "@/modules/board";
 import type { TaskDTO } from "@/modules/tasks";
 
+const labelId = "38b626fa-e050-48cd-9848-9f6ea252ea48";
+const otherLabelId = "64d1bb75-d48d-4bff-bc9e-12d3f8209378";
+const label = { id: labelId, projectId: "p1", name: "开发", color: "brand" as const, version: 1 };
+
 function task(partial: Partial<TaskDTO> & { id: string }): TaskDTO {
   return {
     projectId: "p1",
@@ -173,6 +177,44 @@ describe("board 纯函数契约", () => {
         ),
       ),
     ).toEqual({ status: ["submitted"] });
+  });
+  it("标签和阻塞状态与既有筛选同时生效，不修改任务对象", () => {
+    const input = [
+      task({ id: "match", title: "API 验证", status: "in_progress", priority: "high", assigneeId: "u1", milestoneId: "m1", labels: [label], blocked: true }),
+      task({ id: "clear", title: "API 验证", status: "in_progress", priority: "high", assigneeId: "u1", milestoneId: "m1", labels: [label], blocked: false }),
+      task({ id: "other", title: "API 验证", status: "in_progress", priority: "high", assigneeId: "u1", milestoneId: "m1", labels: [{ ...label, id: otherLabelId }], blocked: true }),
+    ];
+    const result = applyFilters(input, { q: "api", status: ["in_progress"], priority: ["high"], assigneeId: "u1", milestoneId: "m1", labelId, blocked: true });
+    expect(result.map((entry) => entry.id)).toEqual(["match"]);
+    expect(input.map((entry) => entry.blocked)).toEqual([true, false, true]);
+  });
+  it("无标签不能匹配所选标签，多标签任务按ID匹配", () => {
+    const input = [task({ id: "none" }), task({ id: "multi", labels: [label, { ...label, id: otherLabelId, name: "测试" }] })];
+    expect(applyFilters(input, { labelId: otherLabelId }).map((entry) => entry.id)).toEqual(["multi"]);
+    expect(applyFilters(input, { labelId: "75d0dbf3-1943-4324-8f99-9e8a9195eedd" })).toEqual([]);
+  });
+  it("只看无阻塞包含旧摘要的普通任务，省略条件保留全部", () => {
+    const input = [task({ id: "blocked", blocked: true }), task({ id: "clear", blocked: false }), task({ id: "legacy" })];
+    expect(applyFilters(input, { blocked: false }).map((entry) => entry.id)).toEqual(["clear", "legacy"]);
+    expect(applyFilters(input, { blocked: true }).map((entry) => entry.id)).toEqual(["blocked"]);
+    expect(applyFilters(input, {})).toHaveLength(3);
+  });
+  it("标签和三种阻塞条件完整往返URL，false不能丢失", () => {
+    for (const blocked of [true, false, undefined]) {
+      const filters = { q: "前置验收 & API", labelId, ...(blocked !== undefined ? { blocked } : {}) };
+      expect(parseFilters(serializeFilters(filters))).toEqual(filters);
+    }
+  });
+  it("非法或重复标签与阻塞参数忽略，不改变其他条件", () => {
+    for (const suffix of ["labelId=bad&blocked=true", `labelId=${labelId}&labelId=${otherLabelId}&blocked=1&blocked=0`, "labelId=&blocked="]) {
+      expect(parseFilters(new URLSearchParams(`q=API&${suffix}`))).toEqual({ q: "API" });
+    }
+    expect(parseFilters(new URLSearchParams({ labelId: labelId.toUpperCase(), blocked: "0" }))).toEqual({ labelId, blocked: false });
+  });
+  it("标签与阻塞筛选后的分组只计入匹配任务", () => {
+    const input = [task({ id: "match", labels: [label], blocked: true }), task({ id: "clear", labels: [label], blocked: false })];
+    const filtered = applyFilters(input, { labelId, blocked: true });
+    for (const grouping of ["status", "assignee", "priority", "milestone"] as const) expect(deriveColumns(filtered, grouping).reduce((sum, column) => sum + column.tasks.length, 0)).toBe(1);
   });
   it("拖拽路径包含说明要求并按负责人限制", () => {
     const owned = task({ id: "a", status: "in_progress", assigneeId: "me" });

@@ -15,7 +15,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { GripVertical, LayoutGrid, List, Plus, Search, X } from "lucide-react";
+import { CircleAlert, Copy, GripVertical, LayoutGrid, List, Plus, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormFeedback, useFeedback } from "@/components/ui/feedback";
@@ -35,6 +35,8 @@ import {
   CreateTaskForm,
   TaskWorkflow,
   TransitionDialog,
+  TaskLabelFilter,
+  TaskLabelPill,
   type AssigneeOption,
 } from "@/modules/tasks/ui";
 import {
@@ -51,7 +53,11 @@ import {
   type GroupBy,
 } from "./model";
 import { moveTaskAction } from "./actions";
+import { SavedTaskViews } from "./saved-views-ui";
 import type { TeamRole } from "@/db/schema";
+
+export { SavedTaskViews } from "./saved-views-ui";
+export type { SavedTaskViewsProps } from "./saved-views-ui";
 
 type WorkspaceProps = {
   projectId: string;
@@ -66,6 +72,43 @@ type WorkspaceProps = {
   groupBy: GroupBy;
   view: "board" | "table";
 };
+
+export function CopyWorkspaceLink({ href }: { href: string }) {
+  return <CopyWorkspaceLinkInner key={href} href={href} />;
+}
+
+function CopyWorkspaceLinkInner({ href }: { href: string }) {
+  const [pending, setPending] = useState(false);
+  const [manualLink, setManualLink] = useState("");
+  const notify = useFeedback();
+  return <div className="min-w-0">
+    <Button type="button" variant="ghost" size="sm" disabled={pending} loading={pending} title="复制当前已应用的筛选和视图；链接不会授予项目访问权限" onClick={async () => {
+      const link = new URL(href, window.location.origin).toString();
+      setPending(true);
+      try {
+        if (!navigator.clipboard) throw new Error("当前浏览器不支持自动复制");
+        await navigator.clipboard.writeText(link); setManualLink(""); notify("视图链接已复制，打开时会保留当前筛选。项目访问权限仍需验证。");
+      } catch { setManualLink(link); }
+      finally { setPending(false); }
+    }}><Copy aria-hidden="true" className="h-3.5 w-3.5" />复制视图链接</Button>
+    {manualLink && <div className="mt-2 max-w-sm space-y-1"><p role="status" className="text-xs text-muted-foreground">无法自动复制，请选中下方链接手动复制。</p><Input aria-label="当前视图链接" readOnly value={manualLink} onFocus={(event) => event.currentTarget.select()} className="h-8 text-xs" /></div>}
+  </div>;
+}
+
+function LabelFilterField({ projectId, value }: { projectId: string; value: string }) {
+  const [labelId, setLabelId] = useState(value);
+  return <div className="min-w-0"><p className="mb-1 text-xs text-muted-foreground">项目标签</p><input type="hidden" name="labelId" value={labelId} /><TaskLabelFilter projectId={projectId} value={labelId} onChange={setLabelId} /></div>;
+}
+
+function TaskOrganizationBadges({ task }: { task: TaskDTO }) {
+  const labels = task.labels ?? [];
+  if (!labels.length && !task.blocked) return null;
+  return <div className="mt-2 flex max-w-full flex-wrap items-center gap-1.5" aria-label="任务标签与依赖状态">
+    {labels.slice(0, 3).map((label) => <TaskLabelPill key={label.id} label={label} />)}
+    {labels.length > 3 && <span title={labels.slice(3).map((label) => label.name).join("、")} className="rounded-full border border-border bg-muted/50 px-2 py-0.5 text-[10px] text-muted-foreground" aria-label={`另 ${labels.length - 3} 个标签，可在任务详情查看`}>+{labels.length - 3}</span>}
+    {task.blocked && <span title="前置任务尚未验收；可以继续执行，提交、重新提交及通过验收需等待前置任务全部通过" className="inline-flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:text-amber-200"><CircleAlert aria-hidden="true" className="h-3 w-3 shrink-0" />被阻塞</span>}
+  </div>;
+}
 
 function MultiValueFilter({
   id,
@@ -151,6 +194,7 @@ function TaskTile({
           </button>
         )}
       </div>
+      <TaskOrganizationBadges task={task} />
       <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <PriorityPill priority={task.priority} />
         <span className="inline-flex min-w-0 items-center gap-1.5">
@@ -311,6 +355,8 @@ export function ProjectWorkspace(props: WorkspaceProps) {
       name: "milestoneId", value: filters.milestoneId,
       label: `里程碑：${milestones.find((milestone) => milestone.id === filters.milestoneId)?.title || "所选节点"}`,
     }] : []),
+    ...(filters.labelId ? [{ name: "labelId", value: filters.labelId, label: `标签：${tasks.flatMap((task) => task.labels ?? []).find((label) => label.id === filters.labelId)?.name ?? "所选标签"}` }] : []),
+    ...(filters.blocked !== undefined ? [{ name: "blocked", value: filters.blocked ? "1" : "0", label: filters.blocked ? "仅被阻塞" : "仅无阻塞" }] : []),
   ];
   const completed = tasks.filter((task) => task.status === "accepted").length;
   const percent = tasks.length
@@ -391,6 +437,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
             label: "待修改",
             value: tasks.filter((task) => task.status === "rejected").length,
           },
+          { label: "被阻塞", value: tasks.filter((task) => task.blocked).length },
           {
             label: "顶层验收完成",
             value: tasks.length ? `${completed}/${tasks.length} · ${percent}%` : "暂无完成度",
@@ -431,9 +478,9 @@ export function ProjectWorkspace(props: WorkspaceProps) {
               </Button>
             </nav>
           </div>
-          <span className="text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2"><SavedTaskViews projectId={projectId} layout={view} groupBy={groupBy} filters={filters} /><CopyWorkspaceLink href={workspaceUrl({ projectId, view, filters, groupBy, taskId: openedId })} /><span className="text-xs text-muted-foreground">
             {selectedFilters.length ? `匹配 ${filtered.length} / ${tasks.length}` : `共 ${tasks.length}`} 个顶层任务
-          </span>
+          </span></div>
         </div>
         <form
           key={`${groupBy}:${serializeFilters(filters)}`}
@@ -484,6 +531,8 @@ export function ProjectWorkspace(props: WorkspaceProps) {
             </select>
           </div>
           <MultiValueFilter id={`${id}-priority`} name="priority" label="优先级" values={filters.priority ?? []} options={[{ value: "high", label: "高" }, { value: "medium", label: "中" }, { value: "low", label: "低" }]} />
+          <LabelFilterField projectId={projectId} value={filters.labelId ?? ""} />
+          <div className="min-w-0"><label htmlFor={`${id}-blocked`} className="mb-1 block text-xs text-muted-foreground">依赖状态</label><select id={`${id}-blocked`} name="blocked" defaultValue={filters.blocked === undefined ? "" : filters.blocked ? "1" : "0"} className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs"><option value="">全部任务</option><option value="1">仅被阻塞</option><option value="0">仅无阻塞</option></select></div>
           {(milestones.length > 0 || filters.milestoneId) && (
             <div className="min-w-0">
               <label
@@ -657,6 +706,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
                         >
                           {task.title}
                         </button>
+                        <TaskOrganizationBadges task={task} />
                       </td>
                       <td className="p-3">
                         <StatusPill status={task.status} />

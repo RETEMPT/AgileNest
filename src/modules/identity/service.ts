@@ -39,6 +39,7 @@ import {
 } from "./client";
 import { avatarUrl } from "./profile-service";
 import { teamInviteCodeSchema } from "./team-schema";
+import { requireTeamCapability } from "./permissions";
 
 // —— identity：团队 / 成员 / 项目（登录之外的基础域）——
 
@@ -111,6 +112,7 @@ export async function listTeamMembers(actorId: string, teamId: string) {
       bio: personalProfiles.bio,
       role: teamMembers.role,
       positions: memberPositions.positions,
+      positionUpdatedAt: memberPositions.updatedAt,
       profile: {
         identity: academicProfiles.identity,
         institution: academicProfiles.institution,
@@ -137,6 +139,7 @@ export async function listTeamMembers(actorId: string, teamId: string) {
       ...row,
       avatarUrl: avatarUrl(row.id, row.avatarHash),
       positions,
+      positionVersion: row.positionUpdatedAt?.toISOString() ?? null,
       canExecute: capabilitiesFor(positions).execute,
       identityConfirmed:
         !!row.profile && row.profile.version === row.confirmedVersion,
@@ -163,8 +166,9 @@ export async function updateMemberPositions(
   teamId: string,
   targetUserId: string,
   positions: TeamPosition[],
+  positionVersion?: string | null,
 ) {
-  await requireTeamRole(actorId, teamId, ["admin"]);
+  await requireTeamCapability(actorId, teamId, "manageMembers");
   const parsed = positionsSchema.safeParse(positions);
   if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
   const role = roleFromPositions(parsed.data);
@@ -178,10 +182,13 @@ export async function updateMemberPositions(
       .select()
       .from(teamMembers)
       .where(eq(teamMembers.teamId, teamId));
-    if (members.find((member) => member.userId === actorId)?.role !== "admin")
-      throw new ForbiddenError();
+    await requireTeamCapability(actorId, teamId, "manageMembers", tx);
     const target = members.find((member) => member.userId === targetUserId);
     if (!target) throw new AppError("该成员不在团队中");
+    const [currentPositions] = await tx.select().from(memberPositions).where(eq(memberPositions.membershipId, target.id)).for("update");
+    if (positionVersion !== undefined && (currentPositions?.updatedAt.toISOString() ?? null) !== positionVersion) {
+      throw new ConflictError("成员职务已更新，当前选择已保留；请刷新成员页面并核对最新职务后重试");
+    }
     if (
       target.role === "admin" &&
       role !== "admin" &&
@@ -194,22 +201,24 @@ export async function updateMemberPositions(
       .set({ role })
       .where(eq(teamMembers.id, target.id))
       .returning();
+    const updatedAt = new Date(Math.max(Date.now(), (currentPositions?.updatedAt.getTime() ?? 0) + 1));
     await tx
       .insert(memberPositions)
       .values({
         membershipId: target.id,
         positions: parsed.data,
         updatedById: actorId,
+        updatedAt,
       })
       .onConflictDoUpdate({
         target: memberPositions.membershipId,
         set: {
           positions: parsed.data,
           updatedById: actorId,
-          updatedAt: new Date(),
+          updatedAt,
         },
       });
-    return updated;
+    return { ...updated, positionVersion: updatedAt.toISOString() };
   });
 }
 
@@ -232,7 +241,7 @@ export async function createProject(
   const parsed = projectInputSchema.safeParse(input);
   if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
   if (!capabilitiesFor(membership.positions, parsed.data.kind).manageProject)
-    throw new ForbiddenError("没有权限：只有管理员或该场景的队长可以创建项目");
+    throw new ForbiddenError("没有权限：只有管理员、副管理员或该场景的队长可以创建项目");
   const [project] = await db
     .insert(projects)
     .values({
@@ -400,7 +409,7 @@ export async function confirmAcademicIdentity(
   targetUserId: string,
   version: number,
 ) {
-  await requireTeamRole(actorId, teamId, ["admin"]);
+  await requireTeamCapability(actorId, teamId, "manageMembers");
   if (actorId === targetUserId)
     throw new ForbiddenError("自己的身份需由另一位团队管理员确认");
   return db.transaction(async (tx) => {
@@ -414,10 +423,7 @@ export async function confirmAcademicIdentity(
       .select()
       .from(teamMembers)
       .where(eq(teamMembers.teamId, teamId));
-    if (
-      memberships.find((member) => member.userId === actorId)?.role !== "admin"
-    )
-      throw new ForbiddenError();
+    await requireTeamCapability(actorId, teamId, "manageMembers", tx);
     const target = memberships.find((member) => member.userId === targetUserId);
     if (!target) throw new AppError("该成员不在团队中");
     const [profile] = await tx

@@ -11,7 +11,7 @@ export const academicProfileSchema = z.object({
 export const positionsSchema = z
   .array(z.enum(TEAM_POSITIONS))
   .min(1, "至少选择一项职务")
-  .max(4)
+  .max(TEAM_POSITIONS.length)
   .transform((values) => [...new Set(values)]);
 
 export const teamNameSchema = z

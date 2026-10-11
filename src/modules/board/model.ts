@@ -22,6 +22,8 @@ export type BoardFilters = {
   assigneeId?: string;
   priority?: string[];
   milestoneId?: string;
+  labelId?: string;
+  blocked?: boolean;
   q?: string;
 };
 
@@ -38,6 +40,8 @@ export function applyFilters(tasks: TaskDTO[], f: BoardFilters): TaskDTO[] {
     if (f.assigneeId && t.assigneeId !== f.assigneeId) return false;
     if (f.priority?.length && !f.priority.includes(t.priority)) return false;
     if (f.milestoneId && t.milestoneId !== f.milestoneId) return false;
+    if (f.labelId && !t.labels?.some((label) => label.id === f.labelId)) return false;
+    if (f.blocked !== undefined && Boolean(t.blocked) !== f.blocked) return false;
     if (
       f.q &&
       !`${t.title} ${t.description ?? ""}`
@@ -59,12 +63,19 @@ export function parseFilters(params: URLSearchParams): BoardFilters {
   const assigneeId = params.get("assigneeId") || undefined;
   const milestoneId = params.get("milestoneId") || undefined;
   const q = params.get("q")?.trim() || undefined;
+  const labels = params.getAll("labelId");
+  const label = labels.length === 1 ? z.uuid().safeParse(labels[0]) : null;
+  const labelId = label?.success ? label.data.toLowerCase() : undefined;
+  const blockedValues = params.getAll("blocked");
+  const blocked = blockedValues.length === 1 && (blockedValues[0] === "1" || blockedValues[0] === "0") ? blockedValues[0] === "1" : undefined;
   return {
     ...(status.length && { status }),
     ...(priority.length && { priority }),
     ...(assigneeId && { assigneeId }),
     ...(milestoneId && { milestoneId }),
     ...(q && { q }),
+    ...(labelId && { labelId }),
+    ...(blocked !== undefined && { blocked }),
   };
 }
 
@@ -75,6 +86,8 @@ export function serializeFilters(f: BoardFilters): URLSearchParams {
   if (f.assigneeId) p.set("assigneeId", f.assigneeId);
   if (f.milestoneId) p.set("milestoneId", f.milestoneId);
   if (f.q) p.set("q", f.q);
+  if (f.labelId) p.set("labelId", f.labelId);
+  if (f.blocked !== undefined) p.set("blocked", f.blocked ? "1" : "0");
   return p;
 }
 

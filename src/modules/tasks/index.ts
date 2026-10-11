@@ -1,4 +1,7 @@
 export * from "./service";
+export { createProjectTaskLabel, listProjectTaskLabels, updateProjectTaskLabel, deleteProjectTaskLabel, getTaskOrganization, changeTaskOrganization } from "./organization-service";
+export type { TaskLabelDTO, TaskOrganizationDTO, TaskOrganizationSummary, TaskOrganizationMutation, TaskActionItemInput, TaskActionItemOrigin } from "./organization-client";
+export { taskOrganizationGET, taskOrganizationPATCH, projectTaskLabelsGET, projectTaskLabelsPOST, projectTaskLabelPATCH, projectTaskLabelDELETE, taskActionItemPOST } from "./organization-api";
 export type { AcceptanceCriterion, DeliveryInput, ReviewInput, SubmissionDTO, TaskDeliveryDTO } from "./delivery-types";
 export { deliverySchema, reviewSchema } from "./delivery-validation";
 export { taskDeliveryGET, taskTransitionPOST } from "./api";

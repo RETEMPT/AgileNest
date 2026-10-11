@@ -51,6 +51,10 @@
 
 用户随后确认分多轮尽可能全面覆盖协作能力，以飞书为主参考、GitHub 为补充，并授权右下角通知 bot。本轮 `codex/collaboration-workspace`：foundation/identity 负责项目路径与团队入口；foundation/resources 负责多文件附件、资料范围/筛选与深链接；C/root 新增 discussions 模块及任务/共享详情入口，追加讨论/历史/文件引用表与独立迁移；E/foundation 负责本人通知摘要、已读操作与共享协作助手，保留 AI 草稿并协调浮窗。本轮通知为真实站内数据，不接系统 Web Push、飞书投递或模型。后续多轮范围见 `docs/COLLABORATION-WORKSPACE.md`，core、登录和依赖继续锁定。
 
+用户继续授权尽可能完善协作、查阅官方资料并清理失效 Markdown。本轮 `codex/collaboration-foundations`：foundation/root 负责 identity 项目目录、共享详情/个人通知设置、schema 追加迁移与文档整合；A 负责任务标签、依赖守卫和文档/会议行动项；B/root 委托代理负责 board 与 tasks/pool-filters 单文件的统一筛选及本人保存视图；C/root 负责 discussions 提及快照与完整历史分页；resources Owner 负责文件夹、置顶、双向关联、引文评论和协作者权限；E 负责 notify 关注/偏好与 calendar 本人提醒。模块提供公开契约，不跨改内部服务；所有 DB 检查由 root 串行执行。完整多人实时编辑、群聊/通信、外部同步仍另立方案，core、登录及依赖锁定。
+
+用户随后明确要求管理员、副管理员、组员等多重职务。foundation/identity 增加独立 deputy 职务、同源能力与成员界面；root 接续 resources 管理能力与 notify 验收收件人。仅为该新职务在既有 team_position 枚举末尾追加 deputy，另立 member-deputy.sql 迁移，不重排旧 schema/修改旧迁移。副管理员管理日常团队、项目、资料和验收；职务授予、身份确认及最后管理员保护保持主管理员负责。其他成员未被自动升职，core、登录与依赖仍锁定。
+
 ## 2. 架构不变量
 
 1. **模块化单体**：`src/modules/<m>/{schema,service,actions,api,ui,index}.ts`

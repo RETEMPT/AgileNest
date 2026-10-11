@@ -263,6 +263,7 @@ export const teamPositionEnum = pgEnum("team_position", [
   "advisor",
   "leader",
   "member",
+  "deputy",
 ]);
 export const academicProfiles = pgTable("academic_profiles", {
   userId: uuid("user_id")
@@ -450,3 +451,154 @@ export const discussionResourceReferences = pgTable("discussion_resource_referen
   resourceId: uuid("resource_id").notNull().references(() => teamResources.id, { onDelete: "restrict" }),
   postId: uuid("post_id").notNull().references(() => taskDiscussionPosts.id, { onDelete: "cascade" }),
 }, (t) => [uniqueIndex("discussion_resource_references_pair_idx").on(t.resourceId, t.postId)]);
+
+// notify：关注保留取消墓碑，偏好和投递幂等独立于历史消息。
+export const notificationPreferences = pgTable("notification_preferences", {
+  userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  taskUpdates: boolean("task_updates").notNull().default(true),
+  discussions: boolean("discussions").notNull().default(true),
+  mentions: boolean("mentions").notNull().default(true),
+  resourceUpdates: boolean("resource_updates").notNull().default(true),
+  reminders: boolean("reminders").notNull().default(true),
+  showBubble: boolean("show_bubble").notNull().default(true),
+  version: integer("version").notNull().default(1), updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [check("notification_preferences_version_check", sql`${t.version} > 0`)]);
+export const notificationFollows = pgTable("notification_follows", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
+  taskId: uuid("task_id").references(() => tasks.id, { onDelete: "cascade" }),
+  resourceId: uuid("resource_id").references(() => teamResources.id, { onDelete: "cascade" }),
+  active: boolean("active").notNull().default(true), version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at").notNull().defaultNow(), updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("notification_follows_project_unique").on(t.userId, t.projectId), uniqueIndex("notification_follows_task_unique").on(t.userId, t.taskId), uniqueIndex("notification_follows_resource_unique").on(t.userId, t.resourceId), index("notification_follows_targets_idx").on(t.projectId, t.taskId, t.resourceId), check("notification_follows_target_check", sql`num_nonnulls(${t.projectId}, ${t.taskId}, ${t.resourceId}) = 1`), check("notification_follows_version_check", sql`${t.version} > 0`)]);
+export const collaborationNotificationEvents = pgTable("collaboration_notification_events", {
+  id: uuid("id").primaryKey().defaultRandom(), actorId: uuid("actor_id").references(() => users.id, { onDelete: "set null" }),
+  projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
+  taskId: uuid("task_id").references(() => tasks.id, { onDelete: "cascade" }),
+  resourceId: uuid("resource_id").references(() => teamResources.id, { onDelete: "cascade" }),
+  eventKey: text("event_key").notNull(), createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("collaboration_notification_events_key_unique").on(t.eventKey), check("collaboration_notification_events_target_check", sql`num_nonnulls(${t.projectId}, ${t.taskId}, ${t.resourceId}) = 1`)]);
+
+// tasks：组织信息单独版本化，既有任务五态和表块保持原样。
+export const projectTaskLabels = pgTable("project_task_labels", {
+  id: uuid("id").primaryKey().defaultRandom(), projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(), color: text("color").$type<"brand" | "slate" | "cyan" | "green" | "amber" | "red" | "violet">().notNull().default("brand"),
+  version: integer("version").notNull().default(1), createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(), updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("project_task_labels_project_idx").on(t.projectId), uniqueIndex("project_task_labels_name_unique").on(t.projectId, sql`lower(${t.name})`), check("project_task_labels_name_check", sql`char_length(btrim(${t.name})) between 1 and 40`), check("project_task_labels_color_check", sql`${t.color} in ('brand', 'slate', 'cyan', 'green', 'amber', 'red', 'violet')`), check("project_task_labels_version_check", sql`${t.version} > 0`)]);
+export const taskLabelAssignments = pgTable("task_label_assignments", {
+  taskId: uuid("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }), labelId: uuid("label_id").notNull().references(() => projectTaskLabels.id, { onDelete: "cascade" }),
+}, (t) => [uniqueIndex("task_label_assignments_pair_unique").on(t.taskId, t.labelId)]);
+export const taskDependencies = pgTable("task_dependencies", {
+  id: uuid("id").primaryKey().defaultRandom(), projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  blockerTaskId: uuid("blocker_task_id").notNull().references(() => tasks.id, { onDelete: "restrict" }), blockedTaskId: uuid("blocked_task_id").notNull().references(() => tasks.id, { onDelete: "restrict" }),
+  createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }), createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("task_dependencies_pair_unique").on(t.blockerTaskId, t.blockedTaskId), index("task_dependencies_project_idx").on(t.projectId), index("task_dependencies_blocked_idx").on(t.blockedTaskId), check("task_dependencies_self_check", sql`${t.blockerTaskId} <> ${t.blockedTaskId}`)]);
+export const taskOrganizationStates = pgTable("task_organization_states", {
+  taskId: uuid("task_id").primaryKey().references(() => tasks.id, { onDelete: "cascade" }), version: integer("version").notNull().default(1), updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [check("task_organization_states_version_check", sql`${t.version} > 0`)]);
+
+// resources：目录、互链、评论和协作者授权独立追加。
+export const resourceFolders = pgTable("resource_folders", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
+  parentId: uuid("parent_id").references((): AnyPgColumn => resourceFolders.id, { onDelete: "restrict" }),
+  name: text("name").notNull(), version: integer("version").notNull().default(1),
+  createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(), updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("resource_folders_scope_idx").on(t.teamId, t.projectId), check("resource_folders_version_check", sql`${t.version} > 0`), check("resource_folders_name_check", sql`char_length(btrim(${t.name})) between 1 and 80`)]);
+export const resourcePlacements = pgTable("resource_placements", {
+  resourceId: uuid("resource_id").primaryKey().references(() => teamResources.id, { onDelete: "cascade" }),
+  folderId: uuid("folder_id").references(() => resourceFolders.id, { onDelete: "restrict" }),
+  pinned: boolean("pinned").notNull().default(false), version: integer("version").notNull().default(1),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("resource_placements_folder_idx").on(t.folderId), check("resource_placements_version_check", sql`${t.version} > 0`)]);
+export const resourceLinks = pgTable("resource_links", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  sourceResourceId: uuid("source_resource_id").notNull().references(() => teamResources.id, { onDelete: "cascade" }),
+  targetResourceId: uuid("target_resource_id").references(() => teamResources.id, { onDelete: "cascade" }),
+  targetTaskId: uuid("target_task_id").references(() => tasks.id, { onDelete: "cascade" }),
+  createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }), createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("resource_links_resource_pair_idx").on(t.sourceResourceId, t.targetResourceId), uniqueIndex("resource_links_task_pair_idx").on(t.sourceResourceId, t.targetTaskId), check("resource_links_target_check", sql`(${t.targetResourceId} is not null and ${t.targetTaskId} is null and ${t.sourceResourceId} <> ${t.targetResourceId}) or (${t.targetResourceId} is null and ${t.targetTaskId} is not null)`)]);
+export const resourceCollaboration = pgTable("resource_collaboration", {
+  resourceId: uuid("resource_id").primaryKey().references(() => teamResources.id, { onDelete: "cascade" }),
+  commentScope: text("comment_scope").$type<"team" | "collaborators">().notNull().default("team"),
+  version: integer("version").notNull().default(1), updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [check("resource_collaboration_scope_check", sql`${t.commentScope} in ('team', 'collaborators')`), check("resource_collaboration_version_check", sql`${t.version} > 0`)]);
+export const resourceCollaborators = pgTable("resource_collaborators", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  resourceId: uuid("resource_id").notNull().references(() => teamResources.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  permission: text("permission").$type<"comment" | "edit">().notNull(), grantedById: uuid("granted_by_id").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("resource_collaborators_pair_idx").on(t.resourceId, t.userId), check("resource_collaborators_permission_check", sql`${t.permission} in ('comment', 'edit')`)]);
+export const resourceComments = pgTable("resource_comments", {
+  id: uuid("id").primaryKey().defaultRandom(), resourceId: uuid("resource_id").notNull().references(() => teamResources.id, { onDelete: "cascade" }),
+  parentId: uuid("parent_id").references((): AnyPgColumn => resourceComments.id, { onDelete: "cascade" }),
+  body: text("body").notNull(), resourceVersion: integer("resource_version").notNull(), selectedQuote: text("selected_quote"), line: integer("line"),
+  version: integer("version").notNull().default(1), withdrawn: boolean("withdrawn").notNull().default(false), resolved: boolean("resolved").notNull().default(false),
+  createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(), updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("resource_comments_resource_idx").on(t.resourceId, t.createdAt), check("resource_comments_version_check", sql`${t.version} > 0 and ${t.resourceVersion} > 0`), check("resource_comments_body_check", sql`char_length(btrim(${t.body})) between 1 and 10000`), check("resource_comments_anchor_check", sql`(${t.line} is null or ${t.line} > 0) and (${t.selectedQuote} is null or char_length(${t.selectedQuote}) <= 2000)`)]);
+export const resourceCommentRevisions = pgTable("resource_comment_revisions", {
+  id: uuid("id").primaryKey().defaultRandom(), commentId: uuid("comment_id").notNull().references(() => resourceComments.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(), body: text("body").notNull(), kind: text("kind").$type<"create" | "edit" | "withdraw" | "resolve" | "reopen">().notNull(),
+  changedById: uuid("changed_by_id").references(() => users.id, { onDelete: "set null" }), createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("resource_comment_revisions_version_idx").on(t.commentId, t.version)]);
+
+// tasks：行动项保留明确的文档来源与防重键。
+export const taskActionItemOrigins = pgTable("task_action_item_origins", {
+  id: uuid("id").primaryKey().defaultRandom(), taskId: uuid("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+  resourceId: uuid("resource_id").notNull().references(() => teamResources.id, { onDelete: "restrict" }), resourceTitle: text("resource_title").notNull(),
+  sourceVersion: integer("source_version").notNull(), quote: text("quote"), requestKey: uuid("request_key").notNull(),
+  createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }), createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("task_action_item_origins_task_unique").on(t.taskId), uniqueIndex("task_action_item_origins_request_unique").on(t.resourceId, t.requestKey), check("task_action_item_origins_version_check", sql`${t.sourceVersion} > 0`)]);
+
+// calendar：提醒不把私人日程转为团队任务。
+export const personalScheduleReminders = pgTable("personal_schedule_reminders", {
+  scheduleId: uuid("schedule_id").primaryKey().references(() => personalSchedules.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").notNull().default(false), minutes: integer("minutes").notNull().default(15), version: integer("version").notNull().default(1),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [check("personal_schedule_reminders_minutes_check", sql`${t.minutes} in (0, 5, 10, 15, 30, 60, 1440)`), check("personal_schedule_reminders_version_check", sql`${t.version} > 0`)]);
+export const personalReminderDeliveries = pgTable("personal_reminder_deliveries", {
+  id: uuid("id").primaryKey().defaultRandom(), scheduleId: uuid("schedule_id").notNull().references(() => personalSchedules.id, { onDelete: "cascade" }),
+  scheduleVersion: integer("schedule_version").notNull(), reminderVersion: integer("reminder_version").notNull(),
+  notificationId: uuid("notification_id").references(() => notifications.id, { onDelete: "set null" }), deliveredAt: timestamp("delivered_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("personal_reminder_deliveries_version_unique").on(t.scheduleId, t.scheduleVersion, t.reminderVersion)]);
+
+// discussions：每个版本的成员提及快照，编辑不能抹去原提及。
+export const taskDiscussionMentions = pgTable("task_discussion_mentions", {
+  id: uuid("id").primaryKey().defaultRandom(), postId: uuid("post_id").notNull().references(() => taskDiscussionPosts.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }), version: integer("version").notNull(), nameSnapshot: text("name_snapshot").notNull(),
+}, (t) => [uniqueIndex("task_discussion_mentions_version_unique").on(t.postId, t.version, t.userId)]);
+
+// identity：项目目录仅组织入口，不改变项目所属团队和授权。
+export const projectSpaces = pgTable("project_spaces", {
+  id: uuid("id").primaryKey().defaultRandom(), teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  parentId: uuid("parent_id").references((): AnyPgColumn => projectSpaces.id, { onDelete: "restrict" }),
+  name: text("name").notNull(), version: integer("version").notNull().default(1), updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("project_spaces_team_idx").on(t.teamId), check("project_spaces_version_check", sql`${t.version} > 0`), check("project_spaces_name_check", sql`char_length(btrim(${t.name})) between 1 and 80`)]);
+export const projectSpaceAssignments = pgTable("project_space_assignments", {
+  projectId: uuid("project_id").primaryKey().references(() => projects.id, { onDelete: "cascade" }), spaceId: uuid("space_id").references(() => projectSpaces.id, { onDelete: "restrict" }),
+  version: integer("version").notNull().default(1), updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [check("project_space_assignments_version_check", sql`${t.version} > 0`)]);
+
+export const resourceCommentMentions = pgTable("resource_comment_mentions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  commentId: uuid("comment_id").notNull().references(() => resourceComments.id, { onDelete: "cascade" }),
+  commentVersion: integer("comment_version").notNull(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  name: text("name").notNull(), createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("resource_comment_mentions_version_idx").on(t.commentId, t.commentVersion, t.userId), check("resource_comment_mentions_version_check", sql`${t.commentVersion} > 0`)]);
+
+// board：私人保存项仅复用公开筛选，不存任意跳转地址。
+export const personalTaskViews = pgTable("personal_task_views", {
+  id: uuid("id").primaryKey().defaultRandom(), userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }), name: text("name").notNull(),
+  layout: text("layout").$type<"tasks" | "board" | "table">().notNull(), groupBy: text("group_by").$type<"status" | "assignee" | "priority" | "milestone">().notNull(),
+  filters: jsonb("filters").$type<{ status?: string[]; priority?: string[]; assigneeId?: string; milestoneId?: string; labelId?: string; blocked?: boolean; q?: string }>().notNull(),
+  schemaVersion: integer("schema_version").notNull().default(1), version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at").notNull().defaultNow(), updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("personal_task_views_name_unique").on(t.userId, t.projectId, sql`lower(${t.name})`), index("personal_task_views_user_project_idx").on(t.userId, t.projectId), check("personal_task_views_name_check", sql`char_length(btrim(${t.name})) between 1 and 80`), check("personal_task_views_layout_check", sql`${t.layout} in ('tasks', 'board', 'table')`), check("personal_task_views_group_check", sql`${t.groupBy} in ('status', 'assignee', 'priority', 'milestone')`), check("personal_task_views_schema_check", sql`${t.schemaVersion} = 1`), check("personal_task_views_version_check", sql`${t.version} > 0`)]);
