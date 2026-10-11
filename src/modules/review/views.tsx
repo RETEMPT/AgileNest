@@ -229,6 +229,17 @@ export async function WorkbenchView({
                       </p>
                     </div>
                   )}
+                  {view === "review" && <ReviewSubmissionEvidence taskId={task.id} updatedAt={task.updatedAt.toISOString()} />}
+                  {task.blocked && (
+                    <p className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs leading-5 text-destructive">
+                      前置依赖尚未验收完成。可以准备资料或处理修改，完成依赖后再提交或验收；具体依赖可在任务详情中查看。
+                    </p>
+                  )}
+                  {view === "review" && task.acceptBlocked && (
+                    <p className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs leading-5 text-destructive">
+                      子任务尚未全部验收通过。可先核对当前成果或打回修改，全部子任务通过后再验收父任务。
+                    </p>
+                  )}
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <PriorityPill priority={task.priority} />
@@ -347,11 +358,17 @@ export async function ReviewView({
 
   return (
     <main className="space-y-5">
-      <header>
-        <h1 className="text-2xl font-semibold">验收台</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {access.project.name} · 待验收 {pending.length} 项 · 逾期 {overdue.length} 项
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">验收台</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {access.project.name} · 待验收 {pending.length} 项 · 逾期 {overdue.length} 项
+          </p>
+        </div>
+        <nav aria-label="任务与交付流程" className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm"><Link href={`/p/${projectId}/tasks`}>项目任务</Link></Button>
+          <Button asChild variant="outline" size="sm"><Link href={`/p/${projectId}/delivery`}>交付清单<ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" /></Link></Button>
+        </nav>
       </header>
       <section className="overflow-hidden rounded-xl border border-border bg-card" aria-labelledby="review-queue-heading">
         <div className="border-b border-border px-4 py-3 sm:px-5">
@@ -391,6 +408,11 @@ export async function ReviewView({
                     <p className="line-clamp-3 whitespace-pre-wrap break-words text-sm leading-6">{task.completionNote || "暂无完成说明，请核对提交版本记录。"}</p>
                   </div>
                   <ReviewSubmissionEvidence taskId={task.id} updatedAt={task.updatedAt.toISOString()} />
+                  {(task.blocked || accepted < subtasks.length) && (
+                    <p className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs leading-5 text-destructive">
+                      {task.blocked ? "前置依赖尚未验收完成。" : ""}{accepted < subtasks.length ? `直接子任务已验收 ${accepted}/${subtasks.length}。` : ""}完成这些事项后才能通过当前任务；仍可核对成果并填写修改意见。
+                    </p>
+                  )}
                   {task.rejectReason && (
                     <details className="text-sm">
                       <summary className="cursor-pointer text-muted-foreground">上次修改意见</summary>

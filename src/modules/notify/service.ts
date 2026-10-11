@@ -70,9 +70,10 @@ async function insertFor(
 ) {
   const unique = await eligibleNotificationRecipients(db, userIds.filter(Boolean), type);
   if (unique.length === 0) return 0;
+  const createdAt = new Date();
   await db
     .insert(notifications)
-    .values(unique.map((userId) => ({ userId, type, title: title.slice(0, 200), body: body?.slice(0, 2000) ?? null, link })));
+    .values(unique.map((userId) => ({ userId, type, title: title.slice(0, 200), body: body?.slice(0, 2000) ?? null, link, createdAt })));
   return unique.length;
 }
 

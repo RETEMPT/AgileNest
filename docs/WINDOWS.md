@@ -72,7 +72,9 @@ node scripts/migrate-discussions.mjs --test
 node scripts/migrate-collaboration-foundations.mjs
 node scripts/migrate-collaboration-foundations.mjs --test
 node scripts/migrate-member-deputy.mjs
+node scripts/migrate-collaboration-v050.mjs
 node scripts/migrate-member-deputy.mjs --test
+node scripts/migrate-collaboration-v050.mjs --test
 .\start.bat
 ```
 

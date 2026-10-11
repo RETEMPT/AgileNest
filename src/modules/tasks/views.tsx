@@ -65,6 +65,7 @@ export async function TaskDetailView({
         )}
         </nav>
         <div className="flex flex-wrap gap-2">
+          <Button asChild size="sm" variant="outline"><Link href={`/p/${projectId}/delivery`}>阶段交付中心</Link></Button>
           {task.permissions?.actions.includes("update") && (
             <EditTaskButton task={task} milestones={milestones} />
           )}
@@ -86,7 +87,7 @@ export async function TaskDetailView({
 
       <TaskOrganization taskId={task.id} projectId={projectId} />
       <ResourceTaskLinks taskId={task.id} projectId={projectId} />
-      <TaskRequirementsEditor taskId={task.id} requirements={delivery.requirements} canEdit={Boolean(task.permissions?.actions.includes("update"))} />
+      <TaskRequirementsEditor taskId={task.id} requirements={delivery.requirements} canEdit={Boolean(task.permissions?.actions.includes("update")) && !["submitted", "accepted"].includes(task.status)} taskStatus={task.status} />
       <TaskDiscussions taskId={task.id} projectId={projectId} actorId={user.id} />
       <SubmissionTimeline taskId={task.id} updatedAt={task.updatedAt.toISOString()} />
 

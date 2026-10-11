@@ -9,7 +9,7 @@ const criterion = z.object({
 
 export const requirementsSchema = z.object({
   version: z.number().int().min(0),
-  criteria: z.array(criterion).max(30, "最多 30 项验收要求"),
+  criteria: z.array(criterion).min(1, "验收清单至少保留一项可核对的要求").max(30, "最多 30 项验收要求"),
 }).refine((value) => new Set(value.criteria.map((item) => item.id)).size === value.criteria.length, "验收项不能重复");
 
 export const deliverySchema = z.object({

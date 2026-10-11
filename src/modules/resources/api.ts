@@ -3,7 +3,7 @@ import { z } from "zod";
 import { AppError } from "@/modules/core";
 import { jsonError, requireApiUser } from "@/lib/api";
 import { createResource, deleteResource, getResource, getResourceFile, listResourceRevisions, listResources, updateResource, uploadResource } from "./service";
-import { resourceInputSchema, resourcePatchSchema } from "./schema";
+import { resourceInputSchema, resourcePatchSchema, uploadPlacementSchema } from "./schema";
 import { RESOURCE_MAX_BYTES } from "./client";
 
 type Context = { params: Promise<{ resourceId: string }> };
@@ -40,7 +40,8 @@ export async function resourcesPOST(request: Request) {
       const file = form.get("file");
       if (!(file instanceof File)) throw new AppError("请选择文件");
       const scope = { teamId: typeof form.get("teamId") === "string" ? String(form.get("teamId")) : undefined, projectId: typeof form.get("projectId") === "string" ? String(form.get("projectId")) : undefined };
-      const resource = await uploadResource(user.id, scope, { name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) }, String(form.get("title") ?? ""));
+      const placement = uploadPlacementSchema.parse({ folderId: form.get("folderId") || null, category: form.get("category") || "general" });
+      const resource = await uploadResource(user.id, scope, { name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) }, String(form.get("title") ?? ""), placement);
       return NextResponse.json({ resource }, { status: 201 });
     }
     return NextResponse.json({ resource: await createResource(user.id, resourceInputSchema.parse(await jsonBody(request))) }, { status: 201 });

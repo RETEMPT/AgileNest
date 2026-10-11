@@ -1,10 +1,10 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { collaborationNotificationEvents, notificationFollows, notifications, teamMembers, teamResources } from "@/db/schema";
 import { AppError, ConflictError, ForbiddenError } from "@/modules/core";
 import { createTask } from "@/modules/tasks";
-import { createResource } from "@/modules/resources";
+import { createResource, deleteResource, listResourceTrash, restoreResource } from "@/modules/resources";
 import { enqueueCollaborationNotice, getFollowState, getMyNotificationFeed, getNotificationPreferences, listMyFollows, listMyNotifications, notifyAccepted, notifyAssigned, notifyRejected, notifySubmitted, updateFollowState, updateNotificationPreferences, type CollaborationNoticeInput } from "@/modules/notify";
 import { type FollowTarget } from "@/modules/notify/client";
 import { makeFixture, resetDb } from "../../helpers";
@@ -22,6 +22,21 @@ describe("站内关注、提及与通知偏好", () => {
   function notice(target: FollowTarget, extra: Partial<CollaborationNoticeInput> = {}): CollaborationNoticeInput {
     return { target, event: "discussion", title: "新的协作讨论", body: "请核对本轮资料", link: `/p/${fx.project.id}/tasks/${target.id}`, eventKey: "post:1", ...extra };
   }
+  it("旧任务通知与协作投递都保存真实投递时刻，不依赖数据库本地默认时间", async () => {
+    const target = await taskTarget();
+    const now = new Date("2026-10-11T01:02:03.456Z");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+    try {
+      await notifySubmitted(target.id);
+      await enqueueCollaborationNotice(fx.admin.id, notice(target, { mentionedUserIds: [fx.student.id], participantUserIds: [fx.teacher.id], eventKey: "timestamp:regression" }));
+      const rows = await db.select().from(notifications);
+      expect(rows.some((row) => row.type === "task_submitted")).toBe(true);
+      expect(rows.some((row) => row.type === "collaboration_mention")).toBe(true);
+      expect(rows.some((row) => row.type === "task_discussion")).toBe(true);
+      for (const row of rows) expect(row.createdAt.getTime()).toBe(now.getTime());
+    } finally { vi.useRealTimers(); }
+  });
   it("项目、任务与资料均可关注，外部账号不可查询或关注", async () => {
     const task = await taskTarget();
     const resource = await createResource(fx.admin.id, { projectId: fx.project.id, kind: "document", title: "需求说明" });
@@ -42,6 +57,19 @@ describe("站内关注、提及与通知偏好", () => {
     expect(await getFollowState(fx.student.id, target)).toEqual(cancelled);
     expect(await listMyFollows(fx.student.id)).toEqual([]);
     expect(await db.select().from(notificationFollows)).toHaveLength(1);
+  });
+  it("回收资料不再提供关注或事件入口，恢复后保留原关注版本", async () => {
+    const resource = await createResource(fx.admin.id, { projectId: fx.project.id, kind: "document", title: "可恢复资料" });
+    const target: FollowTarget = { kind: "resource", id: resource.id };
+    const followed = await follow(fx.student.id, target);
+    await deleteResource(fx.admin.id, resource.id, resource.version);
+    expect(await listMyFollows(fx.student.id)).toEqual([]);
+    await expect(getFollowState(fx.student.id, target)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(enqueueCollaborationNotice(fx.admin.id, notice(target, { event: "resource_update" }))).rejects.toBeInstanceOf(ForbiddenError);
+    const [trashed] = await listResourceTrash(fx.admin.id, { projectId: fx.project.id });
+    await restoreResource(fx.admin.id, { resourceId: resource.id, version: trashed.version });
+    expect((await getFollowState(fx.student.id, target)).version).toBe(followed.version);
+    expect(await listMyFollows(fx.student.id)).toHaveLength(1);
   });
   it("偏好只属于当前账号，持久化与409保留首次保存结果", async () => {
     const defaults = await getNotificationPreferences(fx.student.id);

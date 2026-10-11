@@ -1,9 +1,9 @@
 import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db, type DbTx } from "@/db";
-import { discussionResourceReferences, memberPositions, projects, resourceReferences, resourceRevisions, resourceCollaboration, resourceCollaborators, resourcePlacements, taskActionItemOrigins, teamMembers, teamResources, teams, users } from "@/db/schema";
+import { discussionResourceReferences, memberPositions, projects, resourceReferences, resourceRevisions, resourceCollaboration, resourceCollaborators, resourceFolderCategories, resourceFolders, resourceLinks, resourcePlacements, resourceTrash, taskActionItemOrigins, teamMembers, teamResources, teams, users } from "@/db/schema";
 import { AppError, ConflictError, ForbiddenError, NotFoundError, requireProjectForUser, requireTeamRole } from "@/modules/core";
-import { RESOURCE_MAX_BYTES, decodeMaterialText, type ResourceDTO } from "./client";
-import { resourceInputSchema, resourcePatchSchema, scopeSchema } from "./schema";
+import { RESOURCE_MAX_BYTES, decodeMaterialText, type ResourceDTO, type ResourceTrashDTO } from "./client";
+import { resourceInputSchema, resourcePatchSchema, resourceRestoreSchema, scopeSchema, uploadPlacementSchema } from "./schema";
 import type { z } from "zod";
 import { capabilitiesFor, positionsFromRole } from "@/modules/identity/client";
 import { enqueueCollaborationNotice } from "@/modules/notify";
@@ -35,8 +35,20 @@ const metadata = {
   mimeType: teamResources.mimeType, size: teamResources.size, tags: teamResources.tags, category: teamResources.category,
   version: teamResources.version, createdById: teamResources.createdById, updatedById: teamResources.updatedById,
   createdAt: teamResources.createdAt, updatedAt: teamResources.updatedAt,
-  referenced: sql<boolean>`exists (select 1 from ${resourceReferences} where ${resourceReferences.resourceId} = ${teamResources.id}) or exists (select 1 from ${discussionResourceReferences} where ${discussionResourceReferences.resourceId} = ${teamResources.id}) or exists (select 1 from ${taskActionItemOrigins} where ${taskActionItemOrigins.resourceId} = ${teamResources.id})`,
+  referenced: sql<boolean>`exists (select 1 from ${resourceReferences} where ${resourceReferences.resourceId} = ${teamResources.id}) or exists (select 1 from ${discussionResourceReferences} where ${discussionResourceReferences.resourceId} = ${teamResources.id}) or exists (select 1 from ${taskActionItemOrigins} where ${taskActionItemOrigins.resourceId} = ${teamResources.id}) or exists (select 1 from ${resourceLinks} where ${resourceLinks.sourceResourceId} = ${teamResources.id} or ${resourceLinks.targetResourceId} = ${teamResources.id})`,
 };
+const activeResource = sql`not exists (select 1 from ${resourceTrash} where ${resourceTrash.resourceId} = ${teamResources.id})`;
+export async function requireActiveResource(id: string, tx: DbTx) {
+  const [trash] = await tx.select({ id: resourceTrash.resourceId }).from(resourceTrash).where(eq(resourceTrash.resourceId, id));
+  if (trash) throw new NotFoundError("资料已移至回收站，请由作者或资料管理员恢复后使用");
+}
+async function initialPlacement(tx: DbTx, row: Row, folderId: string | null) {
+  if (!folderId) return;
+  const [folder] = await tx.select({ folder: resourceFolders, category: resourceFolderCategories.category }).from(resourceFolders).leftJoin(resourceFolderCategories, eq(resourceFolderCategories.folderId, resourceFolders.id)).where(eq(resourceFolders.id, folderId));
+  if (!folder || folder.folder.teamId !== row.teamId || folder.folder.projectId !== row.projectId) throw new ForbiddenError("请在当前资料所属空间选择主题文件夹");
+  if ((folder.category ?? "general") !== row.category) throw new ConflictError("主题文件夹属于其他分类，请重新选择保存位置");
+  await tx.insert(resourcePlacements).values({ resourceId: row.id, folderId });
+}
 function workspaceMetadata(actorId: string) {
   return {
     ...metadata,
@@ -51,12 +63,12 @@ function workspaceMetadata(actorId: string) {
 export async function listResources(actorId: string, scope: { teamId?: string; projectId?: string }): Promise<ResourceDTO[]> {
   const access = await accessScope(actorId, scope);
   const rows = await db.select({ ...workspaceMetadata(actorId), authorName: users.name }).from(teamResources)
-    .leftJoin(users, eq(users.id, teamResources.createdById)).where(and(eq(teamResources.teamId, access.teamId), access.projectId ? or(eq(teamResources.projectId, access.projectId), isNull(teamResources.projectId)) : undefined)).orderBy(desc(teamResources.updatedAt));
+    .leftJoin(users, eq(users.id, teamResources.createdById)).where(and(eq(teamResources.teamId, access.teamId), activeResource, access.projectId ? or(eq(teamResources.projectId, access.projectId), isNull(teamResources.projectId)) : undefined)).orderBy(desc(teamResources.updatedAt));
   return rows.map((row) => toDTO({ ...row, contentBase64: null }, actorId, capabilitiesFor(access.member.positions).manageResources, row.authorName));
 }
 
 export async function getResource(actorId: string, id: string): Promise<ResourceDTO> {
-  const [row] = await db.select({ ...workspaceMetadata(actorId), authorName: users.name }).from(teamResources).leftJoin(users, eq(users.id, teamResources.createdById)).where(eq(teamResources.id, id));
+  const [row] = await db.select({ ...workspaceMetadata(actorId), authorName: users.name }).from(teamResources).leftJoin(users, eq(users.id, teamResources.createdById)).where(and(eq(teamResources.id, id), activeResource));
   if (!row) throw new NotFoundError("资料不存在");
   const access = await accessScope(actorId, { teamId: row.teamId, projectId: row.projectId ?? undefined });
   return toDTO({ ...row, contentBase64: null }, actorId, capabilitiesFor(access.member.positions).manageResources, row.authorName);
@@ -72,14 +84,16 @@ export async function createResource(actorId: string, input: z.input<typeof reso
     await accessScope(actorId, input, tx);
     const [created] = await tx.insert(teamResources).values({ teamId: access.teamId, projectId: access.projectId, kind: v.kind, title: v.title, body: v.kind === "document" ? v.body ?? "" : null, url: v.kind === "link" ? v.url : null, tags: v.tags, category: v.category, createdById: actorId, updatedById: actorId }).returning();
     if (v.kind === "document") await tx.insert(resourceRevisions).values({ resourceId: created.id, version: 1, title: created.title, body: created.body ?? "", createdById: actorId });
+    await initialPlacement(tx, created, v.folderId);
     return created;
   });
   return getResource(actorId, row.id);
 }
 
 const MIMES: Record<string, string> = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", gif: "image/gif", txt: "text/plain", md: "text/markdown", markdown: "text/markdown", csv: "text/csv", tsv: "text/tab-separated-values", json: "application/json", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", zip: "application/zip" };
-export async function uploadResource(actorId: string, scope: { teamId?: string; projectId?: string }, file: { name: string; bytes: Uint8Array }, title?: string): Promise<ResourceDTO> {
+export async function uploadResource(actorId: string, scope: { teamId?: string; projectId?: string }, file: { name: string; bytes: Uint8Array }, title?: string, placement: z.input<typeof uploadPlacementSchema> = {}): Promise<ResourceDTO> {
   const access = await accessScope(actorId, scope);
+  const parsed = uploadPlacementSchema.safeParse(placement); if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
   const mime = MIMES[ext];
   if (!mime || /[\u0000-\u001f/\\]/.test(file.name) || file.name.length > 200) throw new AppError("不支持此文件名或格式，请使用 PDF、图片、文本、Office 或 ZIP");
@@ -102,17 +116,19 @@ export async function uploadResource(actorId: string, scope: { teamId?: string; 
   const row = await db.transaction(async (tx) => {
     await tx.select({ id: teams.id }).from(teams).where(eq(teams.id, access.teamId)).for("update");
     await accessScope(actorId, scope, tx);
-    const [created] = await tx.insert(teamResources).values({ teamId: access.teamId, projectId: access.projectId, kind: "file", title: name, fileName: file.name, mimeType: mime, size: b.length, contentBase64: b.toString("base64"), body, createdById: actorId, updatedById: actorId }).returning();
+    const [created] = await tx.insert(teamResources).values({ teamId: access.teamId, projectId: access.projectId, kind: "file", title: name, fileName: file.name, mimeType: mime, size: b.length, contentBase64: b.toString("base64"), body, category: parsed.data.category, createdById: actorId, updatedById: actorId }).returning();
+    await initialPlacement(tx, created, parsed.data.folderId);
     return created;
   });
   return getResource(actorId, row.id);
 }
 
-export async function lockManaged(actorId: string, id: string, tx: DbTx, resource: ResourceDTO, mode: "manage" | "edit" = "manage") {
+export async function lockManaged(actorId: string, id: string, tx: DbTx, resource: ResourceDTO, mode: "manage" | "edit" = "manage", allowTrashed = false) {
   await tx.select({ id: teams.id }).from(teams).where(eq(teams.id, resource.teamId)).for("update");
   const access = await accessScope(actorId, { teamId: resource.teamId, projectId: resource.projectId ?? undefined }, tx);
   const [row] = await tx.select().from(teamResources).where(eq(teamResources.id, id)).for("update");
   if (!row) throw new NotFoundError("资料不存在");
+  if (!allowTrashed) await requireActiveResource(id, tx);
   if (row.createdById !== actorId && !capabilitiesFor(access.member.positions).manageResources) {
     const [grant] = await tx.select().from(resourceCollaborators).where(and(eq(resourceCollaborators.resourceId, id), eq(resourceCollaborators.userId, actorId)));
     if (mode === "manage" || row.kind === "file" || grant?.permission !== "edit") throw new ForbiddenError(mode === "manage" || row.kind === "file" ? "仅资料作者、管理员或副管理员可管理此资料" : "需要资料编辑权限");
@@ -131,6 +147,7 @@ export async function updateResource(actorId: string, id: string, input: z.input
     if (row.kind === "file" && v.body !== undefined) throw new AppError("文件内容不能覆盖，请上传新文件");
     if (row.kind === "link" && !v.url) throw new AppError("请填写资料链接");
     const body = row.kind === "document" ? v.body ?? row.body ?? "" : row.body;
+    if (v.category !== row.category) await tx.update(resourcePlacements).set({ folderId: null, version: sql`${resourcePlacements.version} + 1`, updatedAt: new Date() }).where(eq(resourcePlacements.resourceId, id));
     await tx.update(teamResources).set({ title: v.title, tags: v.tags, category: v.category, body, url: row.kind === "link" ? v.url : row.url, version: row.version + 1, updatedById: actorId, updatedAt: new Date() }).where(eq(teamResources.id, id));
     if (row.kind === "document") await tx.insert(resourceRevisions).values({ resourceId: id, version: row.version + 1, title: v.title, body: body ?? "", createdById: actorId });
     const collaborators = await tx.select({ userId: resourceCollaborators.userId }).from(resourceCollaborators).where(eq(resourceCollaborators.resourceId, id));
@@ -148,9 +165,37 @@ export async function deleteResource(actorId: string, id: string, version: numbe
     const [reference] = await tx.select({ id: resourceReferences.id }).from(resourceReferences).where(eq(resourceReferences.resourceId, id)).limit(1);
     const [discussionReference] = await tx.select({ id: discussionResourceReferences.id }).from(discussionResourceReferences).where(eq(discussionResourceReferences.resourceId, id)).limit(1);
     const [actionItem] = await tx.select({ taskId: taskActionItemOrigins.taskId }).from(taskActionItemOrigins).where(eq(taskActionItemOrigins.resourceId, id)).limit(1);
-    if (reference || discussionReference || actionItem) throw new ConflictError("此资料已关联成果、讨论或行动项，不能删除");
-    await tx.delete(teamResources).where(eq(teamResources.id, id));
+    const [link] = await tx.select({ id: resourceLinks.id }).from(resourceLinks).where(or(eq(resourceLinks.sourceResourceId, id), eq(resourceLinks.targetResourceId, id))).limit(1);
+    if (reference || discussionReference || actionItem || link) throw new ConflictError("此资料已关联成果、讨论、行动项或其他内容，不能回收；普通互链可先解除");
+    const nextVersion = row.version + 1;
+    await tx.insert(resourceTrash).values({ resourceId: id, version: nextVersion, trashedById: actorId });
+    await tx.update(teamResources).set({ version: nextVersion, updatedAt: new Date(), updatedById: actorId }).where(eq(teamResources.id, id));
   });
+}
+
+export async function listResourceTrash(actorId: string, scope: { teamId?: string; projectId?: string }): Promise<ResourceTrashDTO[]> {
+  const access = await accessScope(actorId, scope); const manage = capabilitiesFor(access.member.positions).manageResources;
+  const rows = await db.select({ ...workspaceMetadata(actorId), authorName: users.name, trashedAt: resourceTrash.trashedAt, trashedById: resourceTrash.trashedById }).from(teamResources).innerJoin(resourceTrash, eq(resourceTrash.resourceId, teamResources.id)).leftJoin(users, eq(users.id, teamResources.createdById)).where(and(eq(teamResources.teamId, access.teamId), access.projectId ? or(eq(teamResources.projectId, access.projectId), isNull(teamResources.projectId)) : undefined, manage ? undefined : eq(teamResources.createdById, actorId))).orderBy(desc(resourceTrash.trashedAt));
+  const ids = [...new Set(rows.map((row) => row.trashedById).filter((id): id is string => !!id))];
+  const people = ids.length ? await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, ids)) : [];
+  return rows.map((row) => ({ ...toDTO({ ...row, contentBase64: null }, actorId, manage, row.authorName), trashedAt: row.trashedAt.toISOString(), trashedByName: people.find((person) => person.id === row.trashedById)?.name ?? null }));
+}
+export async function restoreResource(actorId: string, input: z.input<typeof resourceRestoreSchema>): Promise<ResourceDTO> {
+  const parsed = resourceRestoreSchema.safeParse(input); if (!parsed.success) throw new AppError(parsed.error.issues[0].message); const v = parsed.data;
+  const [initial] = await db.select({ ...workspaceMetadata(actorId), authorName: users.name }).from(teamResources).leftJoin(users, eq(users.id, teamResources.createdById)).where(eq(teamResources.id, v.resourceId));
+  if (!initial) throw new NotFoundError("资料不存在");
+  const access = await accessScope(actorId, { teamId: initial.teamId, projectId: initial.projectId ?? undefined });
+  const resource = toDTO({ ...initial, contentBase64: null }, actorId, capabilitiesFor(access.member.positions).manageResources, initial.authorName);
+  await db.transaction(async (tx) => {
+    const row = await lockManaged(actorId, v.resourceId, tx, resource, "manage", true);
+    const [trash] = await tx.select().from(resourceTrash).where(eq(resourceTrash.resourceId, row.id));
+    if (!trash) throw new ConflictError("此资料已恢复，请刷新资料列表");
+    if (row.version !== v.version || trash.version !== v.version) throw new ConflictError("回收资料版本已变化，请刷新回收站后重试");
+    await tx.delete(resourceTrash).where(eq(resourceTrash.resourceId, row.id));
+    await tx.update(teamResources).set({ version: row.version + 1, updatedAt: new Date(), updatedById: actorId }).where(eq(teamResources.id, row.id));
+    if (row.kind === "document") await tx.insert(resourceRevisions).values({ resourceId: row.id, version: row.version + 1, title: row.title, body: row.body ?? "", createdById: actorId });
+  });
+  return getResource(actorId, v.resourceId);
 }
 
 export async function listResourceRevisions(actorId: string, id: string) {
@@ -160,7 +205,7 @@ export async function listResourceRevisions(actorId: string, id: string) {
 
 export async function getResourceFile(actorId: string, id: string) {
   const resource = await getResource(actorId, id);
-  const [row] = await db.select({ content: teamResources.contentBase64 }).from(teamResources).where(eq(teamResources.id, id));
+  const [row] = await db.select({ content: teamResources.contentBase64 }).from(teamResources).where(and(eq(teamResources.id, id), activeResource));
   if (resource.kind !== "file" || !row?.content) throw new NotFoundError("文件不存在");
   return { resource, bytes: Buffer.from(row.content, "base64") };
 }
@@ -171,6 +216,7 @@ export async function bindSubmissionResources(actorId: string, projectId: string
   if (ids.length > 10) throw new AppError("每次提交最多关联 10 份文件");
   if (!ids.length) return [];
   const rows = await tx.select().from(teamResources).where(inArray(teamResources.id, ids)).orderBy(teamResources.id).for("update");
+  for (const row of rows) await requireActiveResource(row.id, tx);
   if (rows.length !== ids.length || rows.some((row) => row.teamId !== access.teamId || (row.projectId !== null && row.projectId !== projectId) || row.kind !== "file")) throw new ForbiddenError("只能关联当前项目或团队共享的文件");
   await tx.insert(resourceReferences).values(rows.map((row) => ({ resourceId: row.id, submissionId })));
   return rows.map(({ id, title, fileName, mimeType, size }) => ({ id, title, fileName, mimeType, size }));
@@ -182,6 +228,7 @@ export async function bindDiscussionResources(actorId: string, projectId: string
   if (ids.length > 10) throw new AppError("每条讨论最多关联 10 份文件");
   if (!ids.length) return [];
   const rows = await tx.select().from(teamResources).where(inArray(teamResources.id, ids)).orderBy(teamResources.id).for("update");
+  for (const row of rows) await requireActiveResource(row.id, tx);
   if (rows.length !== ids.length || rows.some((row) => row.teamId !== access.teamId || (row.projectId !== null && row.projectId !== projectId) || row.kind !== "file")) throw new ForbiddenError("只能关联当前项目或团队共享的文件");
   await tx.insert(discussionResourceReferences).values(rows.map((row) => ({ resourceId: row.id, postId })));
   return rows.map(({ id, title, fileName, mimeType, size }) => ({ id, title, fileName, mimeType, size }));
@@ -190,6 +237,7 @@ export async function bindDiscussionResources(actorId: string, projectId: string
 export async function bindTaskActionItemSource(actorId: string, projectId: string, input: { resourceId: string; sourceVersion: number; quote?: string }, tx: DbTx) {
   const access = await accessScope(actorId, { projectId }, tx);
   const [row] = await tx.select().from(teamResources).where(eq(teamResources.id, input.resourceId)).for("update");
+  if (row) await requireActiveResource(row.id, tx);
   if (!row || row.teamId !== access.teamId || row.projectId !== null && row.projectId !== projectId) throw new ForbiddenError("行动项来源需为当前项目或团队共享文档");
   if (row.kind !== "document") throw new AppError("请从可编辑文档创建行动项");
   if (!Number.isSafeInteger(input.sourceVersion) || row.version !== input.sourceVersion) throw new ConflictError("文档已更新，请保留行动项输入并对照最新版本后提交");
@@ -200,6 +248,6 @@ export async function bindTaskActionItemSource(actorId: string, projectId: strin
 export async function accessibleResourceIds(actorId: string, resourceIds: string[], tx?: DbTx): Promise<string[]> {
   const ids = [...new Set(resourceIds)]; if (!ids.length) return [];
   const connection = tx ?? db;
-  const rows = await connection.select({ id: teamResources.id }).from(teamResources).innerJoin(teamMembers, and(eq(teamMembers.teamId, teamResources.teamId), eq(teamMembers.userId, actorId))).where(inArray(teamResources.id, ids));
+  const rows = await connection.select({ id: teamResources.id }).from(teamResources).innerJoin(teamMembers, and(eq(teamMembers.teamId, teamResources.teamId), eq(teamMembers.userId, actorId))).where(and(inArray(teamResources.id, ids), activeResource));
   return rows.map((row) => row.id);
 }

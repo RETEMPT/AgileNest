@@ -2,13 +2,13 @@ import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import type { z } from "zod";
 import { capabilitiesFor } from "@/modules/identity/client";
 import { db, type DbTx } from "@/db";
-import { projects, resourceCollaboration, resourceCollaborators, resourceCommentMentions, resourceCommentRevisions, resourceComments, resourceFolders, resourceLinks, resourcePlacements, taskActionItemOrigins, tasks, teamMembers, teamResources, teams, users } from "@/db/schema";
+import { projects, resourceCollaboration, resourceCollaborators, resourceCommentMentions, resourceCommentRevisions, resourceComments, resourceFolderCategories, resourceFolders, resourceLinks, resourcePlacements, taskActionItemOrigins, tasks, teamMembers, teamResources, teams, users } from "@/db/schema";
 import { AppError, ConflictError, ForbiddenError, NotFoundError } from "@/modules/core";
 import { getTaskDetail, listProjectTasks } from "@/modules/tasks";
 import { enqueueCollaborationNotice } from "@/modules/notify";
-import { accessScope, getResource, listResources, lockManaged } from "./service";
-import { collaborationSchema, commentInputSchema, commentPatchSchema, folderInputSchema, folderPatchSchema, placementSchema, resourceLinkSchema } from "./schema";
-import { validateFolderMove, type ResourceCollaborationDTO, type ResourceCommentDTO, type ResourceDTO, type ResourceFolderDTO, type ResourceLinkDTO } from "./client";
+import { accessScope, getResource, listResources, lockManaged, requireActiveResource } from "./service";
+import { collaborationSchema, commentInputSchema, commentPatchSchema, folderDeleteSchema, folderInputSchema, folderPatchSchema, placementSchema, resourceLinkSchema } from "./schema";
+import { validateFolderMove, type ResourceCategory, type ResourceCollaborationDTO, type ResourceCommentDTO, type ResourceDTO, type ResourceFolderDTO, type ResourceLinkDTO } from "./client";
 
 type Scope = { teamId?: string; projectId?: string };
 function parsed<T extends z.ZodType>(schema: T, input: unknown): z.output<T> { const result = schema.safeParse(input); if (!result.success) throw new AppError(result.error.issues[0].message); return result.data; }
@@ -18,24 +18,30 @@ async function lockScope(actorId: string, scope: Scope, tx: DbTx, teamId: string
   await tx.select({ id: teams.id }).from(teams).where(eq(teams.id, teamId)).for("update");
   return accessScope(actorId, scope, tx);
 }
-function folderDTO(row: typeof resourceFolders.$inferSelect, actorId: string, admin: boolean): ResourceFolderDTO { return { id: row.id, teamId: row.teamId, projectId: row.projectId, parentId: row.parentId, name: row.name, version: row.version, canManage: admin || row.createdById === actorId }; }
+function folderDTO(row: typeof resourceFolders.$inferSelect, actorId: string, admin: boolean, category: ResourceCategory = "general"): ResourceFolderDTO { return { id: row.id, teamId: row.teamId, projectId: row.projectId, parentId: row.parentId, name: row.name, category, version: row.version, canManage: admin || row.createdById === actorId }; }
+async function folderRows(teamId: string, tx: DbTx) {
+  return (await tx.select({ folder: resourceFolders, category: resourceFolderCategories.category }).from(resourceFolders).leftJoin(resourceFolderCategories, eq(resourceFolderCategories.folderId, resourceFolders.id)).where(eq(resourceFolders.teamId, teamId))).map(({ folder, category }) => ({ ...folder, category: (category ?? "general") as ResourceCategory }));
+}
 
 export async function listResourceFolders(actorId: string, scope: Scope): Promise<ResourceFolderDTO[]> {
   const access = await accessScope(actorId, scope);
-  const rows = await db.select({ folder: resourceFolders, projectName: projects.name }).from(resourceFolders).leftJoin(projects, eq(projects.id, resourceFolders.projectId)).where(and(eq(resourceFolders.teamId, access.teamId), access.projectId ? or(eq(resourceFolders.projectId, access.projectId), isNull(resourceFolders.projectId)) : undefined)).orderBy(asc(resourceFolders.name), asc(resourceFolders.id));
-  return rows.map((row) => ({ ...folderDTO(row.folder, actorId, capabilitiesFor(access.member.positions).manageResources), projectName: row.projectName }));
+  const rows = await db.select({ folder: resourceFolders, category: resourceFolderCategories.category, projectName: projects.name }).from(resourceFolders).leftJoin(resourceFolderCategories, eq(resourceFolderCategories.folderId, resourceFolders.id)).leftJoin(projects, eq(projects.id, resourceFolders.projectId)).where(and(eq(resourceFolders.teamId, access.teamId), access.projectId ? or(eq(resourceFolders.projectId, access.projectId), isNull(resourceFolders.projectId)) : undefined)).orderBy(asc(resourceFolders.name), asc(resourceFolders.id));
+  return rows.map((row) => ({ ...folderDTO(row.folder, actorId, capabilitiesFor(access.member.positions).manageResources, (row.category ?? "general") as ResourceCategory), legacy: row.category === null, projectName: row.projectName }));
 }
 export async function createResourceFolder(actorId: string, input: z.input<typeof folderInputSchema>) {
   const v = parsed(folderInputSchema, input); const access = await accessScope(actorId, v);
   return db.transaction(async (tx) => {
     const current = await lockScope(actorId, v, tx, access.teamId);
-    const rows = await tx.select().from(resourceFolders).where(eq(resourceFolders.teamId, access.teamId));
-    const candidate: ResourceFolderDTO = { id: crypto.randomUUID(), teamId: access.teamId, projectId: access.projectId, parentId: null, name: v.name, version: 1, canManage: true };
-    const issue = validateFolderMove(rows.map((row) => folderDTO(row, actorId, capabilitiesFor(current.member.positions).manageResources)), candidate, v.parentId);
+    const rows = await folderRows(access.teamId, tx);
+    if (rows.length >= 500) throw new ConflictError("团队主题目录已达到 500 个，请整理现有目录");
+    const category = v.category ?? rows.find((row) => row.id === v.parentId)?.category ?? "general";
+    const candidate: ResourceFolderDTO = { id: crypto.randomUUID(), teamId: access.teamId, projectId: access.projectId, parentId: null, name: v.name, category, version: 1, canManage: true };
+    const issue = validateFolderMove(rows.map((row) => folderDTO(row, actorId, capabilitiesFor(current.member.positions).manageResources, row.category)), candidate, v.parentId);
     if (issue) throw new ConflictError(issue);
-    if (rows.some((row) => sameScope(row, candidate) && row.parentId === v.parentId && row.name.toLocaleLowerCase() === v.name.toLocaleLowerCase())) throw new ConflictError("该目录下已有同名文件夹");
+    if (rows.some((row) => sameScope(row, candidate) && row.category === category && row.parentId === v.parentId && row.name.toLocaleLowerCase() === v.name.toLocaleLowerCase())) throw new ConflictError("该主题下已有同名文件夹");
     const [created] = await tx.insert(resourceFolders).values({ teamId: access.teamId, projectId: access.projectId, parentId: v.parentId, name: v.name, createdById: actorId }).returning();
-    return folderDTO(created, actorId, capabilitiesFor(current.member.positions).manageResources);
+    await tx.insert(resourceFolderCategories).values({ folderId: created.id, category });
+    return folderDTO(created, actorId, capabilitiesFor(current.member.positions).manageResources, category);
   });
 }
 export async function updateResourceFolder(actorId: string, input: z.input<typeof folderPatchSchema>) {
@@ -44,15 +50,29 @@ export async function updateResourceFolder(actorId: string, input: z.input<typeo
   const scope = { teamId: initial.teamId, projectId: initial.projectId ?? undefined }; await accessScope(actorId, scope);
   return db.transaction(async (tx) => {
     const access = await lockScope(actorId, scope, tx, initial.teamId);
-    const rows = await tx.select().from(resourceFolders).where(eq(resourceFolders.teamId, initial.teamId));
+    const rows = await folderRows(initial.teamId, tx);
     const row = rows.find((folder) => folder.id === v.folderId); if (!row) throw new NotFoundError("目录不存在");
     if (row.createdById !== actorId && !capabilitiesFor(access.member.positions).manageResources) throw new ForbiddenError("仅目录创建者、管理员或副管理员可维护目录");
     if (row.version !== v.version) throw new ConflictError("目录已更新，请保留输入并加载最新目录");
-    const issue = validateFolderMove(rows.map((folder) => folderDTO(folder, actorId, capabilitiesFor(access.member.positions).manageResources)), folderDTO(row, actorId, true), v.parentId);
+    const issue = validateFolderMove(rows.map((folder) => folderDTO(folder, actorId, capabilitiesFor(access.member.positions).manageResources, folder.category)), folderDTO(row, actorId, true, row.category), v.parentId);
     if (issue) throw new ConflictError(issue);
-    if (rows.some((folder) => folder.id !== row.id && sameScope(folder, row) && folder.parentId === v.parentId && folder.name.toLocaleLowerCase() === v.name.toLocaleLowerCase())) throw new ConflictError("该目录下已有同名文件夹");
+    if (rows.some((folder) => folder.id !== row.id && sameScope(folder, row) && folder.category === row.category && folder.parentId === v.parentId && folder.name.toLocaleLowerCase() === v.name.toLocaleLowerCase())) throw new ConflictError("该主题下已有同名文件夹");
     const [updated] = await tx.update(resourceFolders).set({ name: v.name, parentId: v.parentId, version: row.version + 1, updatedAt: new Date() }).where(eq(resourceFolders.id, row.id)).returning();
-    return folderDTO(updated, actorId, capabilitiesFor(access.member.positions).manageResources);
+    return folderDTO(updated, actorId, capabilitiesFor(access.member.positions).manageResources, row.category);
+  });
+}
+export async function deleteResourceFolder(actorId: string, input: z.input<typeof folderDeleteSchema>) {
+  const v = parsed(folderDeleteSchema, input); const [initial] = await db.select().from(resourceFolders).where(eq(resourceFolders.id, v.folderId));
+  if (!initial) throw new NotFoundError("目录不存在"); const scope = { teamId: initial.teamId, projectId: initial.projectId ?? undefined }; await accessScope(actorId, scope);
+  await db.transaction(async (tx) => {
+    const access = await lockScope(actorId, scope, tx, initial.teamId);
+    const [row] = await tx.select().from(resourceFolders).where(eq(resourceFolders.id, initial.id)).for("update"); if (!row) throw new NotFoundError("目录不存在");
+    if (row.createdById !== actorId && !capabilitiesFor(access.member.positions).manageResources) throw new ForbiddenError("仅目录创建者或资料管理员可删除目录");
+    if (row.version !== v.version) throw new ConflictError("目录已更新，请刷新后核对再删除");
+    const [child] = await tx.select({ id: resourceFolders.id }).from(resourceFolders).where(eq(resourceFolders.parentId, row.id)).limit(1);
+    const [placement] = await tx.select({ id: resourcePlacements.resourceId }).from(resourcePlacements).where(eq(resourcePlacements.folderId, row.id)).limit(1);
+    if (child || placement) throw new ConflictError("请先移走子目录和资料（含回收站中的资料），仅空目录可以删除");
+    await tx.delete(resourceFolders).where(eq(resourceFolders.id, row.id));
   });
 }
 export async function placeResource(actorId: string, input: z.input<typeof placementSchema>): Promise<ResourceDTO> {
@@ -62,8 +82,9 @@ export async function placeResource(actorId: string, input: z.input<typeof place
     const [placement] = await tx.select().from(resourcePlacements).where(eq(resourcePlacements.resourceId, row.id));
     if ((placement?.version ?? 1) !== v.version) throw new ConflictError("资料位置或置顶状态已变化，请刷新后重试");
     if (v.folderId) {
-      const [folder] = await tx.select().from(resourceFolders).where(eq(resourceFolders.id, v.folderId));
-      if (!folder || !sameScope(folder, row)) throw new ForbiddenError("资料只能放入相同团队及项目范围的目录");
+      const [folder] = await tx.select({ folder: resourceFolders, category: resourceFolderCategories.category }).from(resourceFolders).leftJoin(resourceFolderCategories, eq(resourceFolderCategories.folderId, resourceFolders.id)).where(eq(resourceFolders.id, v.folderId));
+      if (!folder || !sameScope(folder.folder, row)) throw new ForbiddenError("资料只能放入相同团队及项目范围的目录");
+      if (v.folderId !== placement?.folderId && (folder.category ?? "general") !== row.category) throw new ConflictError("请选择资料所属分类内的主题文件夹");
     }
     await tx.insert(resourcePlacements).values({ resourceId: row.id, folderId: v.folderId, pinned: v.pinned, version: v.version + 1 }).onConflictDoUpdate({ target: resourcePlacements.resourceId, set: { folderId: v.folderId, pinned: v.pinned, version: v.version + 1, updatedAt: new Date() } });
   });
@@ -97,6 +118,7 @@ async function lockResourceRead(actorId: string, resource: ResourceDTO, tx: DbTx
   const access = await lockScope(actorId, { teamId: resource.teamId, projectId: resource.projectId ?? undefined }, tx, resource.teamId);
   const [row] = await tx.select().from(teamResources).where(eq(teamResources.id, resource.id)).for("update");
   if (!row) throw new NotFoundError("资料不存在");
+  await requireActiveResource(row.id, tx);
   const manage = row.createdById === actorId || capabilitiesFor(access.member.positions).manageResources;
   const [grant] = await tx.select().from(resourceCollaborators).where(and(eq(resourceCollaborators.resourceId, row.id), eq(resourceCollaborators.userId, actorId)));
   const [settings] = await tx.select().from(resourceCollaboration).where(eq(resourceCollaboration.resourceId, row.id));
@@ -114,6 +136,7 @@ export async function linkResource(actorId: string, input: z.input<typeof resour
     if (task) { const [currentTask] = await tx.select().from(tasks).where(and(eq(tasks.id, task.id), eq(tasks.projectId, task.projectId))).for("update"); if (!currentTask) throw new NotFoundError("任务不存在"); }
     const ids = [source.id, ...(target ? [target.id] : [])].sort();
     const rows = await tx.select().from(teamResources).where(inArray(teamResources.id, ids)).orderBy(asc(teamResources.id)).for("update");
+    for (const row of rows) await requireActiveResource(row.id, tx);
     if (rows.length !== ids.length || rows.some((row) => row.teamId !== source.teamId)) throw new ForbiddenError("资料已不可访问，请重新选择");
     const rights = await lockResourceRead(actorId, source, tx); if (!rights.edit) throw new ForbiddenError("需要资料编辑权限才能建立关联");
     if (target) await accessScope(actorId, { teamId: target.teamId, projectId: target.projectId ?? undefined }, tx);

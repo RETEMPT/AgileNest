@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useId, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ArrowRight, RotateCcw, X } from "lucide-react";
+import { ArrowRight, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormFeedback, useFeedback } from "@/components/ui/feedback";
@@ -18,6 +18,7 @@ import {
   transitionAction,
   loadTaskAssigneesAction,
   loadTaskPermissionsAction,
+  loadProjectTaskAssigneesAction,
   type FormState,
 } from "@/modules/tasks/actions";
 import type { TaskDTO } from "./service";
@@ -38,6 +39,7 @@ import {
 } from "@/modules/identity/client";
 import { StructuredTransitionFields } from "./delivery-fields";
 import { DiscardChangesDialog } from "./form-guards";
+import type { AcceptanceCriterion } from "./delivery-types";
 
 export { TaskDetailSummary, type TaskDetailSummaryProps } from "./detail-summary";
 export { TaskOrganization, TaskLabelFilter, TaskLabelPill } from "./organization-ui";
@@ -59,6 +61,18 @@ export function CreateTaskForm({
 }) {
   const id = useId();
   const notify = useFeedback();
+  const [criteria, setCriteria] = useState<AcceptanceCriterion[]>([]);
+  const [assigneeId, setAssigneeId] = useState("");
+  const [assignees, setAssignees] = useState<AssigneeOption[]>([]);
+  const [assigneeError, setAssigneeError] = useState("");
+  const [canAssign, setCanAssign] = useState(false);
+  const [requestKey, setRequestKey] = useState("");
+  useEffect(() => {
+    let active = true;
+    const initializeCriteria = () => { setCriteria((current) => current.length ? current : [{ id: crypto.randomUUID(), text: "" }]); setRequestKey((current) => current || crypto.randomUUID()); };
+    void loadProjectTaskAssigneesAction(projectId).then((result) => { if (active) { setAssignees(result.members); setCanAssign(result.canAssign); setAssigneeError(result.error); initializeCriteria(); } }).catch(() => { if (active) { setAssigneeError("负责人加载失败，仍可先发布为待认领任务"); initializeCriteria(); } });
+    return () => { active = false; };
+  }, [projectId]);
   const [fields, setFields] = useState({
     title: "",
     description: "",
@@ -78,6 +92,7 @@ export function CreateTaskForm({
           dueDate: "",
           priority: "medium",
         });
+        setAssigneeId(""); setCriteria([{ id: crypto.randomUUID(), text: "" }]); setRequestKey(crypto.randomUUID());
         onCreated?.();
       }
       return result;
@@ -101,6 +116,8 @@ export function CreateTaskForm({
         <input type="hidden" name="parentTaskId" value={parentTaskId} />
       )}
       <input type="hidden" name="projectId" value={projectId} />
+      <input type="hidden" name="acceptanceCriteria" value={JSON.stringify(criteria)} />
+      <input type="hidden" name="requestKey" value={requestKey} />
       <label htmlFor={`${id}-title`} className="block text-xs font-medium">
         任务标题
       </label>
@@ -113,12 +130,12 @@ export function CreateTaskForm({
         }
         maxLength={200}
         disabled={pending}
-        placeholder="任务标题"
+        placeholder="例如：完成研究报告初稿 / 整理课程展示材料"
         required
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
       />
       <label htmlFor={`${id}-description`} className="block text-xs font-medium">
-        目标与验收要求 <span className="font-normal text-muted-foreground">（可选）</span>
+        工作目标与背景 <span className="font-normal text-muted-foreground">（可选）</span>
       </label>
       <textarea
         id={`${id}-description`}
@@ -133,6 +150,8 @@ export function CreateTaskForm({
         disabled={pending}
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
       />
+      <div className="space-y-2"><label htmlFor={`${id}-owner`} className="block text-xs font-medium">负责人 / 认领方式</label><select id={`${id}-owner`} name="assigneeId" value={assigneeId} disabled={pending} onChange={(event) => setAssigneeId(event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="">发布到任务池，等待成员认领</option>{assignees.map((member) => <option key={member.id} value={member.id}>{member.name} · {member.positions?.map((position) => POSITION_META[position].label).join("、")}</option>)}</select><p className="text-xs leading-5 text-muted-foreground">{canAssign ? "可以直接指派团队执行成员，任务和验收清单一并发布。" : "可创建待认领任务，或选择本人执行；指派他人需要管理或协调职务。"}</p><FormFeedback message={assigneeError} /></div>
+      <section className="space-y-3 rounded-xl border border-border bg-muted/20 p-3"><div><h3 className="text-xs font-semibold">发布时的验收要求 <span className="text-destructive">*</span></h3><p className="mt-1 text-xs leading-5 text-muted-foreground">至少写明一项可核对的成果或通过条件。执行人按同一清单自检，验收人逐项确认。</p></div>{criteria.map((criterion, index) => <div key={criterion.id} className="flex items-start gap-2"><Input aria-label={`任务发布的第 ${index + 1} 项验收要求`} required maxLength={1000} value={criterion.text} disabled={pending} placeholder="例如：研究报告包含结论、证据和材料来源" onChange={(event) => setCriteria((current) => current.map((item) => item.id === criterion.id ? { ...item, text: event.target.value } : item))} /><Button type="button" size="icon" variant="ghost" aria-label={`移除第 ${index + 1} 项发布要求`} disabled={pending || criteria.length <= 1} onClick={() => setCriteria((current) => current.filter((item) => item.id !== criterion.id))}><Trash2 className="h-4 w-4" /></Button></div>)}<Button type="button" size="sm" variant="outline" disabled={pending || criteria.length >= 30} onClick={() => setCriteria((current) => [...current, { id: crypto.randomUUID(), text: "" }])}><Plus className="h-3.5 w-3.5" />添加要求</Button></section>
       <details className="rounded-lg border border-border px-3 py-2">
         <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
           日期与优先级（可选）
@@ -169,8 +188,8 @@ export function CreateTaskForm({
       </details>
       <ErrorLine state={state} />
       <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
-        <p className="text-xs text-muted-foreground">创建后可认领或按权限指派。</p>
-        <Button size="sm" disabled={pending} loading={pending}>
+        <p className="text-xs text-muted-foreground">目标、负责人和验收清单在同一次发布中保存。</p>
+        <Button size="sm" disabled={pending || !criteria.length || !requestKey} loading={pending}>
           {pending ? "创建中…" : parentTaskId ? "创建子任务" : "创建任务"}
         </Button>
       </div>
@@ -504,7 +523,9 @@ export function TaskActions({
   if (actions.length === 0)
     return (
       <p className="text-xs text-muted-foreground">
-        {task.status === "submitted"
+        {task.status === "submitted" && task.acceptBlocked
+          ? "请先验收全部子任务，再验收父任务；仍可按权限打回当前提交"
+          : task.status === "submitted"
           ? "等待管理员、副管理员或指导老师验收"
           : task.status === "accepted"
             ? "任务已验收完成"

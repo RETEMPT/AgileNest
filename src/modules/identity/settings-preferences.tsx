@@ -42,10 +42,10 @@ export function AiSettings({ userId }: { userId: string }) {
     <p className="mt-2 text-sm text-muted-foreground">设置快速入口，随时继续整理当前对话草稿。</p>
     <div className="mt-8 rounded-xl border border-border">
       <label className="flex cursor-pointer items-center justify-between gap-5 p-5">
-        <span className="flex items-start gap-3"><MessageSquare size={20} className="mt-0.5 shrink-0 text-brand" /><span><span className="block text-sm font-medium">AI 悬浮窗</span><span className="mt-1.5 block text-xs leading-5 text-muted-foreground">在其他页面显示快速入口，与 AI 工作区共享当前草稿。</span></span></span>
-        <input type="checkbox" role="switch" aria-label="启用 AI 悬浮窗" checked={preferences.aiFloating} onChange={(event) => update({ aiFloating: event.target.checked })} className="h-5 w-5 shrink-0 accent-brand" />
+        <span className="flex items-start gap-3"><MessageSquare size={20} className="mt-0.5 shrink-0 text-brand" /><span><span className="block text-sm font-medium">协作中心内的 AI 草稿</span><span className="mt-1.5 block text-xs leading-5 text-muted-foreground">在统一协作入口内继续本地草稿，与 AI 工作区共用内容；模型尚未接入。</span></span></span>
+        <input type="checkbox" role="switch" aria-label="启用协作中心内的 AI 草稿" checked={preferences.aiFloating} onChange={(event) => update({ aiFloating: event.target.checked })} className="h-5 w-5 shrink-0 accent-brand" />
       </label>
-      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border bg-background/50 px-5 py-4"><p className="text-xs text-muted-foreground">可打开、收起，或继续在完整工作区编辑。</p><Button variant="outline" size="sm" disabled={!preferences.aiFloating} onClick={openAiFloating}><PanelRightOpen size={15} />打开悬浮窗</Button></div>
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border bg-background/50 px-5 py-4"><p className="text-xs text-muted-foreground">消息与草稿共用右下角入口，也可前往完整工作区。</p><Button variant="outline" size="sm" disabled={!preferences.aiFloating} onClick={openAiFloating}><PanelRightOpen size={15} />打开协作中心草稿</Button></div>
     </div>
     <div className="mt-8"><AiConfiguration userId={userId} /></div>
     <PreferenceFeedback error={error} onReset={reset} />

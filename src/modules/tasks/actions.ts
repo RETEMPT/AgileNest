@@ -43,7 +43,7 @@ export async function editTaskAction(
         ? Number(data.get("estimatedMinutes"))
         : null,
       priority: priority.data,
-    });
+    }, z.iso.datetime("编辑版本无效，请重新打开任务").parse(data.get("expectedUpdatedAt")));
     revalidatePath(`/p/${updated.projectId}`, "layout");
     revalidatePath("/home", "layout");
     revalidatePath("/t", "layout");
@@ -55,6 +55,7 @@ export async function editTaskAction(
 
 function fail(e: unknown): FormState {
   if (e instanceof AppError) return { error: e.message };
+  if (e instanceof z.ZodError) return { error: e.issues[0]?.message ?? "输入不符合要求" };
   console.error("[actions]", e);
   const msg = e instanceof Error ? e.message : String(e);
   if (msg.includes("ECONNREFUSED") || msg.includes("5432")) {
@@ -69,7 +70,16 @@ const createSchema = z.object({
   description: z.string().optional(),
   dueDate: z.string().optional(),
   priority: z.enum(["low", "medium", "high"]).optional(),
+  assigneeId: z.string().optional(),
+  acceptanceCriteria: z.string().min(1, "请填写发布任务的验收清单"),
+  requestKey: z.uuid("发布请求无效，请重新开始创建任务"),
 });
+
+function publicationCriteria(value: string) {
+  const parsed = requirementsSchema.parse({ version: 0, criteria: JSON.parse(value) as unknown });
+  if (!parsed.criteria.length) throw new AppError("发布任务至少需要一项验收要求");
+  return parsed.criteria;
+}
 
 export async function createTaskAction(
   _prev: FormState,
@@ -84,6 +94,9 @@ export async function createTaskAction(
       description: parsed.data.description || undefined,
       dueDate: parsed.data.dueDate || undefined,
       priority: parsed.data.priority,
+      assigneeId: parsed.data.assigneeId || undefined,
+      acceptanceCriteria: publicationCriteria(parsed.data.acceptanceCriteria),
+      requestKey: parsed.data.requestKey,
     };
     await createTask(user.id, parsed.data.projectId, input);
   } catch (e) {
@@ -112,6 +125,9 @@ export async function createSubtaskAction(
       description: parsed.data.description || undefined,
       dueDate: parsed.data.dueDate || undefined,
       priority: parsed.data.priority,
+      assigneeId: parsed.data.assigneeId || undefined,
+      acceptanceCriteria: publicationCriteria(parsed.data.acceptanceCriteria),
+      requestKey: parsed.data.requestKey,
     });
     revalidatePath(`/p/${sub.projectId}`, "layout");
     revalidatePath("/home", "layout");
@@ -216,6 +232,17 @@ export async function loadTaskAssigneesAction(taskId: string) {
   } catch (error) {
     return { members: [], error: fail(error)?.error ?? "加载成员失败" };
   }
+}
+
+export async function loadProjectTaskAssigneesAction(projectId: string) {
+  const user = await requireUser();
+  try {
+    const access = await getProjectForUser(user.id, z.uuid("项目无效").parse(projectId));
+    if (!access || !access.capabilities.task.actions.includes("create")) throw new AppError("没有发布任务权限", 403);
+    const canAssign = access.capabilities.task.actions.includes("assign");
+    const members = (await listTeamMembers(user.id, access.project.teamId)).filter((member) => member.canExecute && (canAssign || member.id === user.id));
+    return { members: members.map(({ id, name, role, positions, canExecute }) => ({ id, name, role, positions, canExecute })), canAssign, error: "" };
+  } catch (error) { return { members: [], canAssign: false, error: fail(error)?.error ?? "无法加载任务负责人" }; }
 }
 
 export async function loadTaskPermissionsAction(taskId: string) {

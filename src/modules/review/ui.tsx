@@ -98,6 +98,9 @@ export function SubmissionTimeline({ taskId, updatedAt, compact = false }: {
               {versions.map((submission) => <option key={submission.id} value={submission.id}>{submission.source === "legacy" ? "历史提交" : `v${submission.version}`} · {reviewLabel(submission)}{submission.id === versions[0].id ? " · 最新" : ""}</option>)}
             </Select>
           </div>
+          <p className="rounded-lg bg-muted/35 px-3 py-2 text-xs leading-5 text-muted-foreground">
+            {latest ? "这里展示最新提交的证据与结论。" : "正在查看历史版本，历史成果和意见保持只读。"}验收弹窗会明确显示本次待评审的提交版本；切换这里的记录不会改动任务或替换待验收成果。
+          </p>
           <article key={selected.id} className="min-w-0 space-y-4 rounded-xl border border-border bg-card p-3 motion-safe:transition-colors sm:p-4">
             <header className="flex flex-wrap items-start justify-between gap-2 border-b border-border pb-3">
               <div className="min-w-0"><h3 className="text-sm font-semibold">{selected.source === "legacy" ? "历史提交" : `提交 v${selected.version}`}{latest ? " · 最新记录" : ""}</h3><p className="mt-1 break-words text-xs text-muted-foreground">{selected.submittedByName || "原提交人"} · <time dateTime={selected.submittedAt}>{timestampLabel(selected.submittedAt)}</time></p></div>

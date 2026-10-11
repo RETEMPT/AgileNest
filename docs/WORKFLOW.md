@@ -260,7 +260,7 @@ PR 打开 → CI（npm test + build）自动跑
 
 ## 9. 迭代版本与发布
 
-版本唯一来源为 `package.json.version`；`package-lock.json` 的根版本和 `packages[""].version` 必须相同。README 显示当前分支版本，CHANGELOG 按版本记录变化、升级要求和验证范围。当前业务集成分支为 `codex/business-completion`，从 rc.5 的 `7c53f70` 接续，通过 PR 交付到 `main`，不要求另建 `develop`。
+版本唯一来源为 `package.json.version`；`package-lock.json` 的根版本和 `packages[""].version` 必须相同。README 显示当前分支版本，CHANGELOG 按版本记录变化、升级要求和验证范围。本轮集成分支为 `codex/v050-collaboration-release`，从 rc.8 接续，通过 PR 交付到 `main`，不要求另建 `develop`。上文 develop 是常规团队分支模型，本轮以这里的集成目标为准。
 
 每轮完成验收的集成迭代必须有递增编号；同一轮中的编辑、小提交和成员模块 PR 不各自升版，由 foundation 集成人统一维护，避免多分支抢占版本。
 
@@ -271,7 +271,7 @@ PR 打开 → CI（npm test + build）自动跑
 | 不兼容的契约或升级要求 | 次版本号（0.x 阶段），1.0 后主版本号 | `0.4.0` → `0.5.0`，`1.2.0` → `2.0.0` |
 | 同一目标正式版的下一轮候选迭代 | 候选序号 | `0.3.0-rc.1` → `0.3.0-rc.2` |
 
-候选版使用 `<目标版本>-rc.<序号>`。当前 rc.7 在 `codex/collaboration-workspace` 增加项目路径、任务讨论/附件、资料连续筛选与右下角通知助手；rc.6 的结构化提交、团队信息和资料及 rc.5 的导航/任务详情/看板体验保留。具体范围和后续轮次见 [COLLABORATION-WORKSPACE](COLLABORATION-WORKSPACE.md)，当前仅交付源码候选。PR 尚未合入主分支时保留候选标识。正式版必须先解决主分支冲突、完成合并，再对最终代码运行测试与 Windows 构建，随后移除候选后缀并提交元数据。不得把分支推送或 tag 当作已经部署。
+候选版使用 `<目标版本>-rc.<序号>`。0.5.0-rc.1 衔接 rc.5–rc.8 的导航、版本验收、资料协作与多重职务，增加分类主题、可恢复回收站、阶段交付和统一协作图标，并完善发布到验收的全链路。范围和实际验收见 [COLLABORATION-WORKSPACE](COLLABORATION-WORKSPACE.md) 与 [UX](UX.md)。PR 尚未合入主分支时保留候选标识。正式版必须先解决主分支冲突、完成合并，再对最终代码运行测试与 Windows 构建，随后移除候选后缀并提交元数据。Windows 包须另验首启、停止、重启、旧数据升级、源码/配置排除与 SHA256；不得把分支推送或 tag 当作已经部署。
 
 维护下一轮候选版时，可在版本管理短分支运行下列命令，同步 README、CHANGELOG 与 PR 后完成验证；这里仅更新包和锁文件，不自动提交或打 tag。
 
@@ -281,7 +281,7 @@ npm test
 npm run build
 ```
 
-每个完成验证并提交的集成版本创建同名注释 tag，如 `v0.4.0-rc.4`；tag 指向该版本提交，既有 tag 不移动、不覆盖。仅推送本轮具体 tag，不使用 `--tags` 批量推送。候选 tag 保留用于追溯；未来正式版 `v0.4.0` 指向主分支中已验证的正式版本提交。正式版本编号同样通过 `npm version <确定的版本> --no-git-tag-version` 更新，并同步上述记录。
+每个完成验证并提交的集成版本创建同名注释 tag，如 `v0.5.0-rc.1`；tag 指向该版本提交，既有 tag 不移动、不覆盖。仅推送本轮具体 tag，不使用 `--tags` 批量推送。候选 tag 保留用于追溯；正式版 `v0.5.0` 指向 main 中已验证的正式版本提交。正式版本编号同样通过 `npm version <确定的版本> --no-git-tag-version` 更新，并同步上述记录。Release 的 release.json.commit 必须与 tag 目标一致；只上传原始无运行数据的 ZIP 与 SHA256 文件。
 
 查当前本地版本与提交：
 

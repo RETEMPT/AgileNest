@@ -14,7 +14,7 @@ import {
   ProjectFolderIcon, LogoutIcon, ChevronDownIcon, MenuIcon,
   SidebarCollapseIcon, SidebarExpandIcon,
 } from "@/components/icons";
-import { Files } from "lucide-react";
+import { Files, PackageCheck } from "lucide-react";
 
 export type ProjectSummary = {
   id: string;
@@ -55,6 +55,7 @@ function SidebarContent({ user, projects, onSignOut, onToggleCollapse, pathname,
     { href: `/p/${project.id}/milestones`, label: "里程碑", icon: MilestoneIcon, active: pathname === `/p/${project.id}/milestones` },
     { href: `/p/${project.id}/review`, label: "验收", icon: ReviewIcon, active: pathname === `/p/${project.id}/review` },
     { href: `/p/${project.id}/resources`, label: "项目资料", icon: (props: Parameters<typeof ProjectFolderIcon>[0]) => <Files {...props} />, active: pathname === `/p/${project.id}/resources` },
+    { href: `/p/${project.id}/delivery`, label: "阶段交付", icon: (props: Parameters<typeof ProjectFolderIcon>[0]) => <PackageCheck {...props} />, active: pathname === `/p/${project.id}/delivery` },
     { href: `/p/${project.id}/stats`, label: "工时与贡献", icon: StatsIcon, active: pathname === `/p/${project.id}/stats` },
   ] : [];
   const accountItems = [

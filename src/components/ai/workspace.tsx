@@ -221,10 +221,12 @@ function DraftList({
   );
 }
 
-function DraftEditor({ draft, store, persistRef, focusOnOpen, compact, userId, projectName, onConfigure }: {
+function DraftEditor({ draft, store, persistRef, busyRef, inputId, focusOnOpen, compact, userId, projectName, onConfigure }: {
   draft: AiDraft;
   store: Store;
   persistRef: React.RefObject<(() => boolean) | null>;
+  busyRef?: React.RefObject<boolean>;
+  inputId: string;
   focusOnOpen: boolean;
   compact: boolean;
   userId: string;
@@ -280,7 +282,7 @@ function DraftEditor({ draft, store, persistRef, focusOnOpen, compact, userId, p
   useLayoutEffect(() => { latestPersist.current = persist; }, [persist]);
   useEffect(() => () => { latestPersist.current?.(); }, []);
   useLayoutEffect(() => {
-    persistRef.current = persist;
+    persistRef.current = () => !importLock.current && persist();
     const onLeave = () => { persist(); };
     window.addEventListener("pagehide", onLeave);
     return () => { window.removeEventListener("pagehide", onLeave); persistRef.current = null; };
@@ -311,6 +313,7 @@ function DraftEditor({ draft, store, persistRef, focusOnOpen, compact, userId, p
     if (!files.length || importLock.current) return false;
     if (!persist()) return false;
     importLock.current = true; setImporting(true); setMaterialError("");
+    if (busyRef) busyRef.current = true;
     try {
       const current = store.getSnapshot().notebook.drafts.find((item) => item.id === draft.id) ?? draft;
       validateMaterialBatch(draftMaterials(current),files);
@@ -326,7 +329,7 @@ function DraftEditor({ draft, store, persistRef, focusOnOpen, compact, userId, p
       if (!ok) {const ids = materials.map((item) => item.ref.id);await deleteMaterials(userId,ids).catch(() => setRemovalIds((current) => Array.from(new Set([...current,...ids]))));setMaterialError("资料未加入会话，请查看保存提示后重试");return false;}
       setFeedback(`已添加 ${materials.length} 份资料`);return true;
     } catch (error) {setMaterialError(error instanceof Error ? error.message : "文件读取失败，请重试");return false;}
-    finally {importLock.current = false;setImporting(false);}
+    finally {importLock.current = false;if (busyRef) busyRef.current = false;setImporting(false);}
   }
   function openMaterial(item: MaterialRef) {setMaterialsMode({kind:"browse",id:item.id});}
   function cleanupDetached(ids: string[]) {
@@ -365,10 +368,10 @@ function DraftEditor({ draft, store, persistRef, focusOnOpen, compact, userId, p
         {removalIds.length > 0 && <div role="alert" className="mb-2 flex items-center gap-2 text-xs text-destructive"><p>资料已移出会话，文件清理失败</p><Button variant="ghost" size="sm" onClick={() => cleanupDetached(removalIds)}>重试清理</Button></div>}
         {importing && <p role="status" className="mb-2 text-xs text-brand">正在读取并保存资料…</p>}
         <div className="ai-composer rounded-2xl border border-border bg-card px-3 py-2.5 shadow-[0_4px_24px_-12px_rgba(41,74,120,0.16)] focus-within:border-brand/40 focus-within:ring-2 focus-within:ring-brand/10">
-          <Label htmlFor="ai-draft-input" className="sr-only">对话内容</Label>
-          <Textarea id="ai-draft-input" ref={inputRef} value={text} maxLength={MAX_DRAFT_LENGTH} onChange={(event) => { setText(event.target.value); setFeedback(""); }} onBlur={persist} onKeyDown={(event) => {
+          <Label htmlFor={inputId} className="sr-only">对话内容</Label>
+          <Textarea id={inputId} ref={inputRef} value={text} maxLength={MAX_DRAFT_LENGTH} onChange={(event) => { setText(event.target.value); setFeedback(""); }} onBlur={persist} onKeyDown={(event) => {
             if (!event.nativeEvent.isComposing && (event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); recordMessage(); }
-          }} aria-describedby="ai-draft-hint" placeholder={projectName === "个人会话" ? "写下想法，+ 添加文件或资料…" : `讨论${projectName}，+ 添加资料…`} className="custom-scrollbar min-h-10 max-h-36 resize-none rounded-none border-0 bg-transparent p-0 text-sm leading-6 shadow-none focus-visible:ring-0" />
+          }} aria-describedby={`${inputId}-hint`} placeholder={projectName === "个人会话" ? "写下想法，+ 添加文件或资料…" : `讨论${projectName}，+ 添加资料…`} className="custom-scrollbar min-h-10 max-h-36 resize-none rounded-none border-0 bg-transparent p-0 text-sm leading-6 shadow-none focus-visible:ring-0" />
           <div className="mt-2 flex items-center justify-between gap-2">
             <DropdownMenu.Root><DropdownMenu.Trigger asChild><Button variant="ghost" size="icon" className="h-7 w-7 rounded-full" aria-label="添加文件与工具"><Plus size={18} /></Button></DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content align="start" side="top" sideOffset={10} collisionPadding={12} className="ai-add-menu z-70 max-h-[min(540px,70dvh)] w-72 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-[0_12px_40px_-12px_rgba(0,0,0,0.25)]">
               <DropdownMenu.Label className="px-3 pt-2 pb-1 text-xs text-muted-foreground">添加内容</DropdownMenu.Label>
@@ -382,13 +385,14 @@ function DraftEditor({ draft, store, persistRef, focusOnOpen, compact, userId, p
             <div className="flex min-w-0 items-center gap-1.5"><Button variant="ghost" size="sm" className="h-7 max-w-44 truncate text-xs text-muted-foreground" onClick={() => onConfigure("model")}><span className="truncate">{preferences.ai.model.model || "选择模型"}</span><ChevronDown size={12} /></Button><Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground" aria-label="复制会话内容" disabled={!text.trim() && !messages.length} onClick={copyText}><Copy size={15} /></Button><Button size="icon" className="h-7 w-7 rounded-full" aria-label="记录到本地会话" title="记录到本地会话（不发送给模型）" disabled={importing || (!text.trim() && !draft.materials?.length)} onClick={recordMessage}><ArrowUp size={16} /></Button></div>
           </div>
         </div>
-        <div id="ai-draft-hint" className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground"><span>模型未接入 · 仅本地记录</span><span role="status" className="truncate text-right">{feedback || (dirty ? "保存中…" : text ? "草稿已保存" : "Ctrl / ⌘ + Enter 记录")}</span></div>
+        <div id={`${inputId}-hint`} className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground"><span>模型未接入 · 仅本地记录</span><span role="status" className="truncate text-right">{feedback || (dirty ? "保存中…" : text ? "草稿已保存" : "Ctrl / ⌘ + Enter 记录")}</span></div>
       </div>
     </div>
-    {materialsMode && <MaterialsDialog key={`${materialsMode.kind}:${"id" in materialsMode ? materialsMode.id ?? "" : ""}`} mode={materialsMode} onClose={() => setMaterialsMode(null)} items={draftMaterials(draft)} userId={userId} importError={materialError} importing={importing} onImport={importFiles} onPick={() => fileInputRef.current?.click()} onAttachText={(content) => {const next = text.trim() ? `${text.trimEnd()}\n\n${content}` : content;if (next.length > MAX_DRAFT_LENGTH) return "目录超过输入框剩余额度，可复制目录单独保存";applyPrompt(content);setMaterialsMode(null);return null;}} />}
+    {materialsMode && <MaterialsDialog key={`${materialsMode.kind}:${"id" in materialsMode ? materialsMode.id ?? "" : ""}`} mode={materialsMode} onClose={() => setMaterialsMode(null)} onReturnFocus={() => inputRef.current?.focus()} items={draftMaterials(draft)} userId={userId} importError={materialError} importing={importing} onImport={importFiles} onPick={() => fileInputRef.current?.click()} onAttachText={(content) => {const next = text.trim() ? `${text.trimEnd()}\n\n${content}` : content;if (next.length > MAX_DRAFT_LENGTH) return "目录超过输入框剩余额度，可复制目录单独保存";applyPrompt(content);setMaterialsMode(null);return null;}} />}
   </div>;
 }
-export function AiWorkspace({ userId, projects, compact = false, saveGuardRef }: { userId: string; projects: Project[]; compact?: boolean; saveGuardRef?: React.RefObject<(() => boolean) | null> }) {
+export function AiWorkspace({ userId, projects, compact = false, saveGuardRef, busyRef }: { userId: string; projects: Project[]; compact?: boolean; saveGuardRef?: React.RefObject<(() => boolean) | null>; busyRef?: React.RefObject<boolean> }) {
+  const inputId = useId();
   const store = useMemo(() => browserDraftStore(userId), [userId]);
   const snapshot = useSyncExternalStore(
     store.subscribe,
@@ -523,7 +527,7 @@ export function AiWorkspace({ userId, projects, compact = false, saveGuardRef }:
                   ref={historyTrigger}
                   size="icon"
                   variant="ghost"
-                  className={compact ? "hidden" : "h-8 w-8 text-muted-foreground lg:hidden"}
+                  className={compact ? "h-8 w-8 text-muted-foreground" : "h-8 w-8 text-muted-foreground lg:hidden"}
                   aria-label="打开对话草稿列表"
                 >
                   <MessageSquare size={17} />
@@ -614,6 +618,8 @@ export function AiWorkspace({ userId, projects, compact = false, saveGuardRef }:
           draft={activeDraft}
           store={store}
           persistRef={persistRef}
+          busyRef={busyRef}
+          inputId={inputId}
           focusOnOpen={focusOnOpen}
           compact={compact}
           userId={userId}
@@ -633,7 +639,7 @@ export function AiWorkspace({ userId, projects, compact = false, saveGuardRef }:
             onCloseAutoFocus={(event) => {
               event.preventDefault();
               if (returnFocus.current?.isConnected) returnFocus.current.focus();
-              else document.getElementById("ai-draft-input")?.focus();
+              else document.getElementById(inputId)?.focus();
             }}
             className="dialog-surface fixed top-1/2 left-1/2 z-70 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-card p-6 shadow-xl"
           >

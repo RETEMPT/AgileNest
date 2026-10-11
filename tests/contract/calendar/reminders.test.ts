@@ -37,6 +37,7 @@ describe("calendar 本人提醒服务", () => {
     const messages = await db.select().from(notifications);
     expect(messages).toHaveLength(1);
     expect(messages[0].userId).toBe(fx.student.id);
+    expect(messages[0].createdAt.getTime()).toBe(due.getTime());
   });
   it("旧日程版本或旧提醒版本返回409，并发设置只有一次成功", async () => {
     const user = await makeUser("reminder-version@agilenest.local");

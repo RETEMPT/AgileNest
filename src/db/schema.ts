@@ -602,3 +602,64 @@ export const personalTaskViews = pgTable("personal_task_views", {
   schemaVersion: integer("schema_version").notNull().default(1), version: integer("version").notNull().default(1),
   createdAt: timestamp("created_at").notNull().defaultNow(), updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [uniqueIndex("personal_task_views_name_unique").on(t.userId, t.projectId, sql`lower(${t.name})`), index("personal_task_views_user_project_idx").on(t.userId, t.projectId), check("personal_task_views_name_check", sql`char_length(btrim(${t.name})) between 1 and 80`), check("personal_task_views_layout_check", sql`${t.layout} in ('tasks', 'board', 'table')`), check("personal_task_views_group_check", sql`${t.groupBy} in ('status', 'assignee', 'priority', 'milestone')`), check("personal_task_views_schema_check", sql`${t.schemaVersion} = 1`), check("personal_task_views_version_check", sql`${t.version} > 0`)]);
+
+export const resourceFolderCategories = pgTable("resource_folder_categories", {
+  folderId: uuid("folder_id").primaryKey().references(() => resourceFolders.id, { onDelete: "cascade" }),
+  category: text("category").$type<"general" | "specification" | "research" | "delivery" | "meeting">().notNull().default("general"),
+}, (t) => [check("resource_folder_categories_category_check", sql`${t.category} in ('general', 'specification', 'research', 'delivery', 'meeting')`)]);
+
+export const resourceTrash = pgTable("resource_trash", {
+  resourceId: uuid("resource_id").primaryKey().references(() => teamResources.id, { onDelete: "cascade" }),
+  version: integer("version").notNull().default(1),
+  trashedById: uuid("trashed_by_id").references(() => users.id, { onDelete: "set null" }),
+  trashedAt: timestamp("trashed_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [check("resource_trash_version_check", sql`${t.version} > 0`)]);
+
+export const deliveryBatches = pgTable("delivery_batches", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(), description: text("description").notNull().default(""),
+  ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+  dueDate: date("due_date", { mode: "string" }),
+  checklist: jsonb("checklist").$type<import("@/modules/delivery/client").DeliveryCheck[]>().notNull().default([]),
+  status: text("status").$type<"draft" | "completed">().notNull().default("draft"),
+  archived: boolean("archived").notNull().default(false), version: integer("version").notNull().default(1),
+  completedById: uuid("completed_by_id").references(() => users.id, { onDelete: "set null" }),
+  completedAt: timestamp("completed_at"),
+  createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(), updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("delivery_batches_project_idx").on(t.projectId), check("delivery_batches_name_check", sql`char_length(btrim(${t.name})) between 1 and 120`), check("delivery_batches_status_check", sql`${t.status} in ('draft', 'completed')`), check("delivery_batches_version_check", sql`${t.version} > 0`)]);
+
+export const deliveryEntries = pgTable("delivery_entries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  batchId: uuid("batch_id").notNull().references(() => deliveryBatches.id, { onDelete: "cascade" }),
+  taskId: uuid("task_id").notNull().references(() => tasks.id, { onDelete: "restrict" }),
+  submissionId: uuid("submission_id").notNull().references(() => taskSubmissions.id, { onDelete: "restrict" }),
+  snapshot: jsonb("snapshot").$type<import("@/modules/tasks").ApprovedTaskSubmission>().notNull(),
+  createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("delivery_entries_batch_task_unique").on(t.batchId, t.taskId), index("delivery_entries_submission_idx").on(t.submissionId)]);
+
+export const deliveryIssues = pgTable("delivery_issues", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  batchId: uuid("batch_id").notNull().references(() => deliveryBatches.id, { onDelete: "cascade" }),
+  taskId: uuid("task_id").references(() => tasks.id, { onDelete: "restrict" }),
+  title: text("title").notNull(), detail: text("detail").notNull().default(""),
+  ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+  resolution: text("resolution"), resolved: boolean("resolved").notNull().default(false),
+  version: integer("version").notNull().default(1),
+  createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(), updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("delivery_issues_batch_idx").on(t.batchId), check("delivery_issues_title_check", sql`char_length(btrim(${t.title})) between 1 and 200`), check("delivery_issues_version_check", sql`${t.version} > 0`)]);
+
+export const deliveryRecords = pgTable("delivery_records", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  batchId: uuid("batch_id").notNull().references(() => deliveryBatches.id, { onDelete: "restrict" }),
+  action: text("action").$type<import("@/modules/delivery/client").DeliveryRecordAction>().notNull(),
+  version: integer("version").notNull(),
+  actorId: uuid("actor_id").references(() => users.id, { onDelete: "set null" }),
+  nameSnapshot: text("name_snapshot"),
+  snapshot: jsonb("snapshot").$type<import("@/modules/delivery/client").DeliverySnapshot>().notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("delivery_records_batch_version_unique").on(t.batchId, t.version), check("delivery_records_version_check", sql`${t.version} > 0`), check("delivery_records_action_check", sql`${t.action} in ('create', 'edit', 'bind', 'unbind', 'issue', 'resolve', 'reopenIssue', 'complete', 'reopen', 'archive', 'restore')`)]);

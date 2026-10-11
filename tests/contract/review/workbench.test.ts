@@ -9,7 +9,7 @@ import {
   listPendingReview,
   listTaskEvents,
 } from "@/modules/review";
-import { createTask, getTaskDelivery } from "@/modules/tasks";
+import { availableTransitions, changeTaskOrganization, createSubtask, createTask, getTaskDelivery, getTaskOrganization } from "@/modules/tasks";
 import {
   updateMemberPositions,
   updateProject,
@@ -56,6 +56,36 @@ describe("统一工作台", () => {
     expect(work.mine).toHaveLength(1);
     expect(work.mine[0].projectName).toBe(fx.project.name);
     expect(work.mine[0].permissions.actions).toContain("submit");
+  });
+  it("工作台透传前置依赖守卫，完成前置任务后恢复提交入口", async () => {
+    const blocker = await createTask(fx.admin.id, fx.project.id, { title: "准备研究材料", assigneeId: fx.student.id });
+    const task = await createTask(fx.admin.id, fx.project.id, { title: "整理研究结论", assigneeId: fx.student.id });
+    const organization = await getTaskOrganization(fx.admin.id, task.id);
+    await changeTaskOrganization(fx.admin.id, task.id, { op: "addDependency", version: organization.version, direction: "blockedBy", otherTaskId: blocker.id });
+    const blocked = (await getWorkbench(fx.student.id)).mine.find((item) => item.id === task.id)!;
+    expect(blocked).toMatchObject({ blocked: true, blockedByIds: [blocker.id] });
+    expect(availableTransitions(blocked, "student", fx.student.id).map((rule) => rule.action)).not.toContain("submit");
+    await submitEvidence(fx.student.id, blocker.id, "材料已整理");
+    await reviewEvidence(fx.teacher.id, blocker.id, "accept", "材料齐全");
+    const ready = (await getWorkbench(fx.student.id)).mine.find((item) => item.id === task.id)!;
+    expect(ready.blocked).toBe(false);
+    expect(availableTransitions(ready, "student", fx.student.id).map((rule) => rule.action)).toContain("submit");
+  });
+  it("工作台与验收台复用子任务验收守卫，仍保留打回处理入口", async () => {
+    const parent = await createTask(fx.admin.id, fx.project.id, { title: "汇总项目材料", assigneeId: fx.student.id });
+    const child = await createSubtask(fx.admin.id, parent.id, { title: "核对附录", assigneeId: fx.student.id });
+    await submitEvidence(fx.student.id, parent.id, "汇总已提交");
+    const queue = (await listPendingReview(fx.teacher.id, fx.project.id)).find((task) => task.id === parent.id)!;
+    const work = (await getWorkbench(fx.teacher.id)).review.find((task) => task.id === parent.id)!;
+    for (const item of [queue, work]) {
+      expect(item.acceptBlocked).toBe(true);
+      expect(availableTransitions(item, "teacher", fx.teacher.id).map((rule) => rule.action)).toEqual(["reject"]);
+    }
+    await submitEvidence(fx.student.id, child.id, "附录已核对");
+    await reviewEvidence(fx.teacher.id, child.id, "accept", "附录完整");
+    const ready = (await listPendingReview(fx.teacher.id, fx.project.id)).find((task) => task.id === parent.id)!;
+    expect(ready.acceptBlocked).toBe(false);
+    expect(availableTransitions(ready, "teacher", fx.teacher.id).map((rule) => rule.action)).toEqual(["accept", "reject"]);
   });
   it("非成员无法从跨项目工作台看任务", async () => {
     await createTask(fx.admin.id, fx.project.id, { title: "私有任务" });

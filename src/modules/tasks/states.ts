@@ -138,6 +138,7 @@ export type TransitionContext = {
   permissions?: TaskPermissions;
   blocked?: boolean;
   reopenBlocked?: boolean;
+  acceptBlocked?: boolean;
 };
 
 export function availableTransitions(
@@ -148,6 +149,7 @@ export function availableTransitions(
   return TRANSITIONS.filter((rule) => {
     if (task.blocked && ["submit", "resubmit", "accept"].includes(rule.action)) return false;
     if (task.reopenBlocked && rule.action === "reopen") return false;
+    if (task.acceptBlocked && rule.action === "accept") return false;
     if (
       !rule.from.includes(task.status) ||
       !(task.permissions

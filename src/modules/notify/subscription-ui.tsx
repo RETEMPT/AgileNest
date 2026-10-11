@@ -91,7 +91,7 @@ const preferenceRows: { key: Exclude<keyof NotificationPreferences, "version">; 
   { key: "mentions", title: "直接 @ 提及", description: "成员在讨论或资料评论中明确提及你时提醒。" },
   { key: "resourceUpdates", title: "资料更新", description: "你关注的资料或项目内文档内容发生更新时提醒。" },
   { key: "reminders", title: "本人到期提醒", description: "已接入的任务到期与本人提醒；不包含他人的私人日程。" },
-  { key: "showBubble", title: "小助手提醒气泡", description: "只控制右下角气泡展示，关闭后消息仍保留在通知中心。" },
+  { key: "showBubble", title: "协作中心浮动入口", description: "显示右下角统一的消息与 AI 草稿入口。关闭后消息继续接收，可从消息中心查看；AI 草稿仍可在完整工作区编辑。" },
 ];
 
 export function NotificationPreferencesPanel({ compact = false }: { compact?: boolean }) {

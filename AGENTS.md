@@ -55,6 +55,8 @@
 
 用户随后明确要求管理员、副管理员、组员等多重职务。foundation/identity 增加独立 deputy 职务、同源能力与成员界面；root 接续 resources 管理能力与 notify 验收收件人。仅为该新职务在既有 team_position 枚举末尾追加 deputy，另立 member-deputy.sql 迁移，不重排旧 schema/修改旧迁移。副管理员管理日常团队、项目、资料和验收；职务授予、身份确认及最后管理员保护保持主管理员负责。其他成员未被自动升职，core、登录与依赖仍锁定。
 
+用户授权本轮完善分类内主题文件夹、多层资料、可恢复回收站，统一右下角消息与 AI 草稿图标，并以飞书为主将 R6 调整为通用项目协作。集成分支 `codex/v050-collaboration-release`：resources Owner 负责分类目录与资料恢复；A/tasks 和新增 delivery Owner 负责绑定通过版本的阶段交付、评审问题、清单、归档和导出；foundation/notify UI Owner 负责统一协作中心；root 串行追加 schema/迁移、公开壳和导航、契约文档、R7 综合验收与 Windows 运行包。验收后按用户明确授权合入 main，发布 0.5.0 和 GitHub Release；core、登录和依赖继续锁定，GitHub 仅可选成果链接，不将所有项目视为代码项目，不实现外部同步、实时共同编辑或群聊。范围和检查记录统一见 docs/COLLABORATION-WORKSPACE.md。
+
 ## 2. 架构不变量
 
 1. **模块化单体**：`src/modules/<m>/{schema,service,actions,api,ui,index}.ts`
@@ -138,3 +140,9 @@ npm run clean      # 清 .next / coverage
 - 平台账号、资料、团队权限、任务和验收独立于飞书；外部资料仅在本人确认后采用，不自动覆盖姓名、头像或身份。
 - 连接摘要不暴露 openId、密码或应用密钥；解绑只允许会话本人，校验当前绑定版本并保留可用登录方式。历史 `@feishu.local` 占位邮箱账号当前禁止解绑。
 - 尚未接入业务投递的飞书私信不显示启用开关或成功承诺；实际能力与联调范围同步 [docs/FEISHU.md](docs/FEISHU.md)。公共验证归 foundation，成员模块继续按 Owner 协作。
+
+## 9. 0.5.0 全态发布与验收接续范围
+
+用户在本轮补充要求管理者发布任务至最终验收的链路成熟完整。沿用 `codex/v050-collaboration-release`：A/tasks 与 delivery Owner 接续发布时的负责人、逐项验收要求、稳定请求键、编辑版本与草稿保护，以及指派/认领、执行、结构化提交、打回重交、逐项验收、重开和真实交付引用；C/review Owner 通过 tasks 公开查询与 `availableTransitions` 补齐并保留依赖、子任务与当前权限守卫，不复制状态机。创建输入实际字段为 acceptanceCriteria，验收要求保存使用 criteria；GUI 编辑必须携带 expectedUpdatedAt，submitted/accepted 的工作目标与验收要求冻结，变更需先打回或重开，历史提交/评审/交付快照保留。范围与签名见 [docs/TEAM.md](docs/TEAM.md) 的 0.5.0 契约。
+
+该接续范围不增加第六状态，不修改 core、登录文件或依赖，不扩大为 Sprint、代码同步、模型调用、实时共同编辑或群聊；各 Owner 只修改自身模块并通过登记的公开契约协作。DB 检查、构建、综合 GUI 验收及最终 main/0.5.0 Release 仍由 root 串行完成，不以子代理的局部检查代替发布验收。

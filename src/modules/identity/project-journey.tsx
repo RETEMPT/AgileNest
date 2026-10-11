@@ -7,6 +7,7 @@ import {
   FolderOpen,
   ListTodo,
   MessagesSquare,
+  PackageCheck,
   Users,
 } from "lucide-react";
 import type { TaskStatus } from "@/db/schema";
@@ -73,13 +74,22 @@ export function ProjectJourney({
       action: canExecute ? "查看我的待提交任务" : "查看已提交成果",
     },
     {
-      title: "验收与交付",
+      title: "成果验收",
       icon: ClipboardCheck,
       owner: "管理员、副管理员或指导老师",
-      description: "按指定提交版本逐项检查；通过完成交付，打回后修改重交。",
+      description: "按指定提交版本逐项检查，打回意见绑定原版本，修改后再重交。",
       output: "验收结论与修改意见",
       href: canReview ? `${base}/review` : `${base}/table?status=submitted`,
       action: canReview ? "进入成果验收" : "查看待验收任务",
+    },
+    {
+      title: "阶段交付",
+      icon: PackageCheck,
+      owner: "阶段责任人与验收负责人",
+      description: "把已通过的报告、设计或软件成果纳入阶段清单，处理评审问题后确认交付。",
+      output: "阶段清单与不可变交付记录",
+      href: `${base}/delivery`,
+      action: "整理与查看阶段交付",
     },
   ];
   const next = canReview && counts.submitted
@@ -123,8 +133,8 @@ export function ProjectJourney({
               ? {
                   title: "当前顶层任务已全部验收",
                   description: "回看成果版本与验收记录，核对阶段交付；新增工作仍可继续拆分任务。",
-                  href: `${base}/table?status=accepted`,
-                  action: "查看已验收成果",
+                  href: `${base}/delivery`,
+                  action: "核对阶段交付",
                 }
               : {
                   title: "从目标与任务开始协作",
@@ -139,13 +149,13 @@ export function ProjectJourney({
         <div className="max-w-2xl">
           <p className="text-xs font-medium text-brand">项目协作路径</p>
           <h2 id="project-journey-title" className="mt-2 text-lg font-semibold">从共同目标到可验收的成果</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">资料是协作依据，任务是执行单元，成果版本是验收依据。多个任务可以同时处于不同阶段。</p>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">适用于课题研究、课程作业、竞赛方案与软件研发。资料提供共同依据，任务推进工作，指定成果版本用于验收和阶段交付。</p>
         </div>
         <Button asChild variant="outline" size="sm">
           <Link href={`${base}/resources`}><FolderOpen className="h-4 w-4" />项目资料库</Link>
         </Button>
       </div>
-      <ol className="grid gap-0 divide-y divide-border lg:grid-cols-5 lg:divide-x lg:divide-y-0">
+      <ol className="grid gap-0 divide-y divide-border sm:grid-cols-2 xl:grid-cols-3">
         {steps.map((step, index) => (
           <li key={step.title} className="flex min-w-0 flex-col p-5">
             <div className="flex items-center gap-2">

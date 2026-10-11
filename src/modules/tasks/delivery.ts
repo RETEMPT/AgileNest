@@ -59,19 +59,21 @@ export async function saveTaskRequirements(actorId: string, taskId: string, inpu
     if (initial.parentTaskId) await tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, initial.parentTaskId)).for("update");
     const [currentTask] = await tx.select().from(tasks).where(eq(tasks.id, taskId)).for("update");
     if (!currentTask) throw new NotFoundError("任务不存在");
+    if (["submitted", "accepted"].includes(currentTask.status)) throw new ConflictError("待验收或已完成的任务不能修改验收要求，请先打回或重新打开；原提交与评审快照继续保留");
     const [current] = await tx.select().from(taskRequirements).where(eq(taskRequirements.taskId, taskId));
     if ((current?.version ?? 0) !== parsed.data.version) throw new ConflictError("验收要求已被修改，请重新加载后再保存");
     const next = { version: parsed.data.version + 1, criteria: parsed.data.criteria };
-    await tx.insert(taskRequirements).values({ taskId, ...next }).onConflictDoUpdate({
-      target: taskRequirements.taskId, set: { ...next, updatedAt: new Date() },
+    const now = new Date();
+    await tx.insert(taskRequirements).values({ taskId, ...next, updatedAt: now }).onConflictDoUpdate({
+      target: taskRequirements.taskId, set: { ...next, updatedAt: now },
     });
-    await tx.update(tasks).set({ updatedAt: new Date() }).where(eq(tasks.id, taskId));
-    await tx.insert(taskAcceptanceEvents).values({ taskId, actorId, action: "update", note: `更新验收要求 v${next.version}` });
+    await tx.update(tasks).set({ updatedAt: now }).where(eq(tasks.id, taskId));
+    await tx.insert(taskAcceptanceEvents).values({ taskId, actorId, action: "update", note: `更新验收要求 v${next.version}`, createdAt: now });
     return next;
   });
 }
 
-export async function writeSubmission(tx: DbTx, actorId: string, row: TaskRow, input?: DeliveryInput): Promise<string> {
+export async function writeSubmission(tx: DbTx, actorId: string, row: TaskRow, input: DeliveryInput | undefined, now: Date): Promise<string> {
   if (!input) throw new AppError("请填写完成说明、验证结果，并提供成果证据");
   const parsed = deliverySchema.safeParse(input);
   if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
@@ -85,7 +87,7 @@ export async function writeSubmission(tx: DbTx, actorId: string, row: TaskRow, i
     .where(eq(taskSubmissions.taskId, row.id)).orderBy(desc(taskSubmissions.version)).limit(1);
   const [author] = await tx.select({ name: users.name }).from(users).where(eq(users.id, actorId));
   const [submission] = await tx.insert(taskSubmissions).values({
-    taskId: row.id, version: (latest?.version ?? 0) + 1, submittedById: actorId, submittedByName: author?.name ?? null,
+    taskId: row.id, version: (latest?.version ?? 0) + 1, submittedById: actorId, submittedByName: author?.name ?? null, submittedAt: now,
     summary: delivery.summary, verification: delivery.verification, links: delivery.links, resources: [],
     criteria: requirements.criteria.map((criterion) => {
       const check = delivery.checks.find((item) => item.criterionId === criterion.id)!;
@@ -99,7 +101,7 @@ export async function writeSubmission(tx: DbTx, actorId: string, row: TaskRow, i
   return delivery.summary;
 }
 
-export async function writeReview(tx: DbTx, actorId: string, row: TaskRow, action: "accept" | "reject", input?: ReviewInput): Promise<string> {
+export async function writeReview(tx: DbTx, actorId: string, row: TaskRow, action: "accept" | "reject", input: ReviewInput | undefined, now: Date): Promise<string> {
   if (!input) throw new AppError("请选择当前提交版本并填写逐项验收意见");
   const parsed = reviewSchema.safeParse(input);
   if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
@@ -128,7 +130,7 @@ export async function writeReview(tx: DbTx, actorId: string, row: TaskRow, actio
   const [reviewer] = await tx.select({ name: users.name }).from(users).where(eq(users.id, actorId));
   await tx.insert(taskSubmissionReviews).values({
     submissionId: current.id, reviewerId: actorId, reviewerName: reviewer?.name ?? null,
-    action, summary: review.summary, checks: review.checks,
+    action, summary: review.summary, checks: review.checks, reviewedAt: now,
   });
   return review.summary;
 }

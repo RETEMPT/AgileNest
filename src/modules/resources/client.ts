@@ -20,6 +20,7 @@ export type ResourceQuery = {
   resource: string | null;
   folder?: string | null;
   revision?: number | null;
+  trash?: "active" | "recycle" | null;
 };
 const resourceIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -36,6 +37,7 @@ export function parseResourceQuery(params: URLSearchParams): ResourceQuery {
     kind: kind === "file" || kind === "document" || kind === "link" ? kind : "all",
     scope: scope === "team" || scope === "project" ? scope : "all",
     resource: resource && resourceIdPattern.test(resource) ? resource : null,
+    ...(params.get("trash") === "recycle" ? { trash: "recycle" as const } : {}),
     ...(folder ? { folder: folder === "root" || resourceIdPattern.test(folder) ? folder : null } : {}),
     ...(revision ? { revision: /^[1-9]\d{0,8}$/.test(revision) ? Number(revision) : null } : {}),
   };
@@ -54,16 +56,18 @@ export function resourceWorkspaceUrl(pathname: string, params: URLSearchParams, 
 export function selectResources(rows: readonly ResourceDTO[], query: ResourceQuery, folders: readonly ResourceFolderDTO[] = []) {
   const needle = query.q.trim().toLocaleLowerCase();
   const folderIds = query.folder && query.folder !== "root" ? folderDescendants(folders, query.folder) : null;
+  const legacyFolder = folders.some((folder) => folder.id === query.folder && folder.legacy);
   return rows.filter((row) =>
     (!query.folder || (query.folder === "root" ? !row.folderId : !!row.folderId && !!folderIds?.has(row.folderId))) &&
-    (query.category === "all" || row.category === query.category) &&
+    (legacyFolder || query.category === "all" || row.category === query.category) &&
     (query.kind === "all" || row.kind === query.kind) &&
     (query.scope === "all" || (query.scope === "team" ? row.projectId === null : row.projectId !== null)) &&
     `${row.title} ${row.tags.join(" ")} ${row.body ?? ""}`.toLocaleLowerCase().includes(needle),
   ).sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned));
 }
 
-export type ResourceFolderDTO = { id: string; teamId: string; projectId: string | null; projectName?: string | null; parentId: string | null; name: string; version: number; canManage: boolean };
+export type ResourceFolderDTO = { id: string; teamId: string; projectId: string | null; projectName?: string | null; parentId: string | null; name: string; category?: ResourceCategory; legacy?: boolean; version: number; canManage: boolean };
+export type ResourceTrashDTO = ResourceDTO & { trashedAt: string; trashedByName: string | null };
 export type ResourceLinkDTO = { id: string; kind: "resource" | "task"; targetId: string; title: string; href: string; direction: "outgoing" | "incoming"; canRemove: boolean };
 export type ResourceCommentDTO = { id: string; resourceId: string; parentId: string | null; body: string; resourceVersion: number; selectedQuote: string | null; line: number | null; version: number; withdrawn: boolean; resolved: boolean; authorName: string | null; createdAt: string; updatedAt: string; canEdit: boolean; canWithdraw: boolean; canResolve: boolean; mentions: { userId: string | null; name: string }[] };
 export type ResourceCollaborationDTO = { version: number; commentScope: "team" | "collaborators"; collaborators: { userId: string; name: string; permission: "comment" | "edit" }[]; members: { id: string; name: string }[] };
@@ -82,6 +86,7 @@ export function validateFolderMove(folders: readonly ResourceFolderDTO[], folder
   const parent = parentId ? folders.find((row) => row.id === parentId) : null;
   if (parentId && !parent) return "目标目录不存在";
   if (parent && (parent.teamId !== folder.teamId || parent.projectId !== folder.projectId)) return "目录只能移动到相同团队及项目范围";
+  if (parent && (parent.category ?? "general") !== (folder.category ?? "general")) return "主题文件夹只能移动到同一资料分类";
   const descendants = folderDescendants(folders, folder.id);
   if (parentId && descendants.has(parentId)) return "目录不能移动到自身或子目录";
   const baseDepth = folderPath(folders, parentId).length;

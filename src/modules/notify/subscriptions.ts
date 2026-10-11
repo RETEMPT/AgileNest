@@ -1,6 +1,6 @@
-import { and, desc, eq, inArray, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { db, type DbTx } from "@/db";
-import { collaborationNotificationEvents, notificationFollows, notificationPreferences, notifications, projects, tasks, teamMembers, teamResources, teams, users } from "@/db/schema";
+import { collaborationNotificationEvents, notificationFollows, notificationPreferences, notifications, projects, resourceTrash, tasks, teamMembers, teamResources, teams, users } from "@/db/schema";
 import { AppError, ConflictError, ForbiddenError, NotFoundError, requireProjectForUser, requireTeamRole } from "@/modules/core";
 import { DEFAULT_NOTIFICATION_PREFERENCES, followTargetSchema, notificationCategoryFor, type FollowState, type FollowTarget, type NotificationPreferences } from "./client";
 import { collaborationNoticeSchema, followUpdateSchema, preferencesUpdateSchema, type CollaborationNoticeInput } from "./schema";
@@ -23,7 +23,7 @@ async function accessTarget(actorId: string, target: FollowTarget, database: DbT
     const [row] = await database.select({ teamId: projects.teamId, projectId: tasks.projectId, title: tasks.title }).from(tasks).innerJoin(projects, eq(projects.id, tasks.projectId)).where(eq(tasks.id, target.id));
     scope = row;
   } else {
-    const [row] = await database.select({ teamId: teamResources.teamId, projectId: teamResources.projectId, title: teamResources.title }).from(teamResources).where(eq(teamResources.id, target.id));
+    const [row] = await database.select({ teamId: teamResources.teamId, projectId: teamResources.projectId, title: teamResources.title }).from(teamResources).leftJoin(resourceTrash, eq(resourceTrash.resourceId, teamResources.id)).where(and(eq(teamResources.id, target.id), isNull(resourceTrash.resourceId)));
     scope = row;
     if (row?.projectId) {
       const [project] = await database.select({ teamId: projects.teamId }).from(projects).where(eq(projects.id, row.projectId));
@@ -105,8 +105,8 @@ export type FollowedItem = { target: FollowTarget; title: string; link: string; 
 export async function listMyFollows(actorId: string): Promise<FollowedItem[]> {
   await requireAccount(actorId);
   const rows = await db.select({ follow: notificationFollows, project: projects, task: tasks, resource: { id: teamResources.id, teamId: teamResources.teamId, projectId: teamResources.projectId, title: teamResources.title } })
-    .from(notificationFollows).leftJoin(projects, eq(projects.id, notificationFollows.projectId)).leftJoin(tasks, eq(tasks.id, notificationFollows.taskId)).leftJoin(teamResources, eq(teamResources.id, notificationFollows.resourceId))
-    .where(and(eq(notificationFollows.userId, actorId), eq(notificationFollows.active, true))).orderBy(desc(notificationFollows.updatedAt)).limit(100);
+    .from(notificationFollows).leftJoin(projects, eq(projects.id, notificationFollows.projectId)).leftJoin(tasks, eq(tasks.id, notificationFollows.taskId)).leftJoin(teamResources, eq(teamResources.id, notificationFollows.resourceId)).leftJoin(resourceTrash, eq(resourceTrash.resourceId, notificationFollows.resourceId))
+    .where(and(eq(notificationFollows.userId, actorId), eq(notificationFollows.active, true), isNull(resourceTrash.resourceId))).orderBy(desc(notificationFollows.updatedAt)).limit(100);
   const memberships = await db.select({ teamId: teamMembers.teamId }).from(teamMembers).where(eq(teamMembers.userId, actorId));
   const teamIds = new Set(memberships.map((member) => member.teamId));
   const taskProjectIds = [...new Set(rows.filter((row) => row.task).map((row) => row.task!.projectId))];
@@ -155,12 +155,13 @@ export async function deliverCollaborationNotice(actorId: string, input: Collabo
   const byUser = new Map(preferences.map((row) => [row.userId, preferencesDTO(row)]));
   const regularType = typeOverride ?? (notice.event === "discussion" ? "task_discussion" : notice.event);
   const category = notificationCategoryFor(regularType);
+  const createdAt = new Date();
   const values = candidates.flatMap((userId) => {
     const preference = byUser.get(userId) ?? DEFAULT_NOTIFICATION_PREFERENCES;
     const receivesMention = mentioned.has(userId) && preference.mentions;
     const receivesRegular = (participants.has(userId) || watchers.has(userId)) && preference[category];
     if (!receivesMention && !receivesRegular) return [];
-    return [{ userId, type: receivesMention ? "collaboration_mention" : regularType, title: notice.title, body: notice.body ?? null, link: notice.link }];
+    return [{ userId, type: receivesMention ? "collaboration_mention" : regularType, title: notice.title, body: notice.body ?? null, link: notice.link, createdAt }];
   });
   if (values.length) await database.insert(notifications).values(values);
 }

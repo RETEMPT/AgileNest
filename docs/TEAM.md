@@ -15,6 +15,7 @@ src/modules/
   resources/   团队/项目文档 · 文件 · 交付证据          foundation
   discussions/ 任务讨论 · 回复 · 历史 · 附件引用        C / root
   tasks/       任务 CRUD · 子任务 · 五态状态机         A
+  delivery/    阶段交付 · 通过版本 · 清单 · 历史导出    A
   board/       看板 + 表格 · 筛选 · 拖拽               B
   review/      双端工作台 · 验收台 · 活动流            C
   worklog/     工时 · 完成度 · 贡献（含原 stats）      D
@@ -40,6 +41,7 @@ views.tsx    可选：公开服务端页面组合
 数据表归属：`users/teams/team_members/projects/academic_profiles/member_positions/academic_confirmations` → identity · `tasks` → tasks · `milestones` → milestone · `worklogs` → worklog · `task_acceptance_events` → review · `notifications` → notify。
 新增表归属：`team_profiles/team_announcements` → identity；`task_requirements/task_submissions/task_submission_reviews` → tasks；`team_resources/resource_revisions/resource_references` → resources。
 rc.7 追加：`task_discussion_posts/task_discussion_revisions/discussion_resource_references` → discussions，原文件存储仍归 resources。
+0.5.0 追加：`delivery_batches/delivery_entries/delivery_issues/delivery_records` → delivery；`resource_folder_categories/resource_trash` → resources。
 `src/db/schema.ts` 是 barrel，本期集中放一份，**只追加不重排**。
 
 ---
@@ -191,13 +193,13 @@ removeTeamMember(actorId, teamId, targetUserId)
 ### `@/modules/tasks`（A）
 
 ```ts
-type TaskDTO / TaskPatch / TransitionInput / TransitionAction
+type TaskDTO / TaskPatch / TransitionInput / TransitionAction / TransitionContext
 type AcceptanceCriterion / DeliveryInput / ReviewInput / SubmissionDTO / TaskDeliveryDTO
 
 listProjectTasks(actorId, projectId, filters?)
 getTaskDetail(actorId, taskId)                    // 含 subtasks
 createTask(actorId, projectId, input)
-updateTask(actorId, taskId, patch)
+updateTask(actorId, taskId, patch, expectedUpdatedAt?: string)
 deleteTask(actorId, taskId)
 transitionTask(actorId, taskId, action, input?)   // 唯一状态入口
 createSubtask(actorId, parentTaskId, input)
@@ -207,11 +209,11 @@ getTaskDelivery(actorId, taskId)
 saveTaskRequirements(actorId, taskId, { version, criteria })
 deliverySchema / reviewSchema
 
-availableTransitions(task: { status, assigneeId, permissions? }, role, actorId): TransitionRule[]
+availableTransitions(task: TransitionContext, role, actorId): TransitionRule[]
 STATUS_DESCRIPTIONS / canDeleteTask(role)
 ```
 
-状态机唯一真相是模块内部 `states.ts` 的 `TRANSITIONS`，外部通过 `@/modules/tasks` 或浏览器安全的 `@/modules/tasks/client` 使用。`TaskDTO.permissions?: TaskPermissions` 是当前操作者的权限引导快照，任务服务返回时按职务与场景计算；`availableTransitions` 同时处理状态、能力和负责人限制。纯函数旧调用未提供快照时保留三态角色兼容；服务端总是重新计算当前能力。`toDTO(row)` 签名保持不变，旧工作台 DTO 由共享 TaskActions 在显示前补齐权限。`claim` 由当前用户认领，管理员保留代提交权限。`transitionTask` 在行锁事务中同时写状态与活动事件，通知在提交后发送。公开 UI：`tasks/ui` 的 `TaskWorkflow`、`TaskActions`、`TransitionDialog`、`CreateTaskForm`；`tasks/views` 的任务池与详情组合。详情页必须检查 URL 的 projectId 与任务归属一致。
+状态机唯一真相是模块内部 `states.ts` 的 `TRANSITIONS`，外部通过 `@/modules/tasks` 或浏览器安全的 `@/modules/tasks/client` 使用。`TaskDTO.permissions?: TaskPermissions` 是当前操作者的权限引导快照，任务服务返回时按职务与场景计算；`availableTransitions` 同时处理状态、能力、负责人、依赖和子任务限制。纯函数旧调用未提供快照时保留三态角色兼容；服务端总是重新计算当前能力。`toDTO(row)` 签名保持不变，消费方必须保留公开任务查询返回的权限与守卫字段。`claim` 由当前用户认领，管理员保留代提交权限。`transitionTask` 在行锁事务中同时写状态与活动事件，通知在提交后发送。公开 UI：`tasks/ui` 的 `TaskWorkflow`、`TaskActions`、`TransitionDialog`、`CreateTaskForm`；`tasks/views` 的任务池与详情组合。详情页必须检查 URL 的 projectId 与任务归属一致。
 
 ### `@/modules/board`（B）
 
@@ -523,3 +525,42 @@ foundation 在 `codex/fix-postgres-launch-hang` 修复 Windows PowerShell 等待
 - `board/client`导出SavedTaskViewDTO/Input/Update/Layout、白名单Zod与savedTaskViewUrl/Summary；schemaVersion1，名字忽略大小写在本人/项目唯一。分享用workspaceUrl，保存项不存任意URL、task详情或授予访问权。
 
 22张表仅在schema末尾追加，独立可重复迁移`collaboration-foundations.sql`与脚本（dev/--test）。副管理员为用户后续授权的最小额外增量：既有team_position枚举末尾增加deputy，另立`member-deputy.sql`与脚本；不改旧表或历史SQL/hash。root串行应用并保留旧数据，运行包迁移列表末尾追加。全文实时共同编辑和群聊仅方案，当前服务不声称WebSocket、外部投递或模型调用已实现。
+
+## 0.5.0 通用协作与交付契约
+
+本轮分支 `codex/v050-collaboration-release`；resources Owner 负责分类主题/回收，A/tasks 和 delivery Owner 负责阶段交付，foundation/notify UI Owner 负责统一浮动入口，root 负责 schema/迁移/公开路由壳/导航/文档/R7/发布。不修改 core、登录、历史迁移或依赖声明。
+
+### resources
+
+- `createResource(actorId,input)` 追加可空 `folderId`；`uploadResource(actorId,scope,file,tags,placement?)` 的可选第五参为 `{folderId?,category?}`，兼容原四参调用。新建/上传在同事务校验空间、分类与目录并归位。
+- `ResourceFolderDTO` 追加 `category?`、`legacy?`；`folder.create` 分类缺省继承父目录或 general。新目录按分类组织并禁止跨分类/空间移动；缺少分类元数据的旧目录用兼容视图保留原混合分类资料与位置，禁止静默丢失内容。
+- 当前团队成员可建立本人主题/子文件夹，创建者或管理员/副管理员可管理目录。`deleteResourceFolder(actorId,{folderId,version})` 仅删除空目录，含回收资料的位置引用也阻止删除。
+- `deleteResource(actorId,id,version)` 与资源 DELETE 语义为可恢复回收，原文件、正文版本与引用保留；绑定成果、讨论或行动项的证据拒绝回收。普通列表、正文/历史/文件流与关注入口排除回收资料。
+- `listResourceTrash(actorId,{teamId?,projectId?}): ResourceTrashDTO[]` 与 `restoreResource(actorId,{resourceId,version}): ResourceDTO` 根导出；作者或管理员/副管理员可恢复，版本再次递增，旧恢复请求 409。无永久删除/30天自动清理。
+- workspace GET `?trash=true&projectId/teamId`；POST 增加 `folder.delete`、`resource.restore`。公开 `resources/ui` 继续为唯一跨模块 UI 入口。
+
+### tasks / delivery
+
+- `createTask(actorId,projectId,input)` 的输入结构（服务内部名 `TaskCreateInput`，不是命名导出）追加 `acceptanceCriteria?: AcceptanceCriterion[]`、`requestKey?: string`。`AcceptanceCriterion={id:string,text:string}`；服务保留旧调用缺省兼容，GUI 发布必须有 1–30 项不重复的验收要求，并将任务、负责人、要求 v1 和创建事件原子保存。`criteria` 字段用于 `saveTaskRequirements(actorId,taskId,{version,criteria})`，不能替代创建输入的 `acceptanceCriteria`。
+- `createSubtask(actorId,parentTaskId,{title,description?,dueDate?,priority?,assigneeId?,acceptanceCriteria?,requestKey?})` 复用同一创建校验、事务与权限；不能继续嵌套，也不能向 submitted/accepted 的父任务增加子任务。负责人从当前团队可执行成员按姓名选择；有指派能力可指定他人，否则仅本人或任务池。
+- 创建任务和子任务使用稳定 UUID `requestKey` 防重复提交；响应丢失后以原键重试只复用本人同项目、同父任务的原任务，不覆盖内容、不增加创建事件或重复指派通知。跨账号、项目或父任务复用同键返回 409。成功后 GUI 才生成下一次请求键，失败保留输入。
+- `updateTask(actorId,taskId,patch,expectedUpdatedAt?:string)` 的可选第四参兼容旧服务调用；GUI 编辑 action 必须传原 `TaskDTO.updatedAt.toISOString()`。锁定后检查版本，不匹配返回 409 并保留草稿。submitted/accepted 冻结 title、description 和验收要求，需先打回/重开才可更改；排期、优先级等仍可调整。保存验收要求至少保留一项，旧版提交/评审快照不可覆盖。
+- `TaskDTO` 和 `TransitionContext` 追加 `acceptBlocked?:boolean`，表示仍有未验收通过的子任务；`getTaskDetail/listProjectTasks` 查询真实子任务，不能因列表筛选而丢失该守卫。`availableTransitions` 为 true 时不提供 accept，reject 仍按原权限可用；服务端事务再次检查。review 工作台/验收台按项目通过公开 `listProjectTasks` 补齐并保留 blocked/reopenBlocked/acceptBlocked，不复制状态机或只用裸 `toDTO` 判断可操作入口。
+- 提交/重交仍须要求版本、完成说明、验证结果、链接或真实附件及逐项对应；accept/reject 指定当前 submissionId，打回保留逐项问题和总体意见。负责人变化后原负责人不能继续提交；状态仍只有 unclaimed/in_progress/submitted/rejected/accepted，发布→指派/认领→执行→提交→打回/重交→逐项通过→重开都走 `transitionTask`。
+- 发布、编辑、验收要求保存和状态流转路径中新写入任务/验收要求/活动事件显式传入 Date，提交 submittedAt、评审 reviewedAt 与同次状态操作的任务时间、事件时间共用一个时刻，不依赖数据库会话本地 defaultNow。已有提交/评审版本不修改时间；历史 legacy 提交转换继续沿用其原 submittedAt。
+- tasks 根导出 `ApprovedTaskSubmission={taskId:string,taskTitle:string,submission:SubmissionDTO}`、`listApprovedTaskSubmissions(actorId,projectId):Promise<ApprovedTaskSubmission[]>` 和 `getApprovedTaskSubmission(actorId,projectId,taskId,submissionId,tx?):Promise<ApprovedTaskSubmission>`；当前项目 ACL、真实 accepted 状态、提交属于任务且存在 accept 评审。写调用传入同一事务，getter 持有同源任务行锁；候选可以包含同一当前已通过任务的历史通过版本。
+- 新增 delivery 模块根契约：`getProjectDeliveries(actorId,projectId):Promise<DeliveryProjectDTO>`、`getDeliveryBatch(actorId,batchId):Promise<DeliveryBatchDTO>`、`createDeliveryBatch(actorId,projectId,input:DeliveryBatchInput,requestKey?:string):Promise<string>`、`mutateDeliveryBatch(actorId,batchId,input:DeliveryMutation):Promise<DeliveryBatchDTO>`、`exportDeliveryRecord(actorId,batchId,version,format:"markdown"|"json"):Promise<{fileName:string,body:string}>`。根导出 DeliveryBatchDTO/DeliveryProjectDTO/DeliveryBatchInput/DeliveryMutation/DeliveryCheck/DeliverySnapshot/DeliveryRecordDTO；浏览器安全 `client` 另提供校验和展示纯函数。`delivery/ui`、`delivery/views.DeliveryProjectView({params,searchParams})` 登记为公共 UI/页面组合入口。
+- 交付创建 POST 体追加可选 UUID requestKey，GUI 必传稳定键；同账号、同项目重试返回原批次 ID，不覆盖第一次成功内容或增加记录，其他账号/项目复用返回 409。取得创建成功 ID 后先清理新建输入并选中批次，再刷新列表；刷新失败明确显示已建立，不能提示用户重复建立。
+- 项目管理或验收职务可整理批次，管理员/副管理员/指导老师确认或重开；普通组员可处理分配给自己的评审问题。按团队→批次→任务锁后重验当前职务与归属。日期真实有效，责任人按姓名选当前团队成员。
+- `DeliveryCheck={id:string,text:string,checked:boolean,note:string}`，checked/note 都必填；mutation 含 edit/bind/unbind/issue/resolve/reopenIssue/complete/reopen/archive/restore，并携带批次版本，问题处理还携带问题版本。确认要求责任人、逐项清单、至少一个真实通过版本及全部问题处理完成；再次核对当前真实 task/submission。已确认记录只允许明确重开、归档和恢复，不覆盖旧快照；重开取消当前清单勾选、保留旧记录。
+- deliveryEntries 固定绑定任务/通过 submissionId，证据沿用真实提交文件引用，无任意 resourceId 快照；独立历史 snapshot 与 deliveryRecords 每批次/版本唯一。后来任务重开时显示当前状态差异；任务/子任务删除保护当前和历史交付引用。批次读取带最近 40 条记录，指定历史记录版本仍可 Markdown/JSON 导出；导出重新检查当前项目读取权，使用当时快照而不是当前批次覆盖历史。
+- 所有业务确认使用复用 Radix 弹窗；默认聚焦取消，Esc 取消后返回原触发按钮，提交期间禁止关闭和重复操作。确认捕获打开时批次版本，旧版本明确提示重新核对。新写入批次、条目、问题和历史记录都显式使用 UTC Date；同次操作的 completedAt/updatedAt/record.createdAt 一致，不混用数据库会话本地 defaultNow。
+- 页面 `/p/:projectId/delivery`；API `/projects/:projectId/delivery` GET/POST、`/delivery/:batchId` GET/PATCH、`/delivery/:batchId/export?version=&format=markdown|json` GET（均位于 `/api/v1`）。根薄壳导出 projectDeliveriesGET/POST、deliveryBatchGET/PATCH、deliveryExportGET，另有 GET/POST/BATCH_GET/BATCH_PATCH/EXPORT_GET 别名；路由只调用登记入口。
+
+### 统一协作中心与发布
+
+- `components/ai/floating.openCollaborationDock(panel?: "notifications"|"ai")`；原 `openAiFloating()`/旧事件兼容。右下角只一个图标，真实未读、消息类别/仅未读和本地草稿标签共用。通知 `showBubble` 控制整个浮动入口，消息仍可从完整消息页读取。
+- 草稿存储键与按账号隔离保持，切换/关闭先保存，导入等待或失败保留输入；模型不接入。站内消息只读预览不自动标已读。
+- `components/ai/workspace.AiWorkspace({userId,projects,compact?,saveGuardRef?,busyRef?})`：projects 为 `{id,name,teamName}[]` 摘要；`saveGuardRef?:React.RefObject<(()=>boolean)|null>` 由工作区提供保存守卫；`busyRef?:React.RefObject<boolean>` 在资料读取/保存期间为 true，结束（含失败）归 false。浮窗据此阻止导入中关闭、切换或放弃；重复导入由同步锁拒绝，失败保留原输入。
+- `components/ai/materials-ui.MaterialsDialog` 公开组件 props 为 `mode/onClose/items/userId/importError/importing/onImport/onAttachText/onPick`，追加可选 `onReturnFocus?:()=>void`；onImport 接收 File[] 返回 Promise<boolean>，onAttachText 返回错误串或 null。传入 onReturnFocus 时覆盖关闭自动聚焦，资料面板关闭后回到草稿输入框；其本地文件仍按账号存储，不等同于项目资料库。
+- 末尾追加 resourceFolderCategories/resourceTrash 与 deliveryBatches/Entries/Issues/Records 六表，迁移 `collaboration-v050.sql`、`scripts/migrate-collaboration-v050.mjs` 与运行包 bootstrap 列表同步，开发/测试库由 root 串行升级。本轮完成 R7 后按用户授权合入 main，发布 0.5.0 与 Windows ZIP/SHA256 Release。

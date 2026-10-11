@@ -2,7 +2,7 @@
 
 面向课程设计、实验室课题和竞赛团队，覆盖团队空间 → 成员与职务 → 项目 → 任务协作 → 教师验收。
 
-当前源码版本：**0.4.0-rc.8**，以飞书协作为主参考，GitHub补充任务组织。项目目录、资料文件夹/互链、引文评论、协作者、提及/关注、通知偏好、任务标签/依赖、文档与会议行动项、本人保存视图和日程提醒已加入源码；原有成果版本与逐项验收保留。实时共同编辑、群聊及GitHub同步仍是独立后续方案。[当前能力与分步计划](docs/COLLABORATION-WORKSPACE.md)、[Agent文档入口](docs/PROJECT-STATE.md)、[模块契约](docs/TEAM.md)。实际检查与升级记录见 [CHANGELOG](CHANGELOG.md)。
+当前源码版本：**0.5.0-rc.1**，以飞书协作为主参考，适用于课题研究、课程、竞赛与软件项目。新增分类内主题/多层资料、可恢复回收站、统一消息与本地草稿入口，以及绑定真实通过版本的阶段交付、评审问题、清单和版本导出；原有任务组织、资料协作、个人提醒及成果验收保留。GitHub 是可选成果证据，实时共同编辑、群聊及外部同步仍为独立后续方案。[当前能力与分步计划](docs/COLLABORATION-WORKSPACE.md)、[Agent文档入口](docs/PROJECT-STATE.md)、[模块契约](docs/TEAM.md)。实际检查与升级记录见 [CHANGELOG](CHANGELOG.md)。
 
 ## 开始使用
 
@@ -24,21 +24,24 @@
 | teacher@agilecampus.local | password123 | 指导老师 |
 | student@agilecampus.local | password123 | 组员 |
 
-已有数据库升级先执行 rc.6 的 `node scripts/migrate-business.mjs`、rc.7 的 `node scripts/migrate-discussions.mjs`，再执行 rc.8 的 `node scripts/migrate-collaboration-foundations.mjs` 和 `node scripts/migrate-member-deputy.mjs`（测试库均加 `--test`），保留历史任务与文件；新数据库仍沿用初始化流程。
+已有数据库升级先执行 rc.6 的 `node scripts/migrate-business.mjs`、rc.7 的 `node scripts/migrate-discussions.mjs`、rc.8 的 `node scripts/migrate-collaboration-foundations.mjs` 和 `node scripts/migrate-member-deputy.mjs`，再执行本轮 `node scripts/migrate-collaboration-v050.mjs`（测试库均加 `--test`），保留历史任务与文件；新数据库仍沿用初始化流程，Windows 运行包自动追加迁移。
 
 ## 已实现
 
 - 团队、学术身份确认与可叠加管理员/副管理员/指导老师/队长/组员职务，课程、实验室和竞赛项目。
-- 五态任务、子任务、姓名指派、看板拖动与表格筛选，成果提交和教师验收。
+- 发布时明确验收要求与分工，五态任务、子任务、姓名指派、看板拖动与表格筛选，成果提交和逐项验收。
 - 成果说明、验证结果、链接/文件证据、逐项自检及不可变提交版本；按指定版本逐项验收与打回。
 - 团队资料、公告、邀请码有效期、成员退出/移除保护；团队/项目资料分类、搜索、文档历史与文件预览下载。
 - 项目与资料目录、互链、引文评论、协作者权限、文档/会议行动项；资料/任务/项目关注与提及。
+- 分类内主题与多层资料，按目录上传/创建、移动、回收恢复及引用证据保护；旧混合目录兼容。
+- 阶段交付清单、真实通过版本、评审问题与责任人、不可变交付记录、归档恢复及 Markdown/JSON 导出。
 - 任务标签、依赖守卫、统一筛选与本人保存视图；通知偏好和本人日程提醒。
 - 工作台、工时、贡献统计、里程碑、站内消息与个人资料。
+- 一个右下角协作入口集中查看消息、未读、提及和本地 AI 草稿。
 - 个人日历、项目日历和跨天排期；个人安排仅本人可访问。
 - 可选飞书账号连接；AI 对话界面与按账号区分的浏览器草稿，模型尚未接入。
 
-任务状态为待认领、进行中、待验收、待修改、已完成；提交后由具有验收职务的成员核对。权限按团队职务与项目场景计算，学术身份不赋予权限。详细功能与边界见 [阶段汇总](docs/RELEASE.md) 和 [体验验收](docs/UX.md)。
+任务状态为待认领、进行中、待验收、待修改、已完成；提交后由具有验收职务的成员逐项核对，打回填写问题位置与通过条件。提交及通过阶段的目标和要求保持只读；调整范围先打回或重开，历史证据保留。编辑使用版本检查，失败保留输入。权限按团队职务与项目场景计算，学术身份不赋予权限。详细功能与边界见 [阶段汇总](docs/RELEASE.md) 和 [体验验收](docs/UX.md)。
 
 ## 仓库导航
 

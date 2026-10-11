@@ -67,6 +67,7 @@ export async function collectMyScheduleReminders(actorId: string, now = new Date
       const [receipt] = await tx.insert(personalReminderDeliveries).values({ scheduleId: schedule.id, scheduleVersion: schedule.version, reminderVersion: reminder.version, deliveredAt: now }).onConflictDoNothing().returning({ id: personalReminderDeliveries.id });
       if (!receipt || preference?.reminders === false) continue;
       const [notification] = await tx.insert(notifications).values({
+        createdAt: now,
         userId: actorId, type: "personal_reminder", title: `日程提醒：${schedule.title}`,
         body: `${schedule.scheduleDate} ${schedule.startTime ?? "全天（09:00 提醒）"} · ${reminderMinutesLabel(dto.minutes)}${schedule.description ? `\n${schedule.description}` : ""}`,
         link: `/calendar?y=${Number(schedule.scheduleDate.slice(0, 4))}&m=${Number(schedule.scheduleDate.slice(5, 7))}&date=${schedule.scheduleDate}#schedule-${schedule.id}`,

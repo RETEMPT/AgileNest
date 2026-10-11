@@ -1,4 +1,6 @@
 export * from "./service";
+export { listApprovedTaskSubmissions, getApprovedTaskSubmission } from "./approved";
+export type { ApprovedTaskSubmission } from "./approved";
 export { createProjectTaskLabel, listProjectTaskLabels, updateProjectTaskLabel, deleteProjectTaskLabel, getTaskOrganization, changeTaskOrganization } from "./organization-service";
 export type { TaskLabelDTO, TaskOrganizationDTO, TaskOrganizationSummary, TaskOrganizationMutation, TaskActionItemInput, TaskActionItemOrigin } from "./organization-client";
 export { taskOrganizationGET, taskOrganizationPATCH, projectTaskLabelsGET, projectTaskLabelsPOST, projectTaskLabelPATCH, projectTaskLabelDELETE, taskActionItemPOST } from "./organization-api";

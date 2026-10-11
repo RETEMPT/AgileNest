@@ -1,4 +1,23 @@
-# GitHub PR 调研与落地
+# 产品参考、PR 调研与落地
+
+## 当前采用与差异 · 0.5.0 · 2026-10-11
+
+以飞书官方任务和云文档帮助为主来源，GitHub 补充任务组织与可选代码成果链接。本轮面向通用项目协作，课程、研究、竞赛及混合项目均可使用；阶段交付不要求 GitHub 账号、PR 或代码仓库。当前实施与验收进度见 [协作工作区](COLLABORATION-WORKSPACE.md) 和 [UX](UX.md)，下方 PR 状态、分支与旧版本检查均为历史观察记录。
+
+| 官方来源 | 本轮采用 | 本平台差异与边界 |
+|---|---|---|
+| [飞书创建任务](https://www.feishu.cn/hc/zh-CN/articles/360741352378-%E5%88%9B%E5%BB%BA%E4%BB%BB%E5%8A%A1) | 围绕目标、负责人、日期、子任务和内容上下文组织工作 | 发布任务至少一项可核对验收标准，与任务同事务保存；仍为五态、单一负责人和按职务计算能力，不复制重复任务或多负责人规则 |
+| [在任务中添加附件](https://www.feishu.cn/hc/zh-CN/articles/650357724285-%E5%9C%A8%E4%BB%BB%E5%8A%A1%E4%B8%AD%E6%B7%BB%E5%8A%A0%E9%99%84%E4%BB%B6) | 内容附近上传、预览和下载，沟通附件与成果材料清楚可见 | 正式提交单独绑定文件，生成不可变 v1/v2；自检允许记录未达到项，最终通过必须逐项核验。沿用单文件 10 MB 限制，不照搬飞书的附件容量和数量 |
+| [快速上手云盘](https://www.feishu.cn/hc/zh-CN/articles/778513900437-%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8B%E4%BA%91%E7%9B%98) | 目录树、路径、主题下建子目录与就地创建/上传 | 主题属于同一空间和分类，最多八层，移动同时检查整个子树；不复制飞书的目录深度或权限继承体系 |
+| [删除和恢复云文档、文件夹](https://www.feishu.cn/hc/zh-CN/articles/360049067425-%E5%88%A0%E9%99%A4%E5%92%8C%E6%81%A2%E5%A4%8D%E4%BA%91%E6%96%87%E6%A1%A3-%E6%96%87%E4%BB%B6%E5%A4%B9) | 明确回收与恢复入口，确认后操作，保留内容与路径 | 当前仅资料可恢复回收；被成果、讨论或来源引用的资料受保护，空目录才可删除。不做递归回收、永久清除或飞书的自动保留期限 |
+| [飞书任务设置](https://www.feishu.cn/hc/en-US/articles/791692860649-task-settings) | 本人提醒、未读入口、摘要与偏好分别管理 | 消息与 AI 草稿统一一个右下角入口，气泡只短时预览真实站内消息；不执行飞书 IM 投递、系统推送或智能体操作 |
+| [Radix Alert Dialog](https://www.radix-ui.com/primitives/docs/components/alert-dialog) | 确认动作、取消入口、焦点限制和键盘操作 | 复用已安装的 Radix 原语，保存期间防重复与误关闭；取消保留原数据，失败保留输入，并恢复合理焦点 |
+
+逐项打回需说明未通过位置与通过条件；待验收和已完成期间冻结验收要求，先打回或重开才可调整，旧提交快照不变化。历史选择器只供阅读，验收仍绑定当前待验收版本；阶段交付只绑定真实已通过版本，确认时重新核对成果、检查项与未解决问题。这些是本平台的交付规则，不宣称飞书或 GitHub 采用相同状态机。
+
+本轮自行实现，未复刻完整飞书/GitHub，未复制外部源码或图形。Marker 仅兼容真实 Markdown/JSON 转换产物导入，没有运行 OCR 或模型；AI 仍为本人本地草稿。GUI 与自动检查分别记录，阶段归档/导出、多端与主题尚待最终点验，不能以参考文档或源码存在替代验收。
+
+## 历史 PR 调研快照
 
 核对了本仓开放 PR，以及 Plane、OpenProject 的相关 PR 详情与差异。这里记录采用的设计思路；本轮实现使用仓库现有组件和契约，没有移植外部项目代码或增加依赖。开放/关闭状态是本次观察时的快照，不表示开放 PR 已得到上游认可。
 
@@ -15,7 +34,7 @@
 
 [OpenProject 角色权限文档](https://www.openproject.org/docs/system-admin-guide/users-permissions/roles-permissions/)支持同一用户承担多个角色和按项目授予权限。本项目结合高校场景，将本科/硕士/博士/老师留作资料，将管理员/指导老师/队长/队员留作团队职务；权限按项目种类计算。飞书的多视图、成员选择和侧边任务详情取舍见 [UX.md](UX.md)。
 
-没有采用通用软件“提交即完成”的语义，只有验收通过才是已完成；没有引入自定义工作流、Sprint、甘特、AI、学籍认证或实验数据文件库。规则与升级说明见 [IDENTITY.md](IDENTITY.md)。
+该历史迭代没有采用通用软件“提交即完成”的语义，只有验收通过才是已完成；当时未引入自定义工作流、Sprint、甘特、AI、学籍认证或实验数据文件库。后续通用团队/项目资料与本地 AI 草稿已独立实现，当前边界以本页首节为准；权限规则与升级说明见 [IDENTITY.md](IDENTITY.md)。
 
 ## 成员 PR 选择性集成 · 2026-10-04
 
@@ -48,7 +67,7 @@
 
 ## AI 页面设计调研 · 2026-10-05
 
-按用户指定方向核对 [DeepSeek Harness 的 ui-chat](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/client/ui-chat/README.md)、[Harnss](https://github.com/OpenSource03/harnss) 与 [Open WebUI](https://github.com/open-webui/open-webui) 的公开仓库说明。采用清晰的主区/输入区、可收起的会话列表、标题/内容搜索与移动抽屉。Harnss 当前自述处于早期开发并将重写，作为交互参考，不作稳定运行时依赖；没有声称此为官方 DeepSeek Chat 的源代码。
+按用户指定方向核对 [DeepSeek Harness 的 ui-chat](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/client/ui-chat/README.md)、[Harnss](https://github.com/OpenSource03/harnss) 与 [Open WebUI](https://github.com/open-webui/open-webui) 的公开仓库说明。采用清晰的主区/输入区、可收起的会话列表、标题/内容搜索与移动抽屉。Harnss 在当时观察中自述处于早期开发并将重写，作为交互参考，不作稳定运行时依赖；没有声称此为官方 DeepSeek Chat 的源代码。
 
 本仓仍采用既有品牌色、字体、SVG 线宽与共享 UI，自行实现，未复制外部代码或图形。用户已确认先做界面与本地草稿，模型调用与三级 Agent 不在本轮；空回复、推理过程、工具进度和历史对话不填演示内容。新建的验收草稿均标为本地界面验收，不写入团队任务。能力、存储限制与后续接入边界见 [AI.md](AI.md)。
 
