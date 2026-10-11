@@ -1,10 +1,12 @@
-# AgileNest · Windows 一键运行与阶段汇总（0.4.0-rc.4）
+# AgileNest · Windows 一键运行与阶段汇总（0.5.0-rc.1）
 
-当前源码候选版 **0.4.0-rc.4** 增加紧凑 AI 输入框、文件与图片资料、本地读取与结构整理，保留项目会话、模型配置与插件、选填联系方式和数据库启动修复，并修正多标签正文同步、偏好重置与个人中心分区 URL；尚未正式发布，候选包见 [v0.4.0-rc.4](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.4)（`AgileNest-0.4.0-rc.4-windows-x64.zip`）。已发布稳定版为 **0.3.0**，集成 PR [#6](https://github.com/RETEMPT/AgileNest/pull/6) 已合入主分支，[下载稳定版](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0) 请选择 Windows ZIP；GitHub 自动生成的 Source code 是源码包。候选版通过 32 个文件、309 条测试与 Windows 生产构建，验收记录见 [UX.md](UX.md)。
+当前源码候选版 **0.5.0-rc.1** 面向研究、课程、竞赛和软件项目，补齐分类内主题目录、资料回收恢复、统一消息与本地草稿入口，以及绑定真实通过版本的阶段交付。管理者发布时填写验收要求；成员领取、提交证据、收到逐项意见并重交；验收后进入交付清单、问题处理、归档和导出。已提交及已完成的目标与要求只读，重开或打回后才能调整范围。实际检查见[更新日志](../CHANGELOG.md)和[UX](UX.md)，公开契约见[TEAM](TEAM.md)。
+
+本轮候选与最终 Windows 包分别验证；合入 main 并重新检查后才发布 **0.5.0**。已有 [rc.4 候选包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.4) 与 [0.3.0 历史稳定包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0) 保留，不包含此后协作功能。GitHub 自动生成的 Source code 是源码，运行包须选择 Windows ZIP。
 
 ## 运行发布包
 
-在 GitHub Releases 下载 `AgileNest-0.4.0-rc.4-windows-x64.zip`（稳定版对应 `AgileNest-0.3.0-windows-x64.zip`），完整解压到可写的本地文件夹后双击 **start.bat**。需要 Windows 10/11 x64；自带 Node.js、PostgreSQL 和已编译网站，无需安装 npm、Docker 或数据库，首次启动也不需要联网下载依赖。请先解压，不要在压缩包里直接运行。
+在对应版本的 GitHub Release 下载 `AgileNest-<版本>-windows-x64.zip`，完整解压到可写的本地文件夹后双击 **start.bat**。需要 Windows 10/11 x64；自带 Node.js、PostgreSQL 和已编译网站，无需安装 npm、Docker 或数据库，首次启动也不需要联网下载依赖。请先解压，不要在压缩包里直接运行。
 
 首次启动创建本机数据库和示例空间，完成后自动打开 `http://localhost:3000`。**从 0.3.1-rc.1 构建的新包只有 start.bat 一个运行入口，保持窗口打开，关闭窗口或按 Ctrl+C 即停止网站。** 重复启动会提示原窗口仍在运行；个人资料、任务和日程保留。
 
@@ -12,9 +14,9 @@
 
 | 演示账号 | 初始密码 | 职务 |
 |---|---|---|
-| admin@agilecampus.local | password123 | 管理员、队员 |
+| admin@agilecampus.local | password123 | 管理员、组员 |
 | teacher@agilecampus.local | password123 | 指导老师 |
-| student@agilecampus.local | password123 | 队员 |
+| student@agilecampus.local | password123 | 组员 |
 
 示例仅初始化一次，后续启动不覆盖姓名、职务、头像或任务。也可在登录页注册个人账号，建立自己的团队。网站和数据库均只监听本机地址。
 
@@ -22,12 +24,12 @@
 
 - `data/pgdata` 保存业务数据；`data/config.json` 是本机生成的连接信息与随机密钥；`data/logs` 保存启动、数据库和网站日志。分享发布包时请分享原始 ZIP，自己的 data 文件夹应独立保留。
 - 中文目录会自动使用一个空闲临时盘符供数据库运行；数据仍在原解压目录，停止时仅解除本包的映射。已有盘符不会覆盖；如所有可用盘符均已占用，启动提示改用纯英文目录。
-- 升级旧版 0.3.0 时先运行旧包 stop.bat，将旧包完整 `data` 文件夹复制到新包根目录，再启动。数据库大版本须一致（本版为 PostgreSQL 17），新包只运行尚未执行的追加迁移。已有数据不重新初始化。
+- 升级前先停止旧包并备份完整 `data`；旧版 0.3.0 使用 stop.bat，后续包使用下文的维护停止命令。将停止后的完整 `data` 复制到新解压包根目录，再启动。数据库大版本须一致（本版为 PostgreSQL 17），新包只运行尚未执行的追加迁移，包括 business-completion、discussions、collaboration-foundations、member-deputy 和 collaboration-v050。已有数据不重新初始化；上传文件在数据库中保留。
 - 新包正常退出会停止本包数据库。强制关闭窗口时网站立即退出，数据库可能继续运行；备份、移动目录或升级前，关闭启动窗口，再在包目录执行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\launcher\start-release.ps1 -Stop`，确认数据库停止后复制完整 data。不要覆盖运行中的数据库文件。
 - 默认网站端口 3000，数据库端口 55432。端口占用时会保留错误提示，不关闭其他程序。需要并行试用可在本包目录执行 `.\start.bat -WebPort 3001`。
 - 首次安装如需更换数据库端口，可给同一命令增加 `-DbPort 55433`。已有安装应先停止，然后修改 data/config.json 的 dbPort。诊断启动可增加 `-NoBrowser`。
 - 启动失败会保留窗口，请查看对应日志；不要通过删除 data 来尝试修复已有资料。
-- 可用 `Get-FileHash .\AgileNest-0.4.0-rc.4-windows-x64.zip -Algorithm SHA256` 对照 Release 附件 `AgileNest-0.4.0-rc.4-windows-x64.sha256.txt` 校验文件。
+- 可用 `Get-FileHash .\AgileNest-0.5.0-windows-x64.zip -Algorithm SHA256` 对照 Release 附件 `AgileNest-0.5.0-windows-x64.sha256.txt` 校验文件；候选包用其完整候选版本号。
 
 ## 阶段完成情况
 
@@ -35,7 +37,9 @@
 
 工作台、任务详情、工时、贡献统计、项目概览、里程碑、站内消息、个人资料与头像已衔接。成员 PR #7 的月历、跨天排期和日程视图已整合；个人日历仅保存本人安排，和项目任务相互独立。历史月份日程、长跨度展开与筛选一致性完成修正。
 
-本轮统一按钮等待指示、提交时防重复操作、表单错误、完成提示、弹窗关闭保护与轻量动效；支持键盘焦点与系统减少动画设置。完成提示保留在页面外层，弹窗关闭后仍可看到结果。
+资料按分类 → 主题 → 子文件夹组织，最多八层；当前位置决定新建和上传的分类/目录。回收后可恢复原文件、版本与路径，成果、讨论、行动项等引用受到保护。任务与阶段交付绑定通过的具体提交，阶段问题由责任人处理，确认时逐项核对；每次变更保留独立记录，可按历史版本导出 Markdown/JSON。归档和恢复保留交付证据。
+
+右下角只有一个协作图标，集中查看真实消息、未读、提及和本地草稿。短时预览自动收起，角标持续保留；确认弹窗优先聚焦取消、Esc 返回原按钮，等待时阻止重复操作，失败保留输入。提交/验收/新通知的写入时刻统一，旧证据不被重写。
 
 飞书保持可选连接，账号资料由本人确认后采用；私信投递与自动截止提醒尚未完成业务联调。AI 页提供按账号区分的浏览器草稿，模型调用、三级 Agent、甘特、Sprint、作品集和模板库仍在路线图中。实验室范围为成员、课题和任务协作。
 

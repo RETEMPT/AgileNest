@@ -24,7 +24,7 @@ import {
   teamNameSchema,
 } from "./schema";
 
-export type IdentityFormState = { error: string; ok?: string } | null;
+export type IdentityFormState = { error: string; ok?: string; positionVersion?: string } | null;
 export type AccountFormState = {
   error: string;
   ok?: string;
@@ -117,27 +117,29 @@ export async function updatePositionsAction(
 ): Promise<IdentityFormState> {
   const user = await requireUser();
   const parsed = z
-    .object({ teamId: z.uuid(), userId: z.uuid(), positions: positionsSchema })
+    .object({ teamId: z.uuid(), userId: z.uuid(), positions: positionsSchema, positionVersion: z.iso.datetime().nullable() })
     .safeParse({
       teamId: data.get("teamId"),
       userId: data.get("userId"),
       positions: data.getAll("positions"),
+      positionVersion: data.get("positionVersion") || null,
     });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   try {
-    await updateMemberPositions(
+    const updated = await updateMemberPositions(
       user.id,
       parsed.data.teamId,
       parsed.data.userId,
       parsed.data.positions,
+      parsed.data.positionVersion,
     );
+    revalidatePath("/t", "layout");
+    revalidatePath("/p", "layout");
+    revalidatePath("/home", "layout");
+    return { error: "", ok: "团队职务已更新", positionVersion: updated.positionVersion };
   } catch (error) {
     return { error: toFormError(error, "保存职务失败") };
   }
-  revalidatePath("/t", "layout");
-  revalidatePath("/p", "layout");
-  revalidatePath("/home", "layout");
-  return { error: "", ok: "团队职务已更新" };
 }
 
 export async function confirmAcademicIdentityAction(

@@ -1,10 +1,16 @@
 "use client";
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { markReadAction } from "./actions";
+import { NOTIFICATIONS_CHANGED_EVENT } from "./dock";
+export { NotificationDockPanel, useNotificationFeed } from "./dock";
+export { FollowButton, NotificationPreferencesPanel } from "./subscription-ui";
 
 export function MarkReadButton({ id }: { id: string }) {
   const [state, action, pending] = useActionState(markReadAction, null);
+  useEffect(() => {
+    if (state?.error === "") window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED_EVENT));
+  }, [state]);
   return (
     <form action={action}>
       <input type="hidden" name="id" value={id} />

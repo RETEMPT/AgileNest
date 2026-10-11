@@ -1,4 +1,8 @@
 "use client";
+export { ProjectDirectory } from "./space-ui";
+
+export { ProjectContextHeader } from "./project-context";
+export { TeamSectionLinks, TeamMemberRemovalButton, TeamSettingsWorkspace } from "./team-settings";
 
 import { useActionState, useId, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -17,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormFeedback } from "@/components/ui/feedback";
+import { todayISO } from "@/modules/core/dates";
 import type { ProjectKind } from "@/db/schema";
 import {
   createTeamAction,
@@ -188,7 +193,7 @@ export function JoinTeamForm() {
           autoComplete="off"
         />
         <p className="text-xs text-muted-foreground">
-          加入后拥有队员职务；管理员可在成员页设置指导老师、队长等职务。
+          加入后拥有组员职务；管理员可在成员页设置副管理员、指导老师、队长等可叠加职务。
         </p>
       </div>
       <Feedback state={state} />
@@ -379,7 +384,7 @@ export function ProjectForm({
         </div>
       </div>
       <p className="rounded-lg bg-muted p-3 text-xs text-muted-foreground">
-        创建后进入任务看板。管理员或指导老师可验收；实验室和竞赛队长可指派任务。
+        创建后进入任务看板。管理员、副管理员或指导老师可验收；实验室和竞赛队长可指派任务。
       </p>
       <Feedback state={state} />
       <Button disabled={pending} className="w-full" loading={pending}>
@@ -419,7 +424,7 @@ export function CreateProjectButton({
   );
 }
 
-export function InviteCode({ code }: { code: string }) {
+export function InviteCode({ code, expiresOn }: { code: string; expiresOn?: string | null }) {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   async function copy() {
@@ -431,6 +436,9 @@ export function InviteCode({ code }: { code: string }) {
     } catch {
       setError("复制失败，请手动选中邀请码复制");
     }
+  }
+  if (expiresOn && expiresOn < todayISO()) {
+    return <p className="text-sm text-destructive">邀请码已过期，请联系管理员在团队信息页刷新。</p>;
   }
   return (
     <div className="space-y-1">
@@ -452,6 +460,7 @@ export function InviteCode({ code }: { code: string }) {
           {copied ? "已复制" : "复制邀请码"}
         </Button>
       </div>
+      {expiresOn && <p className="text-xs text-muted-foreground">有效至 {expiresOn}（含当天）</p>}
       <p role="status" className="text-xs text-destructive">
         {error}
       </p>

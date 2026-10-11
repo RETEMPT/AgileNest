@@ -23,7 +23,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   return (
     <FeedbackContext.Provider value={notify}>
       {children}
-      <div className="pointer-events-none fixed bottom-4 right-4 z-[100] flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2 sm:bottom-6 sm:right-6" aria-label="操作反馈">
+      <div className="pointer-events-none fixed top-16 right-4 z-[100] flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2 sm:right-6 md:top-6" aria-label="操作反馈">
         {notices.map((notice) => (
           <div key={notice.id} role="status" className="feedback-toast pointer-events-auto flex items-start gap-3 rounded-xl border border-brand/20 bg-card p-3.5 shadow-lg">
             <CheckCircle2 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-brand" />

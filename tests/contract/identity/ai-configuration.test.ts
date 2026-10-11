@@ -5,7 +5,7 @@ import { DEFAULT_MODEL, modelConfigurationSchema } from "@/components/ai/configu
 describe("AI 配置草稿", () => {
   it("旧主题偏好自动补齐 AI 配置，按账号持久化插件选择", () => {
     const values = new Map([[preferencesKey("a"),JSON.stringify({theme:"light",aiFloating:false})]]);
-    const storage = {getItem:(key:string) => values.get(key) ?? null,setItem:(key:string,value:string) => {values.set(key,value);}};
+    const storage = {getItem:(key:string) => values.get(key) ?? null,setItem:(key:string,value:string) => {values.set(key,value);},removeItem:(key:string) => {values.delete(key);}};
     const store = createPreferencesStore("a",() => storage);
     expect(store.getSnapshot().preferences.ai.model).toEqual(DEFAULT_MODEL);
     expect(store.update({ai:{model:{...DEFAULT_MODEL,model:"my-model"},plugins:["research"]}})).toBe(true);

@@ -65,6 +65,16 @@ node scripts/migrate-profiles.mjs
 node scripts/migrate-profiles.mjs --test
 node scripts/migrate-schedules.mjs
 node scripts/migrate-schedules.mjs --test
+node scripts/migrate-business.mjs
+node scripts/migrate-business.mjs --test
+node scripts/migrate-discussions.mjs
+node scripts/migrate-discussions.mjs --test
+node scripts/migrate-collaboration-foundations.mjs
+node scripts/migrate-collaboration-foundations.mjs --test
+node scripts/migrate-member-deputy.mjs
+node scripts/migrate-collaboration-v050.mjs
+node scripts/migrate-member-deputy.mjs --test
+node scripts/migrate-collaboration-v050.mjs --test
 .\start.bat
 ```
 

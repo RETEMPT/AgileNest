@@ -12,7 +12,10 @@
 src/modules/
   core/        错误 · 权限 · session · 日期 · 表单     foundation
   identity/    团队 · 成员 · 角色 · 项目               foundation
+  resources/   团队/项目文档 · 文件 · 交付证据          foundation
+  discussions/ 任务讨论 · 回复 · 历史 · 附件引用        C / root
   tasks/       任务 CRUD · 子任务 · 五态状态机         A
+  delivery/    阶段交付 · 通过版本 · 清单 · 历史导出    A
   board/       看板 + 表格 · 筛选 · 拖拽               B
   review/      双端工作台 · 验收台 · 活动流            C
   worklog/     工时 · 完成度 · 贡献（含原 stats）      D
@@ -36,6 +39,9 @@ views.tsx    可选：公开服务端页面组合
 ```
 
 数据表归属：`users/teams/team_members/projects/academic_profiles/member_positions/academic_confirmations` → identity · `tasks` → tasks · `milestones` → milestone · `worklogs` → worklog · `task_acceptance_events` → review · `notifications` → notify。
+新增表归属：`team_profiles/team_announcements` → identity；`task_requirements/task_submissions/task_submission_reviews` → tasks；`team_resources/resource_revisions/resource_references` → resources。
+rc.7 追加：`task_discussion_posts/task_discussion_revisions/discussion_resource_references` → discussions，原文件存储仍归 resources。
+0.5.0 追加：`delivery_batches/delivery_entries/delivery_issues/delivery_records` → delivery；`resource_folder_categories/resource_trash` → resources。
 `src/db/schema.ts` 是 barrel，本期集中放一份，**只追加不重排**。
 
 ---
@@ -57,6 +63,7 @@ main  ──  可部署
 |---|---|---|---|
 | foundation | `chore/foundation` | core · identity · ui · lib | `/login` `/register` `/t/*` `/settings` `/api/auth/**` |
 | foundation（本轮 AI 与个人中心） | `codex/ai-settings-workspace` | 共享 AI UI · 浏览器草稿与偏好 · identity 设置 | `/ai` `/settings`，仅界面与本地存储 |
+| foundation + A/B/C/D/E（本轮体验） | `codex/experience-integration` | 共享外壳/详情及各 Owner 的直接入口 | 项目任务、工作台、验收、统计、日历与通知；见执行记录 |
 | A | `feature/tasks-status` | tasks | `/p/[id]/tasks/**` |
 | B | `feature/board-views` | board | `/p/[id]/board` `/p/[id]/table` |
 | C | `feature/review-portal` | review | `/home/student` `/home/teacher` `/p/[id]/review` |
@@ -73,6 +80,51 @@ main  ──  可部署
 5. PR 必须 Windows 上 `npm test` + `npm run build` 全绿。
 
 ---
+
+## AgileNest 体验集成 · 0.4.0-rc.5 · 2026-10-10
+
+用户授权分步执行体验方案并使用子代理；基线为 `2301a6d` / `0.4.0-rc.4`，在 `codex/experience-integration` 按 Owner 集成。foundation 负责 AppShell/AppSidebar、共享 TaskDrawer/活动展示/状态 tokens、identity 项目上下文与空项目口径；A 负责任务内容和渐进表单；B 负责看板/表格及筛选；C 负责工作台/验收组合；D 负责工时口径与顶层任务下钻；E 负责项目日历与通知入口。各模块 service、状态机、登录、core、schema、依赖均保留原契约。
+
+新增公开 UI 入口如下，均不把 DB/session/service 运行时代码带入客户端：
+
+```ts
+// identity/ui：由项目布局消费，取代重复项目横向导航
+ProjectContextHeader({ projectId: string, name: string, positions: TeamPosition[] })
+
+// tasks/ui：共享只读展示，由独立详情页和共享抽屉消费
+TaskDetailSummary({
+  task: TaskDTO,
+  subtasks?: readonly TaskDTO[],
+  milestoneName?: string | null,
+  loggedMinutes?: number,
+  headingLevel?: "h1" | "h2" // 默认 h2
+})
+
+// review/views：服务端验收页组合，路由只做壳
+ReviewView({ params: Promise<{ projectId: string }> })
+
+// review/ui：客户端入口，由验收页消费
+ReviewTaskDetails({ task: TaskDTO, role: TeamRole, actorId: string })
+```
+
+共享 `TaskDrawer` 保留 `task/role/actorId/isOpen/onClose`，追加可选 `members?: AssigneeOption[]` 和 `milestoneName?: string | null`，由 board 直接传入已授权的成员和里程碑摘要。未加载工时/子任务的抽屉不伪造零值；完整页显示真实查询结果。活动使用既有任务事件接口，并按账号、任务、更新时间和重试标识隔离响应。
+
+看板与表格保留 `q/status/assigneeId/priority/milestoneId/groupBy`，搜索提交保留已存在的多值条件；任务池仍有独立入口和旧 URL。本轮后置 `task` query、任务池共享筛选、项目日历统一筛选。个人日程版本与隐私不变，日历里程碑通过公开 `board/client.serializeFilters` 下钻。证据与后续入口见 [执行记录](AGILENEST-EXECUTION.md)。
+
+
+## 当前业务集成 · 0.4.0-rc.6 · 2026-10-10
+
+分支 `codex/business-completion`，基线 `7c53f70`。identity（foundation）负责团队资料、公告、邀请和成员管理；tasks（A）负责要求、提交和逐项验收；board/review（B/C）负责 URL、筛选和证据历史；resources（foundation）负责共享资料与文件绑定；root 串行集成追加表、公开契约、遗漏修复和版本。锁定登录、core 和依赖不变。
+
+`tasks/client` 公开 DeliveryInput/ReviewInput/SubmissionDTO/TaskDeliveryDTO 与浏览器安全的 deliverySchema/reviewSchema，内部状态仍以 TRANSITIONS 为唯一真相。`TransitionInput` 增加 delivery?/review?；普通动作兼容，新 submit/resubmit 不能仅传 note。必须提供至少一项验收要求、要求版本、完成说明、验证结果和链接或文件。accept/reject 绑定当前 submissionId；打回需至少一项未通过、逐项问题位置/通过条件和总体修改要求。历史提交明确标记 legacy，不伪造证据。
+
+`TaskActions/TransitionDialog` 追加 `onPendingChange?`，写入和上传期间外层关闭保护同源。公开 `review/ui` 提供 `SubmissionTimeline({taskId,updatedAt?,compact?})`、`ReviewSubmissionEvidence`；`review/client` 提供 `parseTaskDeliveryPayload(input,taskId)` 和 `sortSubmissionVersions`，读取返回的真实版本并隔离旧请求。
+
+`board/client` 增加 `parseTaskQuery(params)`、`taskDetailUrl(pathname,params,taskId|null)`、`workspaceUrl({projectId,view,filters,groupBy?,taskId?})`；`ProjectWorkspace` 增加 selectedTask?。看板/表格的 task URL 经项目权限检查，打开 push、切换 replace、关闭只清 task；任务池使用共用 q/status/priority/assigneeId/milestoneId 筛选，详情仍是独立页。项目日历筛选统一后置。
+
+`identity/client` 增加 TeamInformationDTO/TeamAnnouncementDTO；`identity/views.TeamSettingsView({teamId})` 组合设置页。`identity/ui.TeamSectionLinks({teamId,current})` 连通 projects/members/settings/resources；TeamMemberRemovalButton、TeamSettingsWorkspace 与 InviteCode 的 expiresOn? 支持当前团队操作。
+
+本轮保留必要自动检查与关键入口试用，全面手工验收按用户最新要求留到最后迭代。统一文档入口与后续计划见 [PROJECT-STATE](PROJECT-STATE.md)。
 
 ## 3. 公开契约（`index.ts`）
 
@@ -124,31 +176,44 @@ createProject(actorId, teamId, input)
 listTeamProjects(actorId, teamId)
 updateProject(actorId, projectId, patch)
 listMyProjects(actorId)
+getTeamInformation(actorId, teamId)     // 团队信息中心、邀请有效期与公开联系方式
+updateTeamInformation(actorId, teamId, input)
+rotateTeamInvite(actorId, teamId, input)
+listTeamAnnouncements(actorId, teamId)
+createTeamAnnouncement(actorId, teamId, input)
+updateTeamAnnouncement(actorId, teamId, announcementId, input)
+deleteTeamAnnouncement(actorId, teamId, announcementId, version)
+leaveTeam(actorId, teamId)              // 保护最后管理员及仍承担未完成任务成员
+removeTeamMember(actorId, teamId, targetUserId)
 // re-export: getTeamMembership / getProjectForUser / requireTeamRole
 ```
 
-`createTeam`/`createProject` 校验并去除名称首尾空白；项目日期校验真实日历日期及开始≤结束。`updateMemberRole` 在事务中锁定团队，拒绝降级最后一位管理员。公开 UI：`identity/ui` 提供场景选择、创建/加入、成员职务与邀请码组件；`identity/views` 提供团队、成员、项目、个人设置、项目设置和项目概览页面。团队场景是引导选择，数据库实体仍为团队，课程/实验室/竞赛类型存于项目。
+`createTeam`/`createProject` 校验并去除名称首尾空白；项目日期校验真实日历日期及开始≤结束。`updateMemberRole` 在事务中锁定团队，拒绝降级最后一位管理员。公开 UI：`identity/ui` 提供场景选择、创建/加入、成员职务与邀请码组件；`identity/views` 提供团队、成员、项目、个人设置、项目设置、团队信息设置和项目概览页面。团队场景是引导选择，数据库实体仍为团队，课程/实验室/竞赛类型存于项目。
 
 ### `@/modules/tasks`（A）
 
 ```ts
-type TaskDTO / TaskPatch / TransitionInput / TransitionAction
+type TaskDTO / TaskPatch / TransitionInput / TransitionAction / TransitionContext
+type AcceptanceCriterion / DeliveryInput / ReviewInput / SubmissionDTO / TaskDeliveryDTO
 
 listProjectTasks(actorId, projectId, filters?)
 getTaskDetail(actorId, taskId)                    // 含 subtasks
 createTask(actorId, projectId, input)
-updateTask(actorId, taskId, patch)
+updateTask(actorId, taskId, patch, expectedUpdatedAt?: string)
 deleteTask(actorId, taskId)
 transitionTask(actorId, taskId, action, input?)   // 唯一状态入口
 createSubtask(actorId, parentTaskId, input)
 listSubtasks(actorId, parentTaskId)
 setDueDate(actorId, taskId, dueDate)
+getTaskDelivery(actorId, taskId)
+saveTaskRequirements(actorId, taskId, { version, criteria })
+deliverySchema / reviewSchema
 
-availableTransitions(task: { status, assigneeId, permissions? }, role, actorId): TransitionRule[]
+availableTransitions(task: TransitionContext, role, actorId): TransitionRule[]
 STATUS_DESCRIPTIONS / canDeleteTask(role)
 ```
 
-状态机唯一真相是模块内部 `states.ts` 的 `TRANSITIONS`，外部通过 `@/modules/tasks` 或浏览器安全的 `@/modules/tasks/client` 使用。`TaskDTO.permissions?: TaskPermissions` 是当前操作者的权限引导快照，任务服务返回时按职务与场景计算；`availableTransitions` 同时处理状态、能力和负责人限制。纯函数旧调用未提供快照时保留三态角色兼容；服务端总是重新计算当前能力。`toDTO(row)` 签名保持不变，旧工作台 DTO 由共享 TaskActions 在显示前补齐权限。`claim` 由当前用户认领，管理员保留代提交权限。`transitionTask` 在行锁事务中同时写状态与活动事件，通知在提交后发送。公开 UI：`tasks/ui` 的 `TaskWorkflow`、`TaskActions`、`TransitionDialog`、`CreateTaskForm`；`tasks/views` 的任务池与详情组合。详情页必须检查 URL 的 projectId 与任务归属一致。
+状态机唯一真相是模块内部 `states.ts` 的 `TRANSITIONS`，外部通过 `@/modules/tasks` 或浏览器安全的 `@/modules/tasks/client` 使用。`TaskDTO.permissions?: TaskPermissions` 是当前操作者的权限引导快照，任务服务返回时按职务与场景计算；`availableTransitions` 同时处理状态、能力、负责人、依赖和子任务限制。纯函数旧调用未提供快照时保留三态角色兼容；服务端总是重新计算当前能力。`toDTO(row)` 签名保持不变，消费方必须保留公开任务查询返回的权限与守卫字段。`claim` 由当前用户认领，管理员保留代提交权限。`transitionTask` 在行锁事务中同时写状态与活动事件，通知在提交后发送。公开 UI：`tasks/ui` 的 `TaskWorkflow`、`TaskActions`、`TransitionDialog`、`CreateTaskForm`；`tasks/views` 的任务池与详情组合。详情页必须检查 URL 的 projectId 与任务归属一致。
 
 ### `@/modules/board`（B）
 
@@ -158,7 +223,7 @@ applyFilters(tasks, f)
 parseFilters(params) / serializeFilters(f)
 moveTask(actorId, taskId, patch)   // 只调 tasks.updateTask / transitionTask
 getMoveTransition(task, targetStatus, role, actorId): TransitionRule | null
-type MovePatch = { status?, assigneeId?, priority?, milestoneId?, sortOrder?, note? }
+type MovePatch = { status?, assigneeId?, priority?, milestoneId?, sortOrder?, note?, delivery?, review? }
 movePatchSchema
 ```
 
@@ -174,6 +239,8 @@ listOverdueRisks(actorId, projectId)
 listTaskEvents(actorId, taskId)
 getWorkbench(actorId) // { mine, review, pool }，附项目名与当前操作者权限
 ```
+
+`listTaskEvents` 的指派说明返回团队成员姓名；已离队目标显示“原团队成员”。只转换 action=assign 的纯 UUID 说明，数据库原事件与其他成果/评审文字保留；详情和共享抽屉复用该查询，不自行映射内部编号。
 
 ### `@/modules/worklog`（D，含 stats）
 
@@ -221,6 +288,80 @@ notifyAssigned(taskId) / notifySubmitted(taskId) / notifyAccepted(taskId) / noti
 scanAndNotifyDue()                            // cron
 listMyNotifications(actorId, opts?) / markRead(actorId, id)
 ```
+
+### `@/modules/resources`（foundation）
+
+```ts
+listResources(actorId, opts: { projectId?, teamId? })
+getResource(actorId, resourceId)
+createResource(actorId, input: { projectId?, teamId?, kind: "document" | "link", title, body?, url?, tags?, category? })
+uploadResource(actorId, scope: { projectId?, teamId? }, file: { name: string, bytes: Uint8Array }, title?)
+updateResource(actorId, resourceId, patch: { version: number, title: string, body?, url?, tags?, category? })
+deleteResource(actorId, resourceId, version)
+listResourceRevisions(actorId, resourceId)
+getResourceFile(actorId, resourceId)
+bindSubmissionResources(actorId, projectId, resourceIds, submissionId, tx)
+resourcesGET(request) / resourcesPOST(request)
+resourceGET(request, context) / resourcePATCH(request, context) / resourceDELETE(request, context)
+resourceFileGET(request, context)
+type ResourceDTO
+```
+
+资源分为可编辑 Markdown 文档、外部链接与原文件。文本/Markdown/CSV/JSON 文件有真实正文预览；图片/PDF 浏览器预览，Office/ZIP 下载，不宣称已提取正文。文档版本保存历史，文件原内容不可覆盖，引用文件禁止删除；ResourceDTO 追加 referenced，客户端据此禁用删除，服务端继续锁与重新检查。
+
+公开 `resources/client` 导出 DTO、类别/容量、真实文本整理及安全 URL/Marker 产物解析纯函数；`resources/ui` 导出 `ResourcesWorkspace({initialResources,teamId,projectId?,scopeName})`、`ResourcePicker({projectId,selectedIds,onChange,disabled?,onUploadingChange?,label?})` 和 `ResourceMarkdown({text,idPrefix?})`。公开 `resources/views` 提供 `TeamResourcesView/ProjectResourcesView({params})`，路由只做壳。
+
+## 飞书为主的协作空间 · rc.7
+
+分支 `codex/collaboration-workspace`，基线 `1fdce10` / rc.6。用户授权分多轮扩展协作与右下角通知入口；本轮按模块实施项目路径、讨论/附件、资料浏览和通知助手。范围/后续优先顺序见 [COLLABORATION-WORKSPACE](COLLABORATION-WORKSPACE.md)。foundation/identity 复用现有项目数据组织路径；foundation/resources 维护资料 UI；C/root 实施 discussions 和任务详情组合；E/foundation 实施 notify 与共享 bot。root 集成公开契约、追加迁移和版本，不改其他成员分支、core、登录或依赖。
+
+```ts
+// discussions 根入口：全部先检查当前项目成员；写入在事务中重新验证
+listTaskDiscussions(actorId, taskId): Promise<DiscussionListDTO>
+createTaskDiscussion(actorId, taskId, { body?, resourceIds?, parentId? }): Promise<DiscussionPostDTO>
+updateTaskDiscussion(actorId, taskId, postId, { version, body }): Promise<DiscussionPostDTO>
+withdrawTaskDiscussion(actorId, taskId, postId, version): Promise<DiscussionPostDTO>
+setDiscussionResolved(actorId, taskId, postId, { version, resolved }): Promise<DiscussionPostDTO>
+listDiscussionRevisions(actorId, taskId, postId): Promise<DiscussionRevisionDTO[]>
+taskDiscussionsGET / taskDiscussionsPOST / taskDiscussionGET / taskDiscussionPATCH
+
+// discussions/client：浏览器安全 DTO、输入与响应 Zod schema；不含 DB/session
+DiscussionListDTO // {posts, truncated, limit}，最近200条及回复所属根主题
+DiscussionPostDTO // 内容、版本、父主题、附件快照、撤回/解决、本人操作能力
+discussionListSchema / discussionPostSchema / discussionHistorySchema / discussionRevisionSchema
+discussionCreateSchema / discussionEditSchema / discussionResolveSchema
+
+// discussions/ui：完整页与共享任务抽屉共用
+TaskDiscussions({ taskId, projectId, actorId, onBusyChange?, onDirtyChange? })
+
+// resources 根入口：仅当前项目/团队共享文件，tx 内锁定并保留引用
+bindDiscussionResources(actorId, projectId, resourceIds, postId, tx): Promise<DiscussionResourceDTO[]>
+
+// resources/client：资料浏览连续性，不引入权限或服务运行时
+ResourceQuery / parseResourceQuery(params)
+resourceWorkspaceUrl(pathname, params, changes)
+selectResources(rows, query) / resourceUploadError({name, size})
+
+// notify 根入口：本人摘要与已读；旧接口继续兼容
+getMyNotificationFeed(actorId): Promise<{notifications: NotificationDTO[], unreadCount: number}>
+markAllRead(actorId): Promise<number>
+notificationsGET / notificationsPOST
+notifyTaskDiscussion(actorId, taskId, postId, tx?): Promise<void>
+
+// notify/client：浏览器安全的消息响应、内部链接校验与分类文案
+NotificationItem / NotificationFeed
+parseNotificationFeed(value) / notificationTarget(link) / notificationLabel(type)
+
+// notify/ui：右下角共享助手；旧 MarkReadButton 保留
+useNotificationFeed() // 摘要、等待/错误、更新时间、已读等待、refresh/mark
+NotificationDockPanel({ state, onNavigate })
+```
+
+API：`/api/v1/tasks/:taskId/discussions` GET/POST、`/:postId?history` GET、`/:postId` PATCH `op=edit|withdraw|resolve`。新讨论/回复只通知任务负责人和被回复作者，排除本人/离队成员，通知与新内容同事务提交。撤回保留历史与文件引用，不改任务状态。源码追加迁移 `discussions.sql`、`migrate-discussions.mjs`；开发/测试库分别应用，旧业务迁移不改哈希。
+
+资料 URL 为 `q/category/kind/scope/resource`（具体值以 `ResourceQuery` 为准），关闭资料详情保留筛选；复制链接仍需当前成员鉴权。`ResourcePicker.label?` 默认“成果附件”，讨论使用“任务附件”，其余签名兼容。
+
+通知摘要 API 为 `GET /api/v1/notify?summary=1`，最近 20 条与全部本人未读数一起返回，响应 private/no-store；原 GET 列表继续兼容。`POST ?all=1` 标记本人全部消息，`POST ?id=UUID` 保留单条语义；本人范围由会话确定，不接受 userId。客户端每 60 秒在可见页面更新，focus/visibility 与 `agilenest:notifications-changed` 触发刷新；错误保留上次消息，卸载终止请求。`CollaborationDock({userId,projects,aiEnabled?})` 按账号重新挂载，保留 `openAiFloating()` 事件和 AI 草稿保存保护；没有 Web Push、模型或飞书私信契约。
 
 ---
 
@@ -326,3 +467,102 @@ foundation 在 `codex/fix-postgres-launch-hang` 修复 Windows PowerShell 等待
 对 rc.3 候选运行独立只读评审后，foundation 在同一分支修正并发与状态缺陷，范围仍为共享 `components/ai`、`components/preferences*`、identity 设置组合与对应契约用例，无新增导出、依赖或数据库变更。
 
 共享 `AiWorkspace` 的编辑器在自身未编辑时采用 store 中更新的正文，避免多标签覆盖与旧视图继续编辑；同一 store 的 `saveText` 语义与既有「未编辑不覆盖」约定不变。个人资料 action 仅在表单包含联系方式字段时传递 `contacts`，`saveAccountProfile` 的「缺省保留」契约不变。偏好 store 追加 `reset()`（需要 `removeItem`），identity 失败提示改为「重置偏好」。`SettingsWorkspace` 在软导航时同步请求分区，分区切换改用 `pushState` 并监听 `popstate`。
+
+## 协作基础与知识库 · 0.4.0-rc.8
+
+集成分支 `codex/collaboration-foundations`，用户授权尽可能完善协作、参考官方资料并清理失效文档。foundation/root负责identity目录、共享详情/个人设置、讨论提及分页、schema/迁移/版本；A负责任务组织与行动项；resources Owner负责知识库；E负责站内订阅与本人提醒；B/root委托代理负责board和tasks/pool-filters单文件、本人保存视图。各模块服务与API仍通过根入口调用，共享schema由root串行追加，不改core/登录/依赖。
+
+### identity
+
+- 根入口 `getProjectDirectory(actorId,teamId):Promise<ProjectDirectoryDTO>`、`mutateProjectDirectory(actorId,teamId,ProjectSpaceMutation):Promise<void>`；HTTP薄壳 `projectDirectoryGET/POST`。
+- `identity/client` 导出目录DTO/变更类型、Zod、`projectSpacePath`、`projectSpaceMoveError`；`identity/ui.ProjectDirectory({teamId,initial,kind?})`。
+- POST `/api/v1/teams/:teamId/project-spaces` op=create/update/delete/place：update/delete带目录version；place带projectId/spaceId和placement version（首次0）。管理员/副管理员整理、成员读取，团队锁后复核，四层子树/循环/范围保护，空目录才能删除。
+- `SettingsView` 的section新增notifications，复用notify公开面板。本人项目、学术资料与可选飞书连接契约不变。
+- 用户后续职务授权：`TEAM_POSITIONS` 增加deputy，member显示组员；`capabilitiesFor` 增加manageTeamInformation/manageProjectDirectory/manageResources，admin/deputy均可日常管理，manageMembers仅admin。`canRemoveTeamMember(actorPositions,targetPositions)`供成员入口计算移除权限。
+- 根入口`requireTeamCapability(actorId,teamId,capability,tx?)`，capability为manageMembers/manageTeamInformation/manageProjectDirectory/manageResources；identity事务在团队锁后重查实际职务。`updateMemberPositions(actorId,teamId,targetUserId,positions,positionVersion?)`新增可选版本参数，返回positionVersion；`listTeamMembers`增加positionVersion:string|null，页面强制携带。旧服务调用保留兼容，最后主管理员不因副管理员存在而放行降级/退出。
+
+### tasks
+
+- 根入口 `listProjectTaskLabels(actorId,projectId)`、`createProjectTaskLabel(actorId,projectId,{name,color?})`、`updateProjectTaskLabel(actorId,projectId,labelId,{name,color?,version})`、`deleteProjectTaskLabel(actorId,projectId,labelId,version)`。
+- `getTaskOrganization(actorId,taskId,query?)` 与 `changeTaskOrganization(actorId,taskId,TaskOrganizationMutation)`：op=labels带labelIds和organization version；addDependency带otherTaskId/direction=blockedBy|blocking，removeDependency带dependencyId，均按公开Zod校验，前置与后续同项目，无环，版本和权限统一检查。组织读取使用repeatable-read。
+- `createTaskActionItem(actorId,projectId,{resourceId,sourceVersion,requestKey,title,description?,dueDate?,quote?}):Promise<TaskDTO>`；POST `/api/v1/projects/:projectId/task-action-items`，先锁团队，调用resources公开源绑定，再原子创建任务/事件/来源；稳定requestKey重试仅复用本人同项目记录。
+- TaskDTO可选追加labels/blockedByIds/blockingIds/blocked/reopenBlocked/actionItemOrigin。`listProjectTasks`过滤追加labelId/blocked；`availableTransitions`与服务端依赖守卫同时检查，无第六状态。被阻塞禁止提交/重交/通过；已提交或通过的后续任务保护前置重开；删除不能绕过关系。
+- `tasks/client`导出组织DTO、schemas、颜色、`matchesTaskOrganization`、`wouldCreateTaskDependencyCycle`；`tasks/ui`导出`TaskOrganization({taskId,projectId,onBusyChange?})`、`TaskLabelFilter({projectId,value,onChange,disabled?})`、`TaskLabelPill`。TaskDetailSummary展示带accessible标志的来源卡片；不可见来源标题/摘录置null且隐藏链接。
+- API：`/tasks/:taskId/organization` GET/PATCH；`/projects/:projectId/task-labels` GET/POST；`/:labelId` PATCH/DELETE。API薄壳均从tasks根入口导出。
+
+### resources
+
+- 原有ResourceDTO追加folderId/folderName/placementVersion/pinned、canEdit/canComment；getResource/listResources仍按团队/项目当前读取范围计算。作者/admin/deputy管理，协作者edit可改文档/link正文，不能管理授权/删除或改原文件。
+- 根入口新增`listResourceFolders(actorId,scope)`、`createResourceFolder(actorId,input)`、`updateResourceFolder(actorId,input)`、`placeResource(actorId,input)`。folder输入teamId/projectId、name/parentId；update带folderId/version，placement带resourceId/version/folderId/pinned。八层限制计算完整子树，同名/循环/范围和版本冲突明确返回。
+- `getResourceCollaboration(actorId,resourceId)`、`setResourceCollaboration(actorId,{resourceId,version,commentScope,collaborators})`；commentScope=team/collaborators，授权comment/edit只向当前成员授予；读取仍同团队。
+- `linkResource(actorId,{sourceResourceId,targetResourceId?|targetTaskId?})`、`unlinkResource(actorId,linkId)`、`listResourceLinks(actorId,resourceId)`、`listTaskResourceLinks(actorId,taskId)`、`getResourceWorkspace(actorId,scope)`。资料双方读写与任务项目归属校验；双向展示不重复存边。
+- `listResourceComments(actorId,resourceId)`、`createResourceComment(actorId,{resourceId,body,resourceVersion,parentId?,selectedQuote?,line?,mentionedUserIds?})`、`updateResourceComment(actorId,{commentId,version,action,body?,mentionedUserIds?})`、`listResourceCommentHistory(actorId,commentId)`；action=edit/withdraw/resolve/reopen。正文引文必须真实，版本/行号核对；作者编辑、作者或管理者撤回、管理者处理顶层评论。结构处理复制提及快照，通知/评论/版本同事务。
+- `bindTaskActionItemSource(actorId,projectId,{resourceId,sourceVersion,quote?},tx)`返回{id,title,version}；仅可读真实文档、同项目或团队共享，摘录校验；来源引用保护删除。`accessibleResourceIds(actorId,ids,tx?)`批量过滤当前可见ID，供任务DTO掩码。
+- `/api/v1/resources/workspace` GET读取scope/资料知识区、POST op+data调用上述服务。公开`resourceWorkspaceGET/POST`根入口；Zod在resources内部，不让消费方深链schema/service。
+- `resources/ui.ResourceTaskLinks({taskId,projectId,onBusyChange?})`用于完整详情/抽屉。`ResourcesWorkspace`新增必选actorId（服务端会话传入），评论草稿按本人/资料保存；URL revision显示真实源版本，历史模式不创建当前引文/行动项。
+
+### discussions
+
+- `listDiscussionMembers(actorId,taskId)`只返回当前团队姓名/ID供明确选择。
+- `createTaskDiscussion`增加mentionedUserIds默认[]；`updateTaskDiscussion`可传mentionedUserIds，缺省延续旧快照而不重新提醒离队成员；编辑显式新提及仍要求当前成员。resolve/withdraw复制该版快照，DTO/history可选mentions={userId,name}[]。
+- `listTaskDiscussions(actorId,taskId,{before?,around?}={})`返回nextCursor可空。createdAt+id稳定分页，补齐回复根主题；before必须当前任务，around用于旧通知定位。裁剪游标保留边界，避免遗漏旧回复。GET列表?members读取名单，?before/?around浏览历史。
+- 原TaskDiscussions共享UI增加姓名提及、任务关注、加载较早记录；草稿与409输入保留，文件引用和五态不变。
+
+### notify / calendar
+
+- 根入口 `getFollowState(actorId,target)`、`updateFollowState(actorId,{target,following,version})`、`listMyFollows(actorId)`。target={kind:project/task/resource,id}，首次version0，取消保留版本墓碑；每次当前团队ACL，事项取消覆盖项目继承。
+- `getNotificationPreferences(actorId)`、`updateNotificationPreferences(actorId,input)`：version初次0，taskUpdates/discussions/mentions/resourceUpdates/reminders/showBubble。本人持久化，409不覆盖；关闭类别记录已处理事件，不在事后重放。
+- `enqueueCollaborationNotice(actorId,{target,event,title,body?,link,mentionedUserIds?,participantUserIds?,eventKey},tx?)`，event=discussion/resource_comment/resource_update/task_update。提供调用方tx时事务一致；内部参与者去重后按当前团队过滤，无100名协作者加作者的隐含失败。长业务正文在生产者取通知摘要，原业务内容保留。
+- `notifyAssigned/Submitted/Accepted(taskId,actorId?)`、`notifyRejected(taskId,reason,actorId?)`；兼容旧调用，传actor走关注/偏好/排本人。`notifyTaskDiscussion(actorId,taskId,postId,tx?,mentionedUserIds?)`同事务通知负责人/根作者/@成员与关注者。
+- API：`/notify/follows` GET/PUT、`/notify/preferences` GET/PUT，no-store；summary追加preferences.showBubble并收集本人到期提醒。共享bot消费该开关。
+- `notify/ui.FollowButton({target})`、`NotificationPreferencesPanel({compact?})`；项目、任务、资料和设置/消息中心复用。失败保留输入，动态取消不改其他成员。
+- `calendar`新增`getMyScheduleReminder(actorId,scheduleId)`、`saveMyScheduleReminder(actorId,scheduleId,{scheduleVersion,reminderVersion,enabled,minutes})`、`collectMyScheduleReminders(actorId,now?)`，及scheduleReminderGET/PUT薄壳。
+- `/calendar/schedules/:scheduleId/reminder` GET/PUT；提醒初次version0，双版本当前本人校验，提前量0/5/10/15/30/60/1440分钟；明确+08换算、全天09:00、24小时补发、unique收据与通知同事务。关闭提醒类别仍处理收据，仅本人，无calendar→notify运行时循环。
+
+### board
+
+- BoardFilters新增labelId?:string、blocked?:boolean；URL labelId合法UUID、blocked=1/0，重复/非法忽略，parse/serialize/applyFilters统一。看板、表格和任务池复用TaskLabelFilter/Pill，显示真实阻塞信息。
+- `board/ui.CopyWorkspaceLink({href})`，失败提供手动复制；`SavedTaskViews({projectId,layout,groupBy,filters})`用于三个视图。保存项只存白名单条件、布局和分组，私有/项目范围与更新版本保护；失效标签条件保留，不偷换成全部任务。
+- 根入口 `listMyTaskViews(actorId,projectId)`、`createMyTaskView(actorId,projectId,input)`、`updateMyTaskView(actorId,projectId,viewId,{version,name,layout,groupBy,filters})`、`deleteMyTaskView(actorId,projectId,viewId,version)`；API `/projects/:projectId/task-views` GET/POST、`/:viewId` PATCH/DELETE。团队锁后复核当前成员，view按本人过滤。
+- `board/client`导出SavedTaskViewDTO/Input/Update/Layout、白名单Zod与savedTaskViewUrl/Summary；schemaVersion1，名字忽略大小写在本人/项目唯一。分享用workspaceUrl，保存项不存任意URL、task详情或授予访问权。
+
+22张表仅在schema末尾追加，独立可重复迁移`collaboration-foundations.sql`与脚本（dev/--test）。副管理员为用户后续授权的最小额外增量：既有team_position枚举末尾增加deputy，另立`member-deputy.sql`与脚本；不改旧表或历史SQL/hash。root串行应用并保留旧数据，运行包迁移列表末尾追加。全文实时共同编辑和群聊仅方案，当前服务不声称WebSocket、外部投递或模型调用已实现。
+
+## 0.5.0 通用协作与交付契约
+
+本轮分支 `codex/v050-collaboration-release`；resources Owner 负责分类主题/回收，A/tasks 和 delivery Owner 负责阶段交付，foundation/notify UI Owner 负责统一浮动入口，root 负责 schema/迁移/公开路由壳/导航/文档/R7/发布。不修改 core、登录、历史迁移或依赖声明。
+
+### resources
+
+- `createResource(actorId,input)` 追加可空 `folderId`；`uploadResource(actorId,scope,file,tags,placement?)` 的可选第五参为 `{folderId?,category?}`，兼容原四参调用。新建/上传在同事务校验空间、分类与目录并归位。
+- `ResourceFolderDTO` 追加 `category?`、`legacy?`；`folder.create` 分类缺省继承父目录或 general。新目录按分类组织并禁止跨分类/空间移动；缺少分类元数据的旧目录用兼容视图保留原混合分类资料与位置，禁止静默丢失内容。
+- 当前团队成员可建立本人主题/子文件夹，创建者或管理员/副管理员可管理目录。`deleteResourceFolder(actorId,{folderId,version})` 仅删除空目录，含回收资料的位置引用也阻止删除。
+- `deleteResource(actorId,id,version)` 与资源 DELETE 语义为可恢复回收，原文件、正文版本与引用保留；绑定成果、讨论或行动项的证据拒绝回收。普通列表、正文/历史/文件流与关注入口排除回收资料。
+- `listResourceTrash(actorId,{teamId?,projectId?}): ResourceTrashDTO[]` 与 `restoreResource(actorId,{resourceId,version}): ResourceDTO` 根导出；作者或管理员/副管理员可恢复，版本再次递增，旧恢复请求 409。无永久删除/30天自动清理。
+- workspace GET `?trash=true&projectId/teamId`；POST 增加 `folder.delete`、`resource.restore`。公开 `resources/ui` 继续为唯一跨模块 UI 入口。
+
+### tasks / delivery
+
+- `createTask(actorId,projectId,input)` 的输入结构（服务内部名 `TaskCreateInput`，不是命名导出）追加 `acceptanceCriteria?: AcceptanceCriterion[]`、`requestKey?: string`。`AcceptanceCriterion={id:string,text:string}`；服务保留旧调用缺省兼容，GUI 发布必须有 1–30 项不重复的验收要求，并将任务、负责人、要求 v1 和创建事件原子保存。`criteria` 字段用于 `saveTaskRequirements(actorId,taskId,{version,criteria})`，不能替代创建输入的 `acceptanceCriteria`。
+- `createSubtask(actorId,parentTaskId,{title,description?,dueDate?,priority?,assigneeId?,acceptanceCriteria?,requestKey?})` 复用同一创建校验、事务与权限；不能继续嵌套，也不能向 submitted/accepted 的父任务增加子任务。负责人从当前团队可执行成员按姓名选择；有指派能力可指定他人，否则仅本人或任务池。
+- 创建任务和子任务使用稳定 UUID `requestKey` 防重复提交；响应丢失后以原键重试只复用本人同项目、同父任务的原任务，不覆盖内容、不增加创建事件或重复指派通知。跨账号、项目或父任务复用同键返回 409。成功后 GUI 才生成下一次请求键，失败保留输入。
+- `updateTask(actorId,taskId,patch,expectedUpdatedAt?:string)` 的可选第四参兼容旧服务调用；GUI 编辑 action 必须传原 `TaskDTO.updatedAt.toISOString()`。锁定后检查版本，不匹配返回 409 并保留草稿。submitted/accepted 冻结 title、description 和验收要求，需先打回/重开才可更改；排期、优先级等仍可调整。保存验收要求至少保留一项，旧版提交/评审快照不可覆盖。
+- `TaskDTO` 和 `TransitionContext` 追加 `acceptBlocked?:boolean`，表示仍有未验收通过的子任务；`getTaskDetail/listProjectTasks` 查询真实子任务，不能因列表筛选而丢失该守卫。`availableTransitions` 为 true 时不提供 accept，reject 仍按原权限可用；服务端事务再次检查。review 工作台/验收台按项目通过公开 `listProjectTasks` 补齐并保留 blocked/reopenBlocked/acceptBlocked，不复制状态机或只用裸 `toDTO` 判断可操作入口。
+- 提交/重交仍须要求版本、完成说明、验证结果、链接或真实附件及逐项对应；accept/reject 指定当前 submissionId，打回保留逐项问题和总体意见。负责人变化后原负责人不能继续提交；状态仍只有 unclaimed/in_progress/submitted/rejected/accepted，发布→指派/认领→执行→提交→打回/重交→逐项通过→重开都走 `transitionTask`。
+- 发布、编辑、验收要求保存和状态流转路径中新写入任务/验收要求/活动事件显式传入 Date，提交 submittedAt、评审 reviewedAt 与同次状态操作的任务时间、事件时间共用一个时刻，不依赖数据库会话本地 defaultNow。已有提交/评审版本不修改时间；历史 legacy 提交转换继续沿用其原 submittedAt。
+- tasks 根导出 `ApprovedTaskSubmission={taskId:string,taskTitle:string,submission:SubmissionDTO}`、`listApprovedTaskSubmissions(actorId,projectId):Promise<ApprovedTaskSubmission[]>` 和 `getApprovedTaskSubmission(actorId,projectId,taskId,submissionId,tx?):Promise<ApprovedTaskSubmission>`；当前项目 ACL、真实 accepted 状态、提交属于任务且存在 accept 评审。写调用传入同一事务，getter 持有同源任务行锁；候选可以包含同一当前已通过任务的历史通过版本。
+- 新增 delivery 模块根契约：`getProjectDeliveries(actorId,projectId):Promise<DeliveryProjectDTO>`、`getDeliveryBatch(actorId,batchId):Promise<DeliveryBatchDTO>`、`createDeliveryBatch(actorId,projectId,input:DeliveryBatchInput,requestKey?:string):Promise<string>`、`mutateDeliveryBatch(actorId,batchId,input:DeliveryMutation):Promise<DeliveryBatchDTO>`、`exportDeliveryRecord(actorId,batchId,version,format:"markdown"|"json"):Promise<{fileName:string,body:string}>`。根导出 DeliveryBatchDTO/DeliveryProjectDTO/DeliveryBatchInput/DeliveryMutation/DeliveryCheck/DeliverySnapshot/DeliveryRecordDTO；浏览器安全 `client` 另提供校验和展示纯函数。`delivery/ui`、`delivery/views.DeliveryProjectView({params,searchParams})` 登记为公共 UI/页面组合入口。
+- 交付创建 POST 体追加可选 UUID requestKey，GUI 必传稳定键；同账号、同项目重试返回原批次 ID，不覆盖第一次成功内容或增加记录，其他账号/项目复用返回 409。取得创建成功 ID 后先清理新建输入并选中批次，再刷新列表；刷新失败明确显示已建立，不能提示用户重复建立。
+- 项目管理或验收职务可整理批次，管理员/副管理员/指导老师确认或重开；普通组员可处理分配给自己的评审问题。按团队→批次→任务锁后重验当前职务与归属。日期真实有效，责任人按姓名选当前团队成员。
+- `DeliveryCheck={id:string,text:string,checked:boolean,note:string}`，checked/note 都必填；mutation 含 edit/bind/unbind/issue/resolve/reopenIssue/complete/reopen/archive/restore，并携带批次版本，问题处理还携带问题版本。确认要求责任人、逐项清单、至少一个真实通过版本及全部问题处理完成；再次核对当前真实 task/submission。已确认记录只允许明确重开、归档和恢复，不覆盖旧快照；重开取消当前清单勾选、保留旧记录。
+- deliveryEntries 固定绑定任务/通过 submissionId，证据沿用真实提交文件引用，无任意 resourceId 快照；独立历史 snapshot 与 deliveryRecords 每批次/版本唯一。后来任务重开时显示当前状态差异；任务/子任务删除保护当前和历史交付引用。批次读取带最近 40 条记录，指定历史记录版本仍可 Markdown/JSON 导出；导出重新检查当前项目读取权，使用当时快照而不是当前批次覆盖历史。
+- 所有业务确认使用复用 Radix 弹窗；默认聚焦取消，Esc 取消后返回原触发按钮，提交期间禁止关闭和重复操作。确认捕获打开时批次版本，旧版本明确提示重新核对。新写入批次、条目、问题和历史记录都显式使用 UTC Date；同次操作的 completedAt/updatedAt/record.createdAt 一致，不混用数据库会话本地 defaultNow。
+- 页面 `/p/:projectId/delivery`；API `/projects/:projectId/delivery` GET/POST、`/delivery/:batchId` GET/PATCH、`/delivery/:batchId/export?version=&format=markdown|json` GET（均位于 `/api/v1`）。根薄壳导出 projectDeliveriesGET/POST、deliveryBatchGET/PATCH、deliveryExportGET，另有 GET/POST/BATCH_GET/BATCH_PATCH/EXPORT_GET 别名；路由只调用登记入口。
+
+### 统一协作中心与发布
+
+- `components/ai/floating.openCollaborationDock(panel?: "notifications"|"ai")`；原 `openAiFloating()`/旧事件兼容。右下角只一个图标，真实未读、消息类别/仅未读和本地草稿标签共用。通知 `showBubble` 控制整个浮动入口，消息仍可从完整消息页读取。
+- 草稿存储键与按账号隔离保持，切换/关闭先保存，导入等待或失败保留输入；模型不接入。站内消息只读预览不自动标已读。
+- `components/ai/workspace.AiWorkspace({userId,projects,compact?,saveGuardRef?,busyRef?})`：projects 为 `{id,name,teamName}[]` 摘要；`saveGuardRef?:React.RefObject<(()=>boolean)|null>` 由工作区提供保存守卫；`busyRef?:React.RefObject<boolean>` 在资料读取/保存期间为 true，结束（含失败）归 false。浮窗据此阻止导入中关闭、切换或放弃；重复导入由同步锁拒绝，失败保留原输入。
+- `components/ai/materials-ui.MaterialsDialog` 公开组件 props 为 `mode/onClose/items/userId/importError/importing/onImport/onAttachText/onPick`，追加可选 `onReturnFocus?:()=>void`；onImport 接收 File[] 返回 Promise<boolean>，onAttachText 返回错误串或 null。传入 onReturnFocus 时覆盖关闭自动聚焦，资料面板关闭后回到草稿输入框；其本地文件仍按账号存储，不等同于项目资料库。
+- 末尾追加 resourceFolderCategories/resourceTrash 与 deliveryBatches/Entries/Issues/Records 六表，迁移 `collaboration-v050.sql`、`scripts/migrate-collaboration-v050.mjs` 与运行包 bootstrap 列表同步，开发/测试库由 root 串行升级。本轮完成 R7 后按用户授权合入 main，发布 0.5.0 与 Windows ZIP/SHA256 Release。

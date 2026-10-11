@@ -5,6 +5,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, ListChecks } from "lucide-reac
 import { Badge, StatusPill, PriorityPill } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { serializeFilters } from "@/modules/board/client";
 import {
   WEEKDAY_LABELS,
   currentYearMonth,
@@ -19,11 +20,11 @@ import {
 } from "./model";
 
 const STATUS_BG: Record<string, string> = {
-  unclaimed: "bg-slate-100 text-slate-700",
-  in_progress: "bg-blue-50 text-blue-700",
-  submitted: "bg-amber-50 text-amber-800",
-  accepted: "bg-emerald-50 text-emerald-700",
-  rejected: "bg-red-50 text-red-700",
+  unclaimed: "bg-[var(--status-unclaimed-soft)] text-[var(--status-unclaimed)]",
+  in_progress: "bg-[var(--status-in-progress-soft)] text-[var(--status-in-progress)]",
+  submitted: "bg-[var(--status-submitted-soft)] text-[var(--status-submitted)]",
+  accepted: "bg-[var(--status-accepted-soft)] text-[var(--status-accepted)]",
+  rejected: "bg-[var(--status-rejected-soft)] text-[var(--status-rejected)]",
 };
 
 const MILESTONE_BG = "bg-brand-soft text-brand";
@@ -45,10 +46,11 @@ export function EventChip({
     <Link
       href={
         event.kind === "milestone"
-          ? `/p/${projectId}/milestones`
+          ? `/p/${projectId}/table?${serializeFilters({ milestoneId: event.id })}`
           : `/p/${projectId}/tasks/${event.id}`
       }
-      title={`${event.title}${event.spanDays > 1 ? `（跨 ${event.spanDays} 天）` : ""}`}
+      title={`${event.title}${event.kind === "milestone" ? "（查看关联任务）" : event.spanDays > 1 ? `（跨 ${event.spanDays} 天）` : ""}`}
+      aria-label={`${event.title} · ${event.kind === "milestone" ? "查看关联任务" : "查看任务"}`}
       className={cn(
         "block truncate rounded px-1 py-0.5 text-[10px] leading-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         event.kind === "milestone"
@@ -166,9 +168,10 @@ export function AgendaList({
                   <Link
                     href={
                       event.kind === "milestone"
-                        ? `/p/${projectId}/milestones`
+                        ? `/p/${projectId}/table?${serializeFilters({ milestoneId: event.id })}`
                         : `/p/${projectId}/tasks/${event.id}`
                     }
+                    aria-label={`${event.title} · ${event.kind === "milestone" ? "查看关联任务" : "查看任务"}`}
                     className={cn(
                       "min-w-0 flex-1 truncate hover:underline",
                       done && "text-muted-foreground line-through",
@@ -368,7 +371,7 @@ export function CalendarWorkspace({
             <CardTitle>{filters.riskOnly ? "逾期风险" : `${month} 月日程`}</CardTitle>
             {canReview && (
               <p className="text-xs text-muted-foreground">
-                验收台可批量处理待验收任务。
+                <Link href={`/p/${projectId}/review`} className="text-brand hover:underline">前往验收台逐项查看成果与验收。</Link>
               </p>
             )}
           </CardHeader>

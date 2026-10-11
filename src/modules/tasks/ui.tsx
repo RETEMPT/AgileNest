@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useId, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ArrowRight, RotateCcw, X } from "lucide-react";
+import { ArrowRight, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormFeedback, useFeedback } from "@/components/ui/feedback";
@@ -18,6 +18,7 @@ import {
   transitionAction,
   loadTaskAssigneesAction,
   loadTaskPermissionsAction,
+  loadProjectTaskAssigneesAction,
   type FormState,
 } from "@/modules/tasks/actions";
 import type { TaskDTO } from "./service";
@@ -26,6 +27,7 @@ import {
   STATUS_DESCRIPTIONS,
   availableTransitions,
   canDeleteTask,
+  transitionNeedsDialog,
   type TransitionRule,
 } from "./states";
 import type { TeamRole } from "@/db/schema";
@@ -35,6 +37,12 @@ import {
   type TeamPosition,
   type TaskPermissions,
 } from "@/modules/identity/client";
+import { StructuredTransitionFields } from "./delivery-fields";
+import { DiscardChangesDialog } from "./form-guards";
+import type { AcceptanceCriterion } from "./delivery-types";
+
+export { TaskDetailSummary, type TaskDetailSummaryProps } from "./detail-summary";
+export { TaskOrganization, TaskLabelFilter, TaskLabelPill } from "./organization-ui";
 
 function ErrorLine({ state }: { state: FormState }) {
   return <FormFeedback message={state?.error} className="text-xs" />;
@@ -53,6 +61,18 @@ export function CreateTaskForm({
 }) {
   const id = useId();
   const notify = useFeedback();
+  const [criteria, setCriteria] = useState<AcceptanceCriterion[]>([]);
+  const [assigneeId, setAssigneeId] = useState("");
+  const [assignees, setAssignees] = useState<AssigneeOption[]>([]);
+  const [assigneeError, setAssigneeError] = useState("");
+  const [canAssign, setCanAssign] = useState(false);
+  const [requestKey, setRequestKey] = useState("");
+  useEffect(() => {
+    let active = true;
+    const initializeCriteria = () => { setCriteria((current) => current.length ? current : [{ id: crypto.randomUUID(), text: "" }]); setRequestKey((current) => current || crypto.randomUUID()); };
+    void loadProjectTaskAssigneesAction(projectId).then((result) => { if (active) { setAssignees(result.members); setCanAssign(result.canAssign); setAssigneeError(result.error); initializeCriteria(); } }).catch(() => { if (active) { setAssigneeError("负责人加载失败，仍可先发布为待认领任务"); initializeCriteria(); } });
+    return () => { active = false; };
+  }, [projectId]);
   const [fields, setFields] = useState({
     title: "",
     description: "",
@@ -72,6 +92,7 @@ export function CreateTaskForm({
           dueDate: "",
           priority: "medium",
         });
+        setAssigneeId(""); setCriteria([{ id: crypto.randomUUID(), text: "" }]); setRequestKey(crypto.randomUUID());
         onCreated?.();
       }
       return result;
@@ -95,6 +116,8 @@ export function CreateTaskForm({
         <input type="hidden" name="parentTaskId" value={parentTaskId} />
       )}
       <input type="hidden" name="projectId" value={projectId} />
+      <input type="hidden" name="acceptanceCriteria" value={JSON.stringify(criteria)} />
+      <input type="hidden" name="requestKey" value={requestKey} />
       <label htmlFor={`${id}-title`} className="block text-xs font-medium">
         任务标题
       </label>
@@ -107,53 +130,69 @@ export function CreateTaskForm({
         }
         maxLength={200}
         disabled={pending}
-        placeholder="任务标题"
+        placeholder="例如：完成研究报告初稿 / 整理课程展示材料"
         required
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
       />
+      <label htmlFor={`${id}-description`} className="block text-xs font-medium">
+        工作目标与背景 <span className="font-normal text-muted-foreground">（可选）</span>
+      </label>
       <textarea
-        aria-label="任务描述"
+        id={`${id}-description`}
         name="description"
         value={fields.description}
         onChange={(event) =>
           setFields({ ...fields, description: event.target.value })
         }
-        placeholder="描述（可选）"
-        rows={2}
+        placeholder="说明工作目标、交付内容，以及如何确认完成"
+        rows={3}
+        maxLength={10000}
         disabled={pending}
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
       />
-      <div className="flex flex-wrap gap-2">
-        <input
-          aria-label="任务截止日期"
-          type="date"
-          name="dueDate"
-          value={fields.dueDate}
-          disabled={pending}
-          onChange={(event) =>
-            setFields({ ...fields, dueDate: event.target.value })
-          }
-          className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-        />
-        <select
-          aria-label="任务优先级"
-          name="priority"
-          value={fields.priority}
-          disabled={pending}
-          onChange={(event) =>
-            setFields({ ...fields, priority: event.target.value })
-          }
-          className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-        >
-          <option value="low">低优先</option>
-          <option value="medium">中优先</option>
-          <option value="high">高优先</option>
-        </select>
-        <Button size="sm" disabled={pending} loading={pending}>
-          {pending ? "创建中…" : "创建"}
+      <div className="space-y-2"><label htmlFor={`${id}-owner`} className="block text-xs font-medium">负责人 / 认领方式</label><select id={`${id}-owner`} name="assigneeId" value={assigneeId} disabled={pending} onChange={(event) => setAssigneeId(event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="">发布到任务池，等待成员认领</option>{assignees.map((member) => <option key={member.id} value={member.id}>{member.name} · {member.positions?.map((position) => POSITION_META[position].label).join("、")}</option>)}</select><p className="text-xs leading-5 text-muted-foreground">{canAssign ? "可以直接指派团队执行成员，任务和验收清单一并发布。" : "可创建待认领任务，或选择本人执行；指派他人需要管理或协调职务。"}</p><FormFeedback message={assigneeError} /></div>
+      <section className="space-y-3 rounded-xl border border-border bg-muted/20 p-3"><div><h3 className="text-xs font-semibold">发布时的验收要求 <span className="text-destructive">*</span></h3><p className="mt-1 text-xs leading-5 text-muted-foreground">至少写明一项可核对的成果或通过条件。执行人按同一清单自检，验收人逐项确认。</p></div>{criteria.map((criterion, index) => <div key={criterion.id} className="flex items-start gap-2"><Input aria-label={`任务发布的第 ${index + 1} 项验收要求`} required maxLength={1000} value={criterion.text} disabled={pending} placeholder="例如：研究报告包含结论、证据和材料来源" onChange={(event) => setCriteria((current) => current.map((item) => item.id === criterion.id ? { ...item, text: event.target.value } : item))} /><Button type="button" size="icon" variant="ghost" aria-label={`移除第 ${index + 1} 项发布要求`} disabled={pending || criteria.length <= 1} onClick={() => setCriteria((current) => current.filter((item) => item.id !== criterion.id))}><Trash2 className="h-4 w-4" /></Button></div>)}<Button type="button" size="sm" variant="outline" disabled={pending || criteria.length >= 30} onClick={() => setCriteria((current) => [...current, { id: crypto.randomUUID(), text: "" }])}><Plus className="h-3.5 w-3.5" />添加要求</Button></section>
+      <details className="rounded-lg border border-border px-3 py-2">
+        <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+          日期与优先级（可选）
+        </summary>
+        <div className="mt-3 grid gap-3">
+          <div className="space-y-1.5">
+            <label htmlFor={`${id}-due`} className="block text-xs font-medium">截止日期</label>
+            <Input
+              id={`${id}-due`}
+              type="date"
+              name="dueDate"
+              value={fields.dueDate}
+              disabled={pending}
+              onChange={(event) => setFields({ ...fields, dueDate: event.target.value })}
+              className="w-full min-w-0"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor={`${id}-priority`} className="block text-xs font-medium">优先级</label>
+            <select
+              id={`${id}-priority`}
+              name="priority"
+              value={fields.priority}
+              disabled={pending}
+              onChange={(event) => setFields({ ...fields, priority: event.target.value })}
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="low">低优先</option>
+              <option value="medium">中优先</option>
+              <option value="high">高优先</option>
+            </select>
+          </div>
+        </div>
+      </details>
+      <ErrorLine state={state} />
+      <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
+        <p className="text-xs text-muted-foreground">目标、负责人和验收清单在同一次发布中保存。</p>
+        <Button size="sm" disabled={pending || !criteria.length || !requestKey} loading={pending}>
+          {pending ? "创建中…" : parentTaskId ? "创建子任务" : "创建任务"}
         </Button>
       </div>
-      <ErrorLine state={state} />
     </form>
   );
 }
@@ -208,9 +247,9 @@ export function TaskWorkflow({ status }: { status?: TaskDTO["status"] }) {
       </ol>
       <div
         aria-current={status === "rejected" ? "step" : undefined}
-        className={`mt-2 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-xs ${status === "rejected" ? "border-red-300 bg-red-50" : "border-dashed border-border"}`}
+        className={`mt-2 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-xs ${status === "rejected" ? "border-destructive/30 bg-destructive/5" : "border-dashed border-border"}`}
       >
-        <RotateCcw aria-hidden="true" className="h-3.5 w-3.5 text-red-600" />
+        <RotateCcw aria-hidden="true" className="h-3.5 w-3.5 text-destructive" />
         <StatusPill status="rejected" />
         <span className="text-muted-foreground">
           验收时打回 → 按意见修改 → 重新提交到待验收
@@ -226,16 +265,24 @@ export function TransitionDialog({
   members,
   onClose,
   onSuccess,
+  onPendingChange,
 }: {
   task: TaskDTO;
   rule: TransitionRule;
   members: AssigneeOption[];
   onClose: () => void;
   onSuccess?: () => void;
+  onPendingChange?: (pending: boolean) => void;
 }) {
   const id = useId();
   const [assigneeId, setAssigneeId] = useState("");
-  const [note, setNote] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [structuredReady, setStructuredReady] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const structuredAction = ["submit", "resubmit", "accept", "reject"].includes(rule.action)
+    ? rule.action as "submit" | "resubmit" | "accept" | "reject"
+    : null;
   const returnFocus = useRef<HTMLElement | null>(null);
   const parentDialog = useRef<HTMLElement | null>(null);
   const notify = useFeedback();
@@ -251,11 +298,18 @@ export function TransitionDialog({
     },
     null,
   );
+  const busy = pending || uploading;
+  useEffect(() => { onPendingChange?.(busy); return () => onPendingChange?.(false); }, [busy, onPendingChange]);
+  function tryClose() {
+    if (busy) return;
+    if (dirty) setDiscardOpen(true);
+    else onClose();
+  }
   return (
     <Dialog.Root
       open
       onOpenChange={(open) => {
-        if (!open && !pending) onClose();
+        if (!open) tryClose();
       }}
     >
       <Dialog.Portal>
@@ -276,12 +330,12 @@ export function TransitionDialog({
             else parentDialog.current?.focus();
           }}
           onEscapeKeyDown={(event) => {
-            if (pending) event.preventDefault();
+            if (busy) event.preventDefault();
           }}
           onPointerDownOutside={(event) => {
-            if (pending) event.preventDefault();
+            if (busy) event.preventDefault();
           }}
-          className="dialog-surface fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-xl"
+          className="dialog-surface fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-4 shadow-xl sm:p-6"
         >
           <Dialog.Title className="pr-8 text-lg font-semibold">
             {rule.label}任务
@@ -294,7 +348,7 @@ export function TransitionDialog({
               type="button"
               variant="ghost"
               size="icon"
-              disabled={pending}
+              disabled={busy}
               aria-label="关闭"
               className="absolute right-3 top-3"
             >
@@ -307,22 +361,24 @@ export function TransitionDialog({
             <StatusPill status={rule.to} />
           </div>
           {task.status === "rejected" && task.rejectReason && (
-            <p className="mb-4 whitespace-pre-wrap rounded-lg bg-red-50 p-3 text-sm text-red-800">
+            <p className="mb-4 whitespace-pre-wrap break-words rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm [overflow-wrap:anywhere]">
               修改意见：{task.rejectReason}
             </p>
           )}
           {task.status === "submitted" && task.completionNote && (
-            <p className="mb-4 whitespace-pre-wrap rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+            <p className="mb-4 whitespace-pre-wrap break-words rounded-lg border border-brand/20 bg-brand-soft p-3 text-sm [overflow-wrap:anywhere]">
               完成说明：{task.completionNote}
             </p>
           )}
           <form
             action={formAction}
             onReset={(event) => event.preventDefault()}
+            onSubmit={(event) => { if (busy || (structuredAction && !structuredReady)) event.preventDefault(); }}
             className="space-y-4"
           >
             <input type="hidden" name="taskId" value={task.id} />
             <input type="hidden" name="action" value={rule.action} />
+            <fieldset disabled={busy} className="space-y-4">
             {rule.setsAssignee && (
               <div className="space-y-2">
                 <label
@@ -336,7 +392,7 @@ export function TransitionDialog({
                   name="assigneeId"
                   required
                   value={assigneeId}
-                  onChange={(event) => setAssigneeId(event.target.value)}
+                  onChange={(event) => { setAssigneeId(event.target.value); setDirty(true); }}
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
                   <option value="" disabled>
@@ -353,7 +409,7 @@ export function TransitionDialog({
                         {member.positions
                           ?.map((position) => POSITION_META[position].label)
                           .join("、") ??
-                          (member.role === "student" ? "队员" : "管理员")}
+                          (member.role === "student" ? "组员" : "管理员")}
                       </option>
                     ))}
                 </select>
@@ -364,30 +420,7 @@ export function TransitionDialog({
                 )}
               </div>
             )}
-            {rule.noteRequired && (
-              <div className="space-y-2">
-                <label htmlFor={`${id}-note`} className="text-sm font-medium">
-                  {rule.action === "reject" ? "修改意见" : "完成说明"}{" "}
-                  <span className="text-destructive">*</span>
-                </label>
-                <textarea
-                  id={`${id}-note`}
-                  name="note"
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
-                  required
-                  maxLength={5000}
-                  rows={4}
-                  placeholder={
-                    rule.action === "reject"
-                      ? "填写需要修改的内容与验收要求"
-                      : "说明完成内容、验证结果，可附成果链接"
-                  }
-                  className="w-full rounded-md border border-input bg-background p-3 text-sm"
-                  autoFocus
-                />
-              </div>
-            )}
+            {structuredAction && <StructuredTransitionFields task={task} action={structuredAction} disabled={busy} onReadyChange={setStructuredReady} onDirtyChange={setDirty} onBusyChange={setUploading} />}
             <div role="alert">
               <ErrorLine state={state} />
             </div>
@@ -395,20 +428,22 @@ export function TransitionDialog({
               <Button
                 type="button"
                 variant="outline"
-                disabled={pending}
-                onClick={onClose}
+                disabled={busy}
+                onClick={tryClose}
               >
                 取消
               </Button>
               <Button
                 disabled={
-                  pending || (rule.setsAssignee && members.length === 0)
+                  busy || (rule.setsAssignee && members.length === 0) || Boolean(structuredAction && !structuredReady)
                 }
                loading={pending}>
                 {pending ? "处理中…" : `确认${rule.label}`}
               </Button>
             </div>
+            </fieldset>
           </form>
+          <DiscardChangesDialog open={discardOpen} onKeepEditing={() => setDiscardOpen(false)} onDiscard={onClose} />
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -420,11 +455,13 @@ export function TaskActions({
   role,
   actorId,
   members = [],
+  onPendingChange,
 }: {
   task: TaskDTO;
   role: TeamRole;
   actorId: string;
   members?: AssigneeOption[];
+  onPendingChange?: (pending: boolean) => void;
 }) {
   const notify = useFeedback();
   const [acting, setActing] = useState("");
@@ -441,12 +478,14 @@ export function TaskActions({
   const [loadedOptions, setOptions] = useState(members);
   const options = members.length ? members : loadedOptions;
   const [loading, setLoading] = useState(false);
+  const [dialogPending, setDialogPending] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [resolved, setResolved] = useState<{
     task: TaskDTO;
     permissions?: TaskPermissions;
     error: string;
   } | null>(null);
+  useEffect(() => { onPendingChange?.(pending || loading || dialogPending); return () => onPendingChange?.(false); }, [pending, loading, dialogPending, onPendingChange]);
   // 旧工作台 DTO 没有权限快照，进入操作区时从统一入口补齐。
   useEffect(() => {
     if (task.permissions) return;
@@ -484,8 +523,10 @@ export function TaskActions({
   if (actions.length === 0)
     return (
       <p className="text-xs text-muted-foreground">
-        {task.status === "submitted"
-          ? "等待管理员或指导老师验收"
+        {task.status === "submitted" && task.acceptBlocked
+          ? "请先验收全部子任务，再验收父任务；仍可按权限打回当前提交"
+          : task.status === "submitted"
+          ? "等待管理员、副管理员或指导老师验收"
           : task.status === "accepted"
             ? "任务已验收完成"
             : "由负责人推进任务"}
@@ -518,14 +559,7 @@ export function TaskActions({
         {actions.map((rule) => (
           <Button
             key={rule.action}
-            type={
-              rule.noteRequired ||
-              rule.setsAssignee ||
-              rule.action === "reopen" ||
-              rule.action === "unclaim"
-                ? "button"
-                : "submit"
-            }
+            type={transitionNeedsDialog(rule) ? "button" : "submit"}
             name="action"
             value={rule.action}
             size="sm"
@@ -536,12 +570,9 @@ export function TaskActions({
                 ? "default"
                 : "outline"
             }
-            disabled={pending || loading}
+            disabled={pending || loading || dialogPending}
             onClick={
-              rule.noteRequired ||
-              rule.setsAssignee ||
-              rule.action === "reopen" ||
-              rule.action === "unclaim"
+              transitionNeedsDialog(rule)
                 ? () => void openDialog(rule)
                 : undefined
             }
@@ -564,6 +595,7 @@ export function TaskActions({
           rule={selected}
           members={options}
           onClose={() => setSelected(null)}
+          onPendingChange={setDialogPending}
         />
       )}
     </div>

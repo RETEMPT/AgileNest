@@ -13,8 +13,8 @@ const badgeVariants = cva(
         secondary: "bg-muted text-muted-foreground",
         outline: "border border-border text-foreground",
         destructive: "bg-destructive/10 text-destructive",
-        success: "bg-emerald-50 text-emerald-700",
-        warning: "bg-amber-50 text-amber-700",
+        success: "bg-[var(--status-accepted-soft)] text-[var(--status-accepted)]",
+        warning: "bg-[var(--status-submitted-soft)] text-[var(--status-submitted)]",
       },
     },
     defaultVariants: { variant: "default" },
@@ -30,16 +30,15 @@ export function Badge({
 }
 
 const STATUS_CLASS: Record<TaskStatus, string> = {
-  unclaimed: "bg-slate-100 text-slate-600",
-  in_progress: "bg-blue-50 text-blue-700",
-  submitted: "bg-amber-50 text-amber-700",
-  accepted: "bg-emerald-50 text-emerald-700",
-  rejected: "bg-red-50 text-red-700",
+  unclaimed: "bg-[var(--status-unclaimed-soft)] text-[var(--status-unclaimed)]",
+  in_progress: "bg-[var(--status-in-progress-soft)] text-[var(--status-in-progress)]",
+  submitted: "bg-[var(--status-submitted-soft)] text-[var(--status-submitted)]",
+  accepted: "bg-[var(--status-accepted-soft)] text-[var(--status-accepted)]",
+  rejected: "bg-[var(--status-rejected-soft)] text-[var(--status-rejected)]",
 };
 
 /** 五态 pill（Linear 式）—— 全站统一状态视觉 */
 export function StatusPill({ status, className }: { status: TaskStatus; className?: string }) {
-  const isLive = status === "in_progress" || status === "submitted";
   return (
     <span
       className={cn(
@@ -51,7 +50,6 @@ export function StatusPill({ status, className }: { status: TaskStatus; classNam
       <span
         className={cn(
           "h-1.5 w-1.5 rounded-full bg-current opacity-80",
-          isLive && "animate-pulse",
         )}
       />
       {STATUS_LABELS[status]}
@@ -60,9 +58,9 @@ export function StatusPill({ status, className }: { status: TaskStatus; classNam
 }
 
 const PRIORITY_CLASS: Record<TaskPriority, string> = {
-  high: "bg-red-50 text-red-700",
-  medium: "bg-amber-50 text-amber-700",
-  low: "bg-slate-100 text-slate-600",
+  high: "bg-[var(--status-rejected-soft)] text-[var(--status-rejected)]",
+  medium: "bg-[var(--status-submitted-soft)] text-[var(--status-submitted)]",
+  low: "bg-[var(--status-unclaimed-soft)] text-[var(--status-unclaimed)]",
 };
 
 const PRIORITY_LABEL: Record<TaskPriority, string> = {

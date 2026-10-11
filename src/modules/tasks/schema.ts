@@ -35,7 +35,9 @@ export const taskFieldsSchema = z.object({
 });
 export const taskCreateSchema = taskFieldsSchema.extend({
   assigneeId: z.uuid("负责人无效").optional(),
-});
+  requestKey: z.uuid("发布请求无效，请重新开始创建任务").optional(),
+  acceptanceCriteria: z.array(z.object({ id: z.uuid("验收项无效"), text: z.string().trim().min(1, "请填写验收要求").max(1000, "单项验收要求最多 1000 字") })).min(1, "发布任务至少需要一项验收要求").max(30, "最多 30 项验收要求").optional(),
+}).refine((value) => !value.acceptanceCriteria || new Set(value.acceptanceCriteria.map((criterion) => criterion.id)).size === value.acceptanceCriteria.length, "验收项不能重复");
 export const taskPatchSchema = taskFieldsSchema.partial();
 
 export function assertTaskDates(input: {

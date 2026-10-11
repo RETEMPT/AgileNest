@@ -1,8 +1,8 @@
 "use client";
 
-import { useId, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   DndContext,
@@ -15,32 +15,28 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import {
-  ArrowUpRight,
-  GripVertical,
-  LayoutGrid,
-  List,
-  Plus,
-  Search,
-  X,
-} from "lucide-react";
+import { CircleAlert, Copy, GripVertical, LayoutGrid, List, Plus, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useFeedback } from "@/components/ui/feedback";
+import { FormFeedback, useFeedback } from "@/components/ui/feedback";
+import { EmptyState } from "@/components/ui/empty-state";
+import { TaskDrawer } from "@/components/cards/task-drawer";
 import { StatusPill, PriorityPill } from "@/components/ui/badge";
 import {
   TASK_STATUSES,
   STATUS_DESCRIPTIONS,
   STATUS_LABELS,
   availableTransitions,
+  transitionNeedsDialog,
   type TaskDTO,
   type TransitionRule,
 } from "@/modules/tasks/client";
 import {
   CreateTaskForm,
-  TaskActions,
   TaskWorkflow,
   TransitionDialog,
+  TaskLabelFilter,
+  TaskLabelPill,
   type AssigneeOption,
 } from "@/modules/tasks/ui";
 import {
@@ -48,18 +44,26 @@ import {
   applyFilters,
   deriveColumns,
   getMoveTransition,
+  parseTaskQuery,
   serializeFilters,
+  taskDetailUrl,
+  workspaceUrl,
   type BoardFilters,
   type ColumnDef,
   type GroupBy,
 } from "./model";
 import { moveTaskAction } from "./actions";
+import { SavedTaskViews } from "./saved-views-ui";
 import type { TeamRole } from "@/db/schema";
+
+export { SavedTaskViews } from "./saved-views-ui";
+export type { SavedTaskViewsProps } from "./saved-views-ui";
 
 type WorkspaceProps = {
   projectId: string;
   projectName: string;
   tasks: TaskDTO[];
+  selectedTask?: TaskDTO | null;
   role: TeamRole;
   actorId: string;
   members: AssigneeOption[];
@@ -69,14 +73,93 @@ type WorkspaceProps = {
   view: "board" | "table";
 };
 
+export function CopyWorkspaceLink({ href }: { href: string }) {
+  return <CopyWorkspaceLinkInner key={href} href={href} />;
+}
+
+function CopyWorkspaceLinkInner({ href }: { href: string }) {
+  const [pending, setPending] = useState(false);
+  const [manualLink, setManualLink] = useState("");
+  const notify = useFeedback();
+  return <div className="min-w-0">
+    <Button type="button" variant="ghost" size="sm" disabled={pending} loading={pending} title="复制当前已应用的筛选和视图；链接不会授予项目访问权限" onClick={async () => {
+      const link = new URL(href, window.location.origin).toString();
+      setPending(true);
+      try {
+        if (!navigator.clipboard) throw new Error("当前浏览器不支持自动复制");
+        await navigator.clipboard.writeText(link); setManualLink(""); notify("视图链接已复制，打开时会保留当前筛选。项目访问权限仍需验证。");
+      } catch { setManualLink(link); }
+      finally { setPending(false); }
+    }}><Copy aria-hidden="true" className="h-3.5 w-3.5" />复制视图链接</Button>
+    {manualLink && <div className="mt-2 max-w-sm space-y-1"><p role="status" className="text-xs text-muted-foreground">无法自动复制，请选中下方链接手动复制。</p><Input aria-label="当前视图链接" readOnly value={manualLink} onFocus={(event) => event.currentTarget.select()} className="h-8 text-xs" /></div>}
+  </div>;
+}
+
+function LabelFilterField({ projectId, value }: { projectId: string; value: string }) {
+  const [labelId, setLabelId] = useState(value);
+  return <div className="min-w-0"><p className="mb-1 text-xs text-muted-foreground">项目标签</p><input type="hidden" name="labelId" value={labelId} /><TaskLabelFilter projectId={projectId} value={labelId} onChange={setLabelId} /></div>;
+}
+
+function TaskOrganizationBadges({ task }: { task: TaskDTO }) {
+  const labels = task.labels ?? [];
+  if (!labels.length && !task.blocked) return null;
+  return <div className="mt-2 flex max-w-full flex-wrap items-center gap-1.5" aria-label="任务标签与依赖状态">
+    {labels.slice(0, 3).map((label) => <TaskLabelPill key={label.id} label={label} />)}
+    {labels.length > 3 && <span title={labels.slice(3).map((label) => label.name).join("、")} className="rounded-full border border-border bg-muted/50 px-2 py-0.5 text-[10px] text-muted-foreground" aria-label={`另 ${labels.length - 3} 个标签，可在任务详情查看`}>+{labels.length - 3}</span>}
+    {task.blocked && <span title="前置任务尚未验收；可以继续执行，提交、重新提交及通过验收需等待前置任务全部通过" className="inline-flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:text-amber-200"><CircleAlert aria-hidden="true" className="h-3 w-3 shrink-0" />被阻塞</span>}
+  </div>;
+}
+
+function MultiValueFilter({
+  id,
+  name,
+  label,
+  values,
+  options,
+}: {
+  id: string;
+  name: "status" | "priority";
+  label: string;
+  values: string[];
+  options: { value: string; label: string }[];
+}) {
+  const [selected, setSelected] = useState(values);
+  return (
+    <div className="min-w-0">
+      <label htmlFor={id} className="mb-1 block text-xs text-muted-foreground">
+        {label}
+      </label>
+      {selected.map((value, index) => (
+        <input key={`${value}-${index}`} type="hidden" name={name} value={value} />
+      ))}
+      <select
+        id={id}
+        value={selected.length > 1 ? "multiple" : selected[0] || ""}
+        onChange={(event) => setSelected(event.target.value ? [event.target.value] : [])}
+        className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs"
+      >
+        <option value="">全部{label}</option>
+        {selected.length > 1 && (
+          <option value="multiple">已选 {selected.length} 项</option>
+        )}
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 function TaskTile({
   task,
   draggable,
+  showStatus,
   onOpen,
 }: {
   task: TaskDTO;
   draggable: boolean;
-  onOpen: () => void;
+  showStatus: boolean;
+  onOpen: (trigger: HTMLElement) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: task.id, disabled: !draggable });
@@ -90,55 +173,44 @@ function TaskTile({
       }}
       className={`rounded-xl border border-border bg-card p-3 shadow-xs ${isDragging ? "opacity-30" : "transition hover:border-brand/35 hover:shadow-sm"}`}
     >
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="font-mono text-[10px] text-muted-foreground">
-          #{task.id.slice(0, 6)}
-        </span>
-        <div className="flex items-center gap-1">
-          <PriorityPill priority={task.priority} />
-          {draggable && (
-            <button
-              type="button"
-              {...attributes}
-              {...listeners}
-              aria-label={`拖动任务：${task.title}`}
-              className="touch-none rounded p-1 text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <GripVertical className="h-4 w-4" />
-            </button>
-          )}
-        </div>
+      <div className="flex items-start gap-2">
+        <button
+          type="button"
+          onClick={(event) => onOpen(event.currentTarget)}
+          title={task.title}
+          className="min-w-0 flex-1 rounded text-left text-sm font-semibold leading-6 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span className="line-clamp-2 break-words">{task.title}</span>
+        </button>
+        {draggable && (
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            aria-label={`拖动任务：${task.title}`}
+            className="shrink-0 touch-none rounded p-1 text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        )}
       </div>
-      <button
-        type="button"
-        onClick={onOpen}
-        className="w-full rounded text-left text-sm font-semibold leading-relaxed hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {task.title}
-      </button>
-      {task.description && (
-        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-          {task.description}
-        </p>
-      )}
-      {task.status === "submitted" && task.completionNote && (
-        <p className="mt-3 line-clamp-2 rounded-md bg-amber-50 p-2 text-xs text-amber-900">
-          成果：{task.completionNote}
-        </p>
-      )}
-      {task.status === "rejected" && task.rejectReason && (
-        <p className="mt-3 line-clamp-2 rounded-md bg-red-50 p-2 text-xs text-red-800">
-          修改：{task.rejectReason}
-        </p>
-      )}
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-soft text-[10px] text-brand">
+      <TaskOrganizationBadges task={task} />
+      <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <PriorityPill priority={task.priority} />
+        <span className="inline-flex min-w-0 items-center gap-1.5">
+          <span aria-hidden="true" className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs text-brand">
             {task.assigneeName?.slice(0, 1) || "·"}
           </span>
-          {task.assigneeName || "等待认领"}
+          <span className="truncate">{task.assigneeName || "等待认领"}</span>
         </span>
-        <span>{task.dueDate || "未设截止"}</span>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span className="tabular-nums">{task.dueDate ? `截止 ${task.dueDate}` : "未设截止"}</span>
+        {showStatus ? (
+          <StatusPill status={task.status} />
+        ) : (
+          <span className="font-mono">#{task.id.slice(0, 6)}</span>
+        )}
       </div>
     </article>
   );
@@ -177,7 +249,7 @@ function BoardColumn({
         </span>
       </div>
       {status && (
-        <p className="mb-3 min-h-8 text-[11px] leading-relaxed text-muted-foreground">
+        <p className="mb-3 min-h-8 text-xs leading-relaxed text-muted-foreground">
           {STATUS_DESCRIPTIONS[status]}
         </p>
       )}
@@ -202,6 +274,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
     projectId,
     projectName,
     tasks,
+    selectedTask,
     role,
     actorId,
     members,
@@ -211,14 +284,18 @@ export function ProjectWorkspace(props: WorkspaceProps) {
     view,
   } = props;
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const notify = useFeedback();
   const id = useId();
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [openedId, setOpenedId] = useState<string | null>(null);
+  const openedId = parseTaskQuery(new URLSearchParams(searchParams));
   const [createOpen, setCreateOpen] = useState(false);
   const [createBusy, setCreateBusy] = useState(false);
-  const detailReturnFocus = useRef<HTMLElement | null>(null);
   const createReturnFocus = useRef<HTMLElement | null>(null);
+  const workspaceRef = useRef<HTMLElement | null>(null);
+  const detailReturnFocus = useRef<HTMLElement | null>(null);
+  const hadDetail = useRef(false);
   const [dialog, setDialog] = useState<{
     task: TaskDTO;
     rule: TransitionRule;
@@ -245,14 +322,65 @@ export function ProjectWorkspace(props: WorkspaceProps) {
         milestones.find((milestone) => milestone.id === column.id)?.title ||
         "无里程碑";
   const activeTask = tasks.find((task) => task.id === activeId);
-  const openedTask = tasks.find((task) => task.id === openedId);
+  const openedTask = tasks.find((task) => task.id === openedId) ?? (selectedTask?.id === openedId && selectedTask.projectId === projectId ? selectedTask : null);
+  useEffect(() => {
+    if (openedTask) hadDetail.current = true;
+    else if (hadDetail.current) {
+      hadDetail.current = false;
+      if (detailReturnFocus.current?.isConnected) detailReturnFocus.current.focus();
+      else workspaceRef.current?.focus();
+    }
+  }, [openedTask]);
   const query = serializeFilters(filters);
   if (groupBy !== "status") query.set("groupBy", groupBy);
+  if (openedId) query.set("task", openedId);
   const suffix = query.size ? `?${query}` : "";
+  const resetHref = workspaceUrl({ projectId, view, filters: {}, groupBy, taskId: openedId });
+  const selectedFilters = [
+    ...(filters.q ? [{ name: "q", value: filters.q, label: `搜索：${filters.q}` }] : []),
+    ...(filters.status ?? []).map((status) => ({
+      name: "status", value: status, label: STATUS_LABELS[status as TaskDTO["status"]],
+    })),
+    ...(filters.assigneeId ? [{
+      name: "assigneeId", value: filters.assigneeId,
+      label: filters.assigneeId === actorId
+        ? "我的任务"
+        : `负责人：${members.find((member) => member.id === filters.assigneeId)?.name || "所选成员"}`,
+    }] : []),
+    ...(filters.priority ?? []).map((priority) => ({
+      name: "priority", value: priority,
+      label: `优先级：${priority === "high" ? "高" : priority === "medium" ? "中" : "低"}`,
+    })),
+    ...(filters.milestoneId ? [{
+      name: "milestoneId", value: filters.milestoneId,
+      label: `里程碑：${milestones.find((milestone) => milestone.id === filters.milestoneId)?.title || "所选节点"}`,
+    }] : []),
+    ...(filters.labelId ? [{ name: "labelId", value: filters.labelId, label: `标签：${tasks.flatMap((task) => task.labels ?? []).find((label) => label.id === filters.labelId)?.name ?? "所选标签"}` }] : []),
+    ...(filters.blocked !== undefined ? [{ name: "blocked", value: filters.blocked ? "1" : "0", label: filters.blocked ? "仅被阻塞" : "仅无阻塞" }] : []),
+  ];
   const completed = tasks.filter((task) => task.status === "accepted").length;
   const percent = tasks.length
     ? Math.round((completed / tasks.length) * 100)
     : 0;
+
+  function withoutFilter(name: string, value: string) {
+    const next = new URLSearchParams(query);
+    const retained = next.getAll(name).filter((item) => item !== value);
+    next.delete(name);
+    retained.forEach((item) => next.append(name, item));
+    return `/p/${projectId}/${view}${next.size ? `?${next}` : ""}`;
+  }
+
+  function openTask(taskId: string, trigger: HTMLElement) {
+    detailReturnFocus.current = trigger;
+    const next = taskDetailUrl(pathname, new URLSearchParams(searchParams), taskId);
+    if (openedId) router.replace(next, { scroll: false });
+    else router.push(next, { scroll: false });
+  }
+
+  function closeTask() {
+    router.replace(taskDetailUrl(pathname, new URLSearchParams(searchParams), null), { scroll: false });
+  }
 
   function move(event: DragEndEvent) {
     setActiveId(null);
@@ -266,7 +394,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
       setNotice({ error: "当前状态或权限不允许移到该列", ok: "" });
       return;
     }
-    if (rule.noteRequired || rule.setsAssignee) {
+    if (transitionNeedsDialog(rule)) {
       setDialog({ task, rule });
       return;
     }
@@ -278,19 +406,19 @@ export function ProjectWorkspace(props: WorkspaceProps) {
   }
 
   return (
-    <main className="space-y-5">
+    <main ref={workspaceRef} tabIndex={-1} className="min-w-0 space-y-5 focus:outline-none">
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="mb-1 text-xs text-muted-foreground">
-            {projectName} / 任务协作
+        <div className="min-w-0 flex-1">
+          <p className="mb-1 break-words text-sm text-muted-foreground">
+            <Link href={`/p/${projectId}`} className="hover:text-brand hover:underline">{projectName}</Link> / 项目任务
           </p>
           <h1 className="text-2xl font-semibold tracking-tight">
-            {view === "board" ? "项目看板" : "任务表格"}
+            项目任务
           </h1>
-          <p className="mt-2 text-xs text-muted-foreground">
+          <p className="mt-2 text-sm text-muted-foreground">
             {view === "board"
-              ? "按状态查看任务，拖动卡片可调整状态。"
-              : "集中查看负责人、状态与排期，点击任务查看操作。"}
+              ? "查看任务进展，打开详情继续处理。"
+              : "集中查看负责人、状态与排期，打开详情继续处理。"}
           </p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
@@ -298,9 +426,9 @@ export function ProjectWorkspace(props: WorkspaceProps) {
           新建任务
         </Button>
       </header>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <dl className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-border pb-4 text-sm">
         {[
-          { label: "全部任务", value: tasks.length },
+          { label: "项目顶层任务", value: tasks.length },
           {
             label: "待验收",
             value: tasks.filter((task) => task.status === "submitted").length,
@@ -309,17 +437,18 @@ export function ProjectWorkspace(props: WorkspaceProps) {
             label: "待修改",
             value: tasks.filter((task) => task.status === "rejected").length,
           },
-          { label: "验收完成", value: `${percent}%` },
+          { label: "被阻塞", value: tasks.filter((task) => task.blocked).length },
+          {
+            label: "顶层验收完成",
+            value: tasks.length ? `${completed}/${tasks.length} · ${percent}%` : "暂无完成度",
+          },
         ].map((item) => (
-          <div
-            key={item.label}
-            className="rounded-xl border border-border bg-card p-4"
-          >
-            <p className="text-xs text-muted-foreground">{item.label}</p>
-            <p className="mt-2 text-2xl font-semibold">{item.value}</p>
+          <div key={item.label} className="flex items-baseline gap-2">
+            <dt className="text-muted-foreground">{item.label}</dt>
+            <dd className="font-semibold tabular-nums">{item.value}</dd>
           </div>
         ))}
-      </div>
+      </dl>
       <details className="rounded-xl border border-border bg-card p-3">
         <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
           查看任务流程与权限
@@ -330,42 +459,37 @@ export function ProjectWorkspace(props: WorkspaceProps) {
       </details>
       <div className="space-y-3 rounded-xl border border-border bg-card p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <nav
-            aria-label="任务视图"
-            className="flex gap-1 rounded-lg bg-muted p-1"
-          >
-            <Button
-              asChild
-              variant={view === "board" ? "outline" : "ghost"}
-              size="sm"
-            >
-              <Link href={`/p/${projectId}/board${suffix}`}>
-                <LayoutGrid className="h-3.5 w-3.5" />
-                看板
-              </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button asChild variant="ghost" size="sm">
+              <Link href={workspaceUrl({ projectId, view: "tasks", filters, groupBy, taskId: openedId })}>任务池</Link>
             </Button>
-            <Button
-              asChild
-              variant={view === "table" ? "outline" : "ghost"}
-              size="sm"
-            >
-              <Link href={`/p/${projectId}/table${suffix}`}>
-                <List className="h-3.5 w-3.5" />
-                表格
-              </Link>
-            </Button>
-          </nav>
-          <span className="text-xs text-muted-foreground">
-            显示 {filtered.length} / {tasks.length} 个任务
-          </span>
+            <nav aria-label="任务视图" className="flex gap-1 rounded-lg bg-muted p-1">
+              <Button asChild variant={view === "board" ? "outline" : "ghost"} size="sm">
+                <Link href={`/p/${projectId}/board${suffix}`} aria-current={view === "board" ? "page" : undefined}>
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                  看板
+                </Link>
+              </Button>
+              <Button asChild variant={view === "table" ? "outline" : "ghost"} size="sm">
+                <Link href={`/p/${projectId}/table${suffix}`} aria-current={view === "table" ? "page" : undefined}>
+                  <List className="h-3.5 w-3.5" />
+                  表格
+                </Link>
+              </Button>
+            </nav>
+          </div>
+          <div className="flex flex-wrap items-center gap-2"><SavedTaskViews projectId={projectId} layout={view} groupBy={groupBy} filters={filters} /><CopyWorkspaceLink href={workspaceUrl({ projectId, view, filters, groupBy, taskId: openedId })} /><span className="text-xs text-muted-foreground">
+            {selectedFilters.length ? `匹配 ${filtered.length} / ${tasks.length}` : `共 ${tasks.length}`} 个顶层任务
+          </span></div>
         </div>
         <form
-          key={suffix}
+          key={`${groupBy}:${serializeFilters(filters)}`}
           action={`/p/${projectId}/${view}`}
           method="get"
-          className="flex flex-wrap items-end gap-2"
+          className="grid grid-cols-2 items-end gap-3 sm:flex sm:flex-wrap"
         >
-          <div className="min-w-36 flex-1">
+          {openedId && <input type="hidden" name="task" value={openedId} />}
+          <div className="col-span-2 min-w-0 sm:min-w-44 sm:flex-1">
             <label
               className="mb-1 block text-xs text-muted-foreground"
               htmlFor={`${id}-q`}
@@ -380,28 +504,8 @@ export function ProjectWorkspace(props: WorkspaceProps) {
               className="h-9"
             />
           </div>
-          <div>
-            <label
-              htmlFor={`${id}-status`}
-              className="mb-1 block text-xs text-muted-foreground"
-            >
-              状态
-            </label>
-            <select
-              id={`${id}-status`}
-              name="status"
-              defaultValue={filters.status?.[0] || ""}
-              className="h-9 rounded-md border border-input bg-background px-2 text-xs"
-            >
-              <option value="">全部状态</option>
-              {BOARD_STATUS_ORDER.map((status) => (
-                <option key={status} value={status}>
-                  {STATUS_LABELS[status]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
+          <MultiValueFilter id={`${id}-status`} name="status" label="状态" values={filters.status ?? []} options={BOARD_STATUS_ORDER.map((status) => ({ value: status, label: STATUS_LABELS[status] }))} />
+          <div className="min-w-0">
             <label
               htmlFor={`${id}-member`}
               className="mb-1 block text-xs text-muted-foreground"
@@ -412,10 +516,11 @@ export function ProjectWorkspace(props: WorkspaceProps) {
               id={`${id}-member`}
               name="assigneeId"
               defaultValue={filters.assigneeId || ""}
-              className="h-9 max-w-40 rounded-md border border-input bg-background px-2 text-xs"
+              className="h-9 w-full max-w-40 rounded-md border border-input bg-background px-2 text-xs"
             >
               <option value="">全部成员</option>
               <option value={actorId}>只看我的任务</option>
+              {filters.assigneeId && filters.assigneeId !== actorId && !members.some((member) => member.id === filters.assigneeId) && <option value={filters.assigneeId}>所选成员</option>}
               {members
                 .filter((member) => member.id !== actorId)
                 .map((member) => (
@@ -425,27 +530,11 @@ export function ProjectWorkspace(props: WorkspaceProps) {
                 ))}
             </select>
           </div>
-          <div>
-            <label
-              htmlFor={`${id}-priority`}
-              className="mb-1 block text-xs text-muted-foreground"
-            >
-              优先级
-            </label>
-            <select
-              id={`${id}-priority`}
-              name="priority"
-              defaultValue={filters.priority?.[0] || ""}
-              className="h-9 rounded-md border border-input bg-background px-2 text-xs"
-            >
-              <option value="">全部优先级</option>
-              <option value="high">高</option>
-              <option value="medium">中</option>
-              <option value="low">低</option>
-            </select>
-          </div>
-          {milestones.length > 0 && (
-            <div>
+          <MultiValueFilter id={`${id}-priority`} name="priority" label="优先级" values={filters.priority ?? []} options={[{ value: "high", label: "高" }, { value: "medium", label: "中" }, { value: "low", label: "低" }]} />
+          <LabelFilterField projectId={projectId} value={filters.labelId ?? ""} />
+          <div className="min-w-0"><label htmlFor={`${id}-blocked`} className="mb-1 block text-xs text-muted-foreground">依赖状态</label><select id={`${id}-blocked`} name="blocked" defaultValue={filters.blocked === undefined ? "" : filters.blocked ? "1" : "0"} className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs"><option value="">全部任务</option><option value="1">仅被阻塞</option><option value="0">仅无阻塞</option></select></div>
+          {(milestones.length > 0 || filters.milestoneId) && (
+            <div className="min-w-0">
               <label
                 htmlFor={`${id}-milestone`}
                 className="mb-1 block text-xs text-muted-foreground"
@@ -456,9 +545,10 @@ export function ProjectWorkspace(props: WorkspaceProps) {
                 id={`${id}-milestone`}
                 name="milestoneId"
                 defaultValue={filters.milestoneId || ""}
-                className="h-9 max-w-40 rounded-md border border-input bg-background px-2 text-xs"
+                className="h-9 w-full max-w-40 rounded-md border border-input bg-background px-2 text-xs"
               >
                 <option value="">全部节点</option>
+                {filters.milestoneId && !milestones.some((milestone) => milestone.id === filters.milestoneId) && <option value={filters.milestoneId}>所选节点</option>}
                 {milestones.map((milestone) => (
                   <option key={milestone.id} value={milestone.id}>
                     {milestone.title}
@@ -467,7 +557,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
               </select>
             </div>
           )}
-          <div>
+          <div className="min-w-0">
             <label
               htmlFor={`${id}-group`}
               className="mb-1 block text-xs text-muted-foreground"
@@ -478,7 +568,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
               id={`${id}-group`}
               name="groupBy"
               defaultValue={groupBy}
-              className="h-9 rounded-md border border-input bg-background px-2 text-xs"
+              className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs"
             >
               <option value="status">按状态</option>
               <option value="assignee">按负责人</option>
@@ -491,41 +581,32 @@ export function ProjectWorkspace(props: WorkspaceProps) {
             筛选
           </Button>
           <Button asChild variant="ghost" size="sm" className="h-9">
-            <Link href={`/p/${projectId}/${view}`}>重置</Link>
+            <Link href={resetHref}>清除筛选</Link>
           </Button>
         </form>
+        {selectedFilters.length > 0 && <div className="flex flex-wrap gap-2" aria-label="当前筛选条件">
+          {selectedFilters.map((filter, index) => <Link key={`${filter.name}-${filter.value}-${index}`} href={withoutFilter(filter.name, filter.value)} className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground hover:border-brand/30 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`移除筛选：${filter.label}`}>
+            <span className="truncate">{filter.label}</span><X aria-hidden="true" className="h-3 w-3 shrink-0" />
+          </Link>)}
+        </div>}
       </div>
       <div aria-live="polite">
         {pending && <p className="text-sm text-brand">正在更新任务…</p>}
-        {notice?.error && (
-          <p
-            role="alert"
-            className="rounded-lg bg-red-50 p-3 text-sm text-red-800"
-          >
-            {notice.error}
-          </p>
+        <FormFeedback message={notice?.error} />
+        <FormFeedback message={notice?.ok} tone="success" />
+        {searchParams.has("task") && !openedTask && (
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-sm text-muted-foreground">此任务暂不可用，可能已删除或不属于当前可访问的项目。</p>
+            <Button variant="outline" size="sm" onClick={closeTask}>关闭任务提示</Button>
+          </div>
         )}
-        {notice?.ok && <p className="text-sm text-emerald-700">{notice.ok}</p>}
       </div>
       {tasks.length === 0 ? (
-        <section className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
-          <LayoutGrid className="mx-auto mb-3 h-8 w-8 text-brand" />
-          <h2 className="text-lg font-semibold">暂无任务</h2>
-          <p className="mb-5 mt-2 text-sm text-muted-foreground">
-            创建任务并设置负责人、优先级和截止日期。
-          </p>
-          <Button onClick={() => setCreateOpen(true)}>新建任务</Button>
-        </section>
+        <EmptyState icon={<LayoutGrid className="h-6 w-6" />} title="项目尚无任务" description="创建一个可交付任务，成员即可认领并按流程提交验收。" actionText="新建任务" onAction={() => setCreateOpen(true)} />
+      ) : filtered.length === 0 ? (
+        <EmptyState icon={<Search className="h-6 w-6" />} title="没有匹配的任务" description="调整上方条件或清除筛选，查看项目中已有的任务。" actionText="清除筛选" actionHref={resetHref} />
       ) : (
         <>
-          {filtered.length === 0 && (
-            <p
-              role="status"
-              className="rounded-lg border border-dashed border-border p-5 text-sm text-muted-foreground"
-            >
-              没有匹配的任务，可以调整筛选条件或重置。
-            </p>
-          )}
           {view === "board" ? (
             <>
               <p className="text-xs text-muted-foreground">
@@ -543,11 +624,11 @@ export function ProjectWorkspace(props: WorkspaceProps) {
                 onDragCancel={() => setActiveId(null)}
                 onDragEnd={move}
               >
-                <div className="overflow-x-auto pb-3">
+                <div className="max-w-full overflow-x-auto pb-3">
                   <div
                     className="grid gap-3"
                     style={{
-                      gridTemplateColumns: `repeat(${columns.length}, minmax(240px, 1fr))`,
+                      gridTemplateColumns: `repeat(${columns.length}, minmax(272px, 1fr))`,
                     }}
                   >
                     {columns.map((column) => (
@@ -573,13 +654,14 @@ export function ProjectWorkspace(props: WorkspaceProps) {
                           <TaskTile
                             key={task.id}
                             task={task}
+                            showStatus={groupBy !== "status"}
                             draggable={
                               groupBy === "status" &&
                               !pending &&
                               availableTransitions(task, role, actorId).length >
                                 0
                             }
-                            onOpen={() => setOpenedId(task.id)}
+                            onOpen={(trigger) => openTask(task.id, trigger)}
                           />
                         ))}
                       </BoardColumn>
@@ -598,11 +680,12 @@ export function ProjectWorkspace(props: WorkspaceProps) {
           ) : (
             <div className="overflow-x-auto rounded-xl border border-border bg-card">
               <table className="w-full min-w-160 text-left text-sm">
+                <caption className="sr-only">{projectName}：{filtered.length} 个匹配的顶层任务</caption>
                 <thead className="border-b border-border bg-muted/50 text-xs text-muted-foreground">
                   <tr>
                     {["任务", "状态", "优先级", "负责人", "截止日期"].map(
                       (label) => (
-                        <th key={label} className="p-3">
+                        <th key={label} scope="col" className="p-3 font-medium">
                           {label}
                         </th>
                       ),
@@ -618,11 +701,12 @@ export function ProjectWorkspace(props: WorkspaceProps) {
                       <td className="p-3">
                         <button
                           type="button"
-                          onClick={() => setOpenedId(task.id)}
-                          className="text-left font-medium hover:text-brand"
+                          onClick={(event) => openTask(task.id, event.currentTarget)}
+                          className="max-w-96 rounded text-left font-medium leading-6 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           {task.title}
                         </button>
+                        <TaskOrganizationBadges task={task} />
                       </td>
                       <td className="p-3">
                         <StatusPill status={task.status} />
@@ -630,8 +714,8 @@ export function ProjectWorkspace(props: WorkspaceProps) {
                       <td className="p-3">
                         <PriorityPill priority={task.priority} />
                       </td>
-                      <td className="p-3">{task.assigneeName || "未认领"}</td>
-                      <td className="p-3 text-muted-foreground">
+                      <td className="p-3 whitespace-nowrap">{task.assigneeName || "未认领"}</td>
+                      <td className="p-3 whitespace-nowrap tabular-nums text-muted-foreground">
                         {task.dueDate || "未设置"}
                       </td>
                     </tr>
@@ -642,95 +726,15 @@ export function ProjectWorkspace(props: WorkspaceProps) {
           )}
         </>
       )}
-      <Dialog.Root
-        open={Boolean(openedTask)}
-        onOpenChange={(open) => {
-          if (!open) setOpenedId(null);
-        }}
-      >
-        <Dialog.Portal>
-          <Dialog.Overlay className="dialog-overlay fixed inset-0 z-40 bg-black/35" />
-          <Dialog.Content
-            onOpenAutoFocus={() => {
-              detailReturnFocus.current =
-                document.activeElement instanceof HTMLElement
-                  ? document.activeElement
-                  : null;
-            }}
-            onCloseAutoFocus={(event) => {
-              event.preventDefault();
-              detailReturnFocus.current?.focus();
-            }}
-            className="dialog-surface fixed inset-y-0 right-0 z-40 w-full max-w-2xl overflow-y-auto border-l border-border bg-card p-5 shadow-xl sm:p-7"
-          >
-            {openedTask && (
-              <>
-                <Dialog.Title className="pr-12 text-xl font-semibold">
-                  {openedTask.title}
-                </Dialog.Title>
-                <Dialog.Description className="mt-2 text-sm text-muted-foreground">
-                  {projectName} · 负责人：{openedTask.assigneeName || "未认领"}
-                </Dialog.Description>
-                <Dialog.Close asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="关闭任务详情"
-                    className="absolute right-3 top-3"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </Dialog.Close>
-                <div className="my-5 flex gap-2">
-                  <StatusPill status={openedTask.status} />
-                  <PriorityPill priority={openedTask.priority} />
-                </div>
-                {openedTask.description && (
-                  <p className="mb-5 whitespace-pre-wrap rounded-lg bg-muted p-4 text-sm">
-                    {openedTask.description}
-                  </p>
-                )}
-                <TaskWorkflow status={openedTask.status} />
-                {openedTask.completionNote && (
-                  <p className="mt-4 whitespace-pre-wrap rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-                    {openedTask.status === "in_progress" ||
-                    openedTask.status === "unclaimed"
-                      ? "上次提交说明："
-                      : "完成说明："}
-                    {openedTask.completionNote}
-                  </p>
-                )}
-                {openedTask.rejectReason && (
-                  <p
-                    className={`mt-4 whitespace-pre-wrap rounded-lg p-3 text-sm ${openedTask.status === "rejected" ? "bg-red-50 text-red-800" : "bg-muted text-muted-foreground"}`}
-                  >
-                    {openedTask.status === "rejected"
-                      ? "修改意见："
-                      : "上次修改意见："}
-                    {openedTask.rejectReason}
-                  </p>
-                )}
-                <section className="mt-5 space-y-3">
-                  <h2 className="text-sm font-semibold">任务操作</h2>
-                  <TaskActions
-                    key={`${openedTask.id}-${openedTask.status}-${openedTask.assigneeId}`}
-                    task={openedTask}
-                    role={role}
-                    actorId={actorId}
-                    members={members}
-                  />
-                </section>
-                <Button asChild variant="outline" className="mt-6">
-                  <Link href={`/p/${projectId}/tasks/${openedTask.id}`}>
-                    子任务、工时与活动记录
-                    <ArrowUpRight className="h-4 w-4" />
-                  </Link>
-                </Button>
-              </>
-            )}
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      <TaskDrawer
+        task={openedTask ? { ...openedTask, projectName } : null}
+        role={role}
+        actorId={actorId}
+        members={members}
+        milestoneName={milestones.find((milestone) => milestone.id === openedTask?.milestoneId)?.title}
+        isOpen={Boolean(openedTask)}
+        onClose={closeTask}
+      />
       <Dialog.Root open={createOpen} onOpenChange={(value) => { if (!createBusy) setCreateOpen(value); }}>
         <Dialog.Portal>
           <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-black/35" />
@@ -773,6 +777,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
               onPendingChange={setCreateBusy}
               onCreated={() => {
                 setCreateOpen(false);
+                setNotice(selectedFilters.length ? { error: "", ok: "任务已创建。如果未显示，请调整当前筛选条件。" } : null);
                 router.refresh();
               }}
             />

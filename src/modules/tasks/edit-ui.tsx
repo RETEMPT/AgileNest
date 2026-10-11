@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { FormFeedback, useFeedback } from "@/components/ui/feedback";
 import type { TaskDTO } from "./service";
 import { editTaskAction } from "./actions";
+import { DiscardChangesDialog } from "./form-guards";
 
 export function EditTaskButton({
   task,
@@ -18,8 +19,17 @@ export function EditTaskButton({
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  function tryClose() { if (busy) return; if (dirty) setDiscardOpen(true); else setOpen(false); }
+  useEffect(() => {
+    if (!open || !dirty) return;
+    const listener = (event: BeforeUnloadEvent) => { event.preventDefault(); };
+    window.addEventListener("beforeunload", listener);
+    return () => window.removeEventListener("beforeunload", listener);
+  }, [open, dirty]);
   return (
-    <Dialog.Root open={open} onOpenChange={(value) => { if (!busy) setOpen(value); }}>
+    <Dialog.Root open={open} onOpenChange={(value) => { if (busy) return; if (!value) tryClose(); else { setDirty(false); setOpen(true); } }}>
       <Dialog.Trigger asChild>
         <Button size="sm" variant="outline">
           <Pencil className="h-4 w-4" />
@@ -48,10 +58,13 @@ export function EditTaskButton({
             task={task}
             milestones={milestones}
             onClose={() => setOpen(false)}
+            onCancel={tryClose}
+            onDirtyChange={setDirty}
             onPendingChange={setBusy}
           />
         </Dialog.Content>
       </Dialog.Portal>
+      <DiscardChangesDialog open={discardOpen} onKeepEditing={() => setDiscardOpen(false)} onDiscard={() => { setDiscardOpen(false); setDirty(false); setOpen(false); }} />
     </Dialog.Root>
   );
 }
@@ -61,11 +74,15 @@ function EditTaskForm({
   milestones,
   onClose,
   onPendingChange,
+  onCancel,
+  onDirtyChange,
 }: {
   task: TaskDTO;
   milestones: { id: string; title: string }[];
   onClose: () => void;
   onPendingChange: (pending: boolean) => void;
+  onCancel: () => void;
+  onDirtyChange: (dirty: boolean) => void;
 }) {
   const id = useId();
   const notify = useFeedback();
@@ -85,6 +102,7 @@ function EditTaskForm({
     return () => onPendingChange(false);
   }, [pending, onPendingChange]);
   const field = "space-y-1.5 text-sm";
+  const scopeFrozen = task.status === "submitted" || task.status === "accepted";
   const select =
     "w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
   return (
@@ -92,9 +110,12 @@ function EditTaskForm({
       action={action}
       onReset={(e) => e.preventDefault()}
       className="space-y-4"
+      onInput={() => onDirtyChange(true)}
     >
       <input type="hidden" name="taskId" value={task.id} />
+      <input type="hidden" name="expectedUpdatedAt" value={task.updatedAt.toISOString()} />
       <fieldset disabled={pending} className="space-y-4">
+        {scopeFrozen && <p className="rounded-lg bg-brand-soft p-3 text-xs leading-5 text-brand">当前工作目标已进入验收阶段，标题与背景保持只读。调整交付范围请先打回或重新打开任务；排期与优先级仍可保存。</p>}
         <div className={field}>
           <label htmlFor={`${id}-title`}>任务标题</label>
           <Input
@@ -103,10 +124,11 @@ function EditTaskForm({
             defaultValue={task.title}
             maxLength={200}
             required
+            readOnly={scopeFrozen}
           />
         </div>
         <div className={field}>
-          <label htmlFor={`${id}-description`}>目标与验收要求</label>
+          <label htmlFor={`${id}-description`}>工作目标与背景</label>
           <textarea
             id={`${id}-description`}
             name="description"
@@ -115,9 +137,17 @@ function EditTaskForm({
             maxLength={10000}
             className={select}
             placeholder="说明需要完成的内容，以及如何确认完成…"
+            readOnly={scopeFrozen}
           />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <details
+          className="rounded-xl border border-border p-3"
+          open={Boolean(task.startDate || task.dueDate || task.estimatedMinutes !== null || task.milestoneId || task.priority !== "medium")}
+        >
+          <summary className="cursor-pointer text-sm font-medium text-muted-foreground">
+            日期、优先级与里程碑
+          </summary>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div className={field}>
             <label htmlFor={`${id}-start`}>开始日期</label>
             <Input
@@ -161,8 +191,8 @@ function EditTaskForm({
               defaultValue={task.estimatedMinutes ?? ""}
             />
           </div>
-        </div>
-        <div className={field}>
+          </div>
+          <div className={`mt-4 ${field}`}>
           <label htmlFor={`${id}-milestone`}>关联里程碑</label>
           <select
             id={`${id}-milestone`}
@@ -177,10 +207,12 @@ function EditTaskForm({
               </option>
             ))}
           </select>
-        </div>
+          </div>
+        </details>
         <FormFeedback message={state?.error} />
+        {state?.error?.includes("任务已被修改") && <p className="text-xs leading-5 text-muted-foreground">上方输入仍保留，请先复制需要保留的草稿，再关闭并重新打开编辑以核对最新信息。</p>}
         <div className="flex justify-end gap-2 border-t border-border pt-4">
-          <Button variant="ghost" type="button" onClick={onClose}>
+          <Button variant="ghost" type="button" onClick={onCancel}>
             取消
           </Button>
           <Button type="submit" loading={pending}>{pending ? "保存中…" : "保存修改"}</Button>

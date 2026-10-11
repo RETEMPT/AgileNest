@@ -8,6 +8,7 @@ import {
   availableTransitions,
 } from "@/modules/tasks";
 import { makeFixture, resetDb } from "../../helpers";
+import { submitEvidence, reviewEvidence } from "../../delivery-fixtures";
 
 describe("职务权限与状态机交互同源", () => {
   let fx: Awaited<ReturnType<typeof makeFixture>>;
@@ -34,7 +35,7 @@ describe("职务权限与状态机交互同源", () => {
     await transitionTask(fx.student.id, task.id, "assign", {
       assigneeId: fx.admin.id,
     });
-    await transitionTask(fx.admin.id, task.id, "submit", { note: "成果" });
+    await submitEvidence(fx.admin.id, task.id, "成果");
     await expect(
       transitionTask(fx.student.id, task.id, "accept"),
     ).rejects.toBeInstanceOf(ForbiddenError);
@@ -84,10 +85,8 @@ describe("职务权限与状态机交互同源", () => {
         fx.teacher.id,
       ).map((rule) => rule.action),
     ).toContain("submit");
-    await transitionTask(fx.teacher.id, task.id, "submit", {
-      note: "完成验证",
-    });
-    await transitionTask(fx.admin.id, task.id, "accept");
+    await submitEvidence(fx.teacher.id, task.id, "完成验证");
+    await reviewEvidence(fx.admin.id, task.id);
   });
   it("叠加指导老师与队员不能代提交他人任务", async () => {
     await updateMemberPositions(fx.admin.id, fx.team.id, fx.teacher.id, [

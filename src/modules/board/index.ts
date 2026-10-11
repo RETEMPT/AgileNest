@@ -3,6 +3,8 @@ import {
   getTaskDetail,
   transitionTask,
   updateTask,
+  deliverySchema,
+  reviewSchema,
   type TaskPatch,
 } from "@/modules/tasks";
 import { TASK_STATUSES } from "@/modules/tasks/client";
@@ -10,6 +12,9 @@ import { requireProjectForUser, AppError, ConflictError } from "@/modules/core";
 import { getMoveTransition } from "./model";
 
 export * from "./model";
+export { createMyTaskView, deleteMyTaskView, listMyTaskViews, updateMyTaskView } from "./saved-views-service";
+export { taskViewsGET, taskViewsPOST, taskViewPATCH, taskViewDELETE } from "./saved-views-api";
+export type { SavedTaskViewDTO, SavedTaskViewInput, SavedTaskViewUpdate, SavedTaskViewLayout } from "./saved-views-client";
 
 export const movePatchSchema = z.object({
   status: z.enum(TASK_STATUSES).optional(),
@@ -18,6 +23,8 @@ export const movePatchSchema = z.object({
   milestoneId: z.uuid().nullable().optional(),
   sortOrder: z.number().finite().optional(),
   note: z.string().trim().max(5000).optional(),
+  delivery: deliverySchema.optional(),
+  review: reviewSchema.optional(),
 });
 
 export type MovePatch = z.infer<typeof movePatchSchema>;
@@ -59,7 +66,11 @@ export async function moveTask(
       throw new ConflictError(
         "当前状态或权限不允许移到该列，请使用任务操作查看可用路径",
       );
-    return transitionTask(actorId, taskId, rule.action, { note: patch.note });
+    return transitionTask(actorId, taskId, rule.action, {
+      note: patch.note,
+      delivery: patch.delivery,
+      review: patch.review,
+    });
   }
   if (Object.keys(attrs).length === 0) return task;
   return updateTask(actorId, taskId, attrs);

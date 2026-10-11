@@ -17,15 +17,16 @@ export function MaterialChips({items,onOpen,onRemove}: {items:MaterialRef[];onOp
 }
 
 export type MaterialsMode = {kind:"browse" | "organize";id?:string} | {kind:"paste"};
-export function MaterialsDialog({mode,onClose,items,userId,importError,importing,onImport,onAttachText,onPick}: {
+export function MaterialsDialog({mode,onClose,onReturnFocus,items,userId,importError,importing,onImport,onAttachText,onPick}: {
   mode:MaterialsMode | null;onClose:() => void;items:MaterialRef[];userId:string;
   importError:string;importing:boolean;onImport:(files:File[]) => Promise<boolean>;onAttachText:(text:string) => string | null;onPick:() => void;
+  onReturnFocus?:() => void;
 }) {
   const [selectedId,setSelectedId] = useState<string | undefined>(mode && "id" in mode ? mode.id : undefined);
   const selected = items.find((item) => item.id === selectedId) ?? items[0];
   return <Dialog.Root open={mode !== null} onOpenChange={(open) => {if (!open) onClose();}}><Dialog.Portal>
     <Dialog.Overlay className="dialog-overlay fixed inset-0 z-80 bg-black/35" />
-    <Dialog.Content className={`ai-material-dialog fixed top-1/2 left-1/2 z-80 flex max-h-[88dvh] w-[calc(100%-1.5rem)] max-w-4xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl ${mode?.kind !== "paste" ? "h-[80dvh]" : ""}`} onCloseAutoFocus={(event) => {event.preventDefault();document.getElementById("ai-draft-input")?.focus();}}>
+    <Dialog.Content className={`ai-material-dialog fixed top-1/2 left-1/2 z-80 flex max-h-[88dvh] w-[calc(100%-1.5rem)] max-w-4xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl ${mode?.kind !== "paste" ? "h-[80dvh]" : ""}`} onCloseAutoFocus={(event) => {if (onReturnFocus) {event.preventDefault();onReturnFocus();}}}>
       <div className="shrink-0 border-b border-border px-4 py-4 sm:px-5"><Dialog.Title className="pr-8 text-base font-semibold">{mode?.kind === "paste" ? "添加文本资料" : "会话资料"}</Dialog.Title><Dialog.Description className="mt-1 text-xs text-muted-foreground">仅保存在此浏览器 · 不发送给模型</Dialog.Description><Dialog.Close asChild><Button variant="ghost" size="icon" aria-label="关闭资料面板" className="absolute top-3 right-3 h-8 w-8"><X size={16} /></Button></Dialog.Close></div>
       {importError && <p role="alert" className="shrink-0 px-5 pt-3 text-xs text-destructive">{importError}</p>}
       {importing && <p role="status" className="shrink-0 px-5 pt-3 text-xs text-brand">正在读取并保存资料…</p>}

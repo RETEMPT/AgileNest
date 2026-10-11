@@ -260,7 +260,7 @@ PR 打开 → CI（npm test + build）自动跑
 
 ## 9. 迭代版本与发布
 
-版本唯一来源为 `package.json.version`；`package-lock.json` 的根版本和 `packages[""].version` 必须相同。README 显示当前分支版本，CHANGELOG 按版本记录变化、升级要求和验证范围。当前集成分支为 `codex/ai-settings-workspace`，通过 PR 交付到 `main`，不要求另建 `develop`。
+版本唯一来源为 `package.json.version`；`package-lock.json` 的根版本和 `packages[""].version` 必须相同。README 显示当前分支版本，CHANGELOG 按版本记录变化、升级要求和验证范围。本轮集成分支为 `codex/v050-collaboration-release`，从 rc.8 接续，通过 PR 交付到 `main`，不要求另建 `develop`。上文 develop 是常规团队分支模型，本轮以这里的集成目标为准。
 
 每轮完成验收的集成迭代必须有递增编号；同一轮中的编辑、小提交和成员模块 PR 不各自升版，由 foundation 集成人统一维护，避免多分支抢占版本。
 
@@ -271,7 +271,7 @@ PR 打开 → CI（npm test + build）自动跑
 | 不兼容的契约或升级要求 | 次版本号（0.x 阶段），1.0 后主版本号 | `0.4.0` → `0.5.0`，`1.2.0` → `2.0.0` |
 | 同一目标正式版的下一轮候选迭代 | 候选序号 | `0.3.0-rc.1` → `0.3.0-rc.2` |
 
-候选版使用 `<目标版本>-rc.<序号>`。本轮 `0.4.0-rc.4` 包含 AI 项目会话与本地文件资料、个人中心设置分区、选填联系方式和 Windows 数据库启动修复，并在 rc.3 评审后修正多标签同步与偏好重置；PR 尚未合入主分支时保留候选标识。正式版必须先解决主分支冲突、完成合并，再对最终代码运行测试与 Windows 构建，随后移除候选后缀并提交元数据。不得把分支推送或 tag 当作已经部署。
+候选版使用 `<目标版本>-rc.<序号>`。0.5.0-rc.1 衔接 rc.5–rc.8 的导航、版本验收、资料协作与多重职务，增加分类主题、可恢复回收站、阶段交付和统一协作图标，并完善发布到验收的全链路。范围和实际验收见 [COLLABORATION-WORKSPACE](COLLABORATION-WORKSPACE.md) 与 [UX](UX.md)。PR 尚未合入主分支时保留候选标识。正式版必须先解决主分支冲突、完成合并，再对最终代码运行测试与 Windows 构建，随后移除候选后缀并提交元数据。Windows 包须另验首启、停止、重启、旧数据升级、源码/配置排除与 SHA256；不得把分支推送或 tag 当作已经部署。
 
 维护下一轮候选版时，可在版本管理短分支运行下列命令，同步 README、CHANGELOG 与 PR 后完成验证；这里仅更新包和锁文件，不自动提交或打 tag。
 
@@ -281,7 +281,7 @@ npm test
 npm run build
 ```
 
-每个完成验证并提交的集成版本创建同名注释 tag，如 `v0.4.0-rc.4`；tag 指向该版本提交，既有 tag 不移动、不覆盖。仅推送本轮具体 tag，不使用 `--tags` 批量推送。候选 tag 保留用于追溯；未来正式版 `v0.4.0` 指向主分支中已验证的正式版本提交。正式版本编号同样通过 `npm version <确定的版本> --no-git-tag-version` 更新，并同步上述记录。
+每个完成验证并提交的集成版本创建同名注释 tag，如 `v0.5.0-rc.1`；tag 指向该版本提交，既有 tag 不移动、不覆盖。仅推送本轮具体 tag，不使用 `--tags` 批量推送。候选 tag 保留用于追溯；正式版 `v0.5.0` 指向 main 中已验证的正式版本提交。正式版本编号同样通过 `npm version <确定的版本> --no-git-tag-version` 更新，并同步上述记录。Release 的 release.json.commit 必须与 tag 目标一致；只上传原始无运行数据的 ZIP 与 SHA256 文件。
 
 查当前本地版本与提交：
 
@@ -332,6 +332,8 @@ git describe --tags --always
 ---
 
 ## 相关文档
+
+用户授权 Antigravity Python SDK 与 OpenAI Agents Python SDK 辅助开发审查，属于开发工具，不接入产品 AI 或依赖。按模块 Owner 选取源码与公开契约片段，由 root 汇总建议并执行必要检查、合并和发布。默认 Gemini SDK 需要 API key，Vertex 支持 project/location + ADC；桌面或 CLI 登录不能据此视为 SDK 已认证。当前本机未配置可用 SDK 认证，尚未执行 SDK 子代理；不能以未执行的模型审查替代实际测试。[Antigravity 官方认证](https://github.com/google-antigravity/antigravity-sdk-python)、[OpenAI Agents SDK](https://github.com/openai/openai-agents-python)。
 
 | 文档 | 用途 |
 |---|---|

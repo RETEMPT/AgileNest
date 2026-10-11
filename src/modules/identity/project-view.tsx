@@ -15,6 +15,8 @@ import { ProjectSettingsForm } from "./academic-ui";
 import { Badge, StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight, CheckCircle2 } from "lucide-react";
+import { ProjectJourney } from "./project-journey";
+import { FollowButton } from "@/modules/notify/ui";
 
 export async function ProjectOverviewView({
   params,
@@ -46,12 +48,18 @@ export async function ProjectOverviewView({
       (a.targetDate || "9999").localeCompare(b.targetDate || "9999"),
     );
   const states = [
-    { key: "unclaimed", label: "待认领", color: "bg-status-unclaimed" },
-    { key: "in_progress", label: "进行中", color: "bg-status-in-progress" },
+    { key: "unclaimed", label: "待分工 / 认领", color: "bg-status-unclaimed" },
+    { key: "in_progress", label: "执行中", color: "bg-status-in-progress" },
     { key: "submitted", label: "待验收", color: "bg-status-submitted" },
     { key: "rejected", label: "待修改", color: "bg-status-rejected" },
-    { key: "accepted", label: "已完成", color: "bg-status-accepted" },
+    { key: "accepted", label: "已验收", color: "bg-status-accepted" },
   ] as const;
+  const counts = { unclaimed: 0, in_progress: 0, submitted: 0, rejected: 0, accepted: 0 };
+  const ownCounts = { ...counts };
+  for (const task of tasks) {
+    counts[task.status] += 1;
+    if (task.assigneeId === user.id) ownCounts[task.status] += 1;
+  }
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -79,19 +87,27 @@ export async function ProjectOverviewView({
             {p.description || "未填写项目说明"}
           </p>
         </div>
-        <Button asChild>
+        <div className="flex flex-wrap items-center gap-2"><FollowButton target={{ kind: "project", id: projectId }} /><Button asChild>
           <Link href={"/p/" + projectId + "/tasks"}>
             进入任务池 <ArrowUpRight className="h-4 w-4" />
           </Link>
-        </Button>
+        </Button></div>
       </header>
+      <ProjectJourney
+        projectId={projectId}
+        actorId={user.id}
+        counts={counts}
+        ownCounts={ownCounts}
+        canReview={access.capabilities.review}
+        canExecute={access.capabilities.execute}
+        canAssign={access.capabilities.task.actions.includes("assign")}
+      />
       <section className="overflow-hidden rounded-2xl border border-border bg-card">
         <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[240px_1fr]">
           <div>
             <p className="text-sm text-muted-foreground">项目验收完成率</p>
-            <p className="mt-2 text-5xl font-semibold tracking-tight text-brand">
-              {pct}
-              <span className="text-xl">%</span>
+            <p className={`mt-2 font-semibold tracking-tight text-brand ${completion.total ? "text-5xl" : "text-2xl"}`}>
+              {completion.total ? <>{pct}<span className="text-xl">%</span></> : "暂无完成度"}
             </p>
             <p className="mt-3 text-xs leading-5 text-muted-foreground">
               {completion.done} / {completion.total} 个顶层任务已验收
@@ -102,10 +118,10 @@ export async function ProjectOverviewView({
           <div className="space-y-5">
             <div
               className="flex h-3 overflow-hidden rounded-full bg-muted"
-              aria-label={"已验收 " + pct + "%"}
+              aria-label={completion.total ? "已验收 " + pct + "%" : "尚无顶层任务"}
             >
               {states.map(({ key, color }) => {
-                const count = tasks.filter((t) => t.status === key).length;
+                const count = counts[key];
                 return count ? (
                   <span
                     key={key}
@@ -120,14 +136,14 @@ export async function ProjectOverviewView({
                 <Link
                   key={key}
                   href={"/p/" + projectId + "/table?status=" + key}
-                  className="rounded-xl p-3 transition hover:bg-muted"
+                  className="rounded-xl p-3 transition hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 >
                   <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <span className={"h-2 w-2 rounded-full " + color} />
                     {label}
                   </span>
                   <span className="mt-2 block text-2xl font-semibold tabular-nums">
-                    {tasks.filter((t) => t.status === key).length}
+                    {counts[key]}
                   </span>
                 </Link>
               ))}

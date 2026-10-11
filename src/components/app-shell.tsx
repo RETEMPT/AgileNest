@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { AppSidebar, type ProjectSummary } from "./app-sidebar";
 import { FeedbackProvider } from "./ui/feedback";
 import { AppearanceProvider, useUiPreferences } from "./preferences";
-import { AiFloating } from "./ai/floating";
+import { CollaborationDock } from "./ai/floating";
 
 const preferenceKey = "agilenest_sidebar_collapsed";
 const preferenceEvent = "agilenest:sidebar-preference";
@@ -92,14 +92,14 @@ export function AppShell({
       {/* 主界面区域：随侧栏展开/收起平滑阻尼过渡 */}
       <div
         className={`app-panel flex flex-col ${workspacePage ? "min-h-[calc(100dvh-3.5rem)] md:min-h-dvh" : "min-h-screen"} transition-[padding] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-          collapsed ? "md:pl-18" : "md:pl-64"
+          collapsed ? "md:pl-18" : "md:pl-60"
         }`}
       >
-        <main className={workspacePage ? "w-full min-w-0 flex-1" : "flex-1 p-4 sm:p-6 md:p-8 max-w-7xl w-full mx-auto"}>
+        <main className={workspacePage ? "w-full min-w-0 flex-1" : "min-w-0 flex-1 p-4 sm:p-6 w-full"}>
           {children}
         </main>
       </div>
-      {preferences.aiFloating && pathname !== "/ai" && <AiFloating key={user.id} userId={user.id} projects={projects} />}
+      <CollaborationDock key={user.id} userId={user.id} projects={projects} aiEnabled={preferences.aiFloating && pathname !== "/ai"} />
     </div>
     </FeedbackProvider>
   );

@@ -314,6 +314,7 @@ export async function PersonalCalendarView({
                 {selected.map((item) => (
                   <article
                     key={item.id}
+                    id={`schedule-${item.id}`}
                     className="rounded-xl border border-border bg-card p-4"
                   >
                     <div className="mb-2 flex items-center justify-between gap-2">
