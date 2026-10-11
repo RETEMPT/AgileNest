@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { teamMembers } from "@/db/schema";
+import { taskAcceptanceEvents, teamMembers } from "@/db/schema";
 import {
   getWorkbench,
   listMyInProgress,
@@ -166,5 +166,23 @@ describe("统一工作台", () => {
     await reviewEvidence(fx.teacher.id, task.id);
     expect(await listPendingReview(fx.teacher.id, fx.project.id)).toHaveLength(0);
     expect((await getWorkbench(fx.teacher.id)).review).toHaveLength(0);
+  });
+  it("指派活动展示成员姓名，历史原文和成果说明保持不变", async () => {
+    const task = await createTask(fx.admin.id, fx.project.id, { title: "核对负责人", assigneeId: fx.student.id });
+    const note = `成果对应编号 ${fx.student.id}，已完成验证`;
+    await submitEvidence(fx.student.id, task.id, note);
+    const events = await listTaskEvents(fx.student.id, task.id);
+    const assignment = events.find((event) => event.action === "assign")!;
+    expect(assignment.note).toBe(`指派给 ${fx.student.name}`);
+    expect(events.find((event) => event.action === "submit")?.note).toBe(note);
+    const [stored] = await db.select().from(taskAcceptanceEvents).where(eq(taskAcceptanceEvents.id, assignment.id));
+    expect(stored.note).toBe(fx.student.id);
+  });
+  it("离队负责人使用中文历史提示，非成员仍不能读取任务活动", async () => {
+    const task = await createTask(fx.admin.id, fx.project.id, { title: "历史分工", assigneeId: fx.student.id });
+    await db.delete(teamMembers).where(and(eq(teamMembers.teamId, fx.team.id), eq(teamMembers.userId, fx.student.id)));
+    expect((await listTaskEvents(fx.admin.id, task.id)).find((event) => event.action === "assign")?.note).toBe("指派给 原团队成员");
+    await expect(listTaskEvents(fx.student.id, task.id)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(listTaskEvents(fx.outsider.id, task.id)).rejects.toBeInstanceOf(ForbiddenError);
   });
 });

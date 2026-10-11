@@ -30,6 +30,7 @@ import {
   type TaskRow,
 } from "@/modules/tasks";
 import { capabilitiesFor, positionsFromRole } from "@/modules/identity/client";
+import { listTeamMembers } from "@/modules/identity";
 
 export type ReviewItem = TaskDTO & {
   submitterName: string | null;
@@ -208,7 +209,7 @@ export async function listTaskEvents(
 ): Promise<EventDTO[]> {
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
   if (!task) throw new NotFoundError("任务不存在");
-  await requireProjectForUser(actorId, task.projectId);
+  const { project } = await requireProjectForUser(actorId, task.projectId);
 
   const rows = await db
     .select({
@@ -225,13 +226,20 @@ export async function listTaskEvents(
     .where(eq(taskAcceptanceEvents.taskId, taskId))
     .orderBy(asc(taskAcceptanceEvents.createdAt));
 
+  const memberNames = new Map(
+    rows.some((row) => row.action === "assign")
+      ? (await listTeamMembers(actorId, project.teamId)).map((member) => [member.id, member.name])
+      : [],
+  );
   return rows.map((r) => ({
     id: r.id,
     taskId: r.taskId,
     actorId: r.actorId,
     actorName: r.actorName,
     action: r.action,
-    note: r.note,
+    note: r.action === "assign" && r.note && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(r.note)
+      ? `指派给 ${memberNames.get(r.note.toLowerCase()) ?? "原团队成员"}`
+      : r.note,
     createdAt: r.createdAt,
   }));
 }

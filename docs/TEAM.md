@@ -240,6 +240,8 @@ listTaskEvents(actorId, taskId)
 getWorkbench(actorId) // { mine, review, pool }，附项目名与当前操作者权限
 ```
 
+`listTaskEvents` 的指派说明返回团队成员姓名；已离队目标显示“原团队成员”。只转换 action=assign 的纯 UUID 说明，数据库原事件与其他成果/评审文字保留；详情和共享抽屉复用该查询，不自行映射内部编号。
+
 ### `@/modules/worklog`（D，含 stats）
 
 ```ts

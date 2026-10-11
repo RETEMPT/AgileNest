@@ -107,4 +107,4 @@ R2–R4的主要基础在 rc.8 源码落地；R5/R6 按本轮执行范围补齐�
 
 ## 实际检查与历史
 
-本轮按用户最后要求执行 R7 综合验收；冻结候选已通过 64 文件/615 契约与 Windows 构建，管理者发布到成员重交、逐项通过和阶段归档恢复的真实 GUI 记录见 [UX](UX.md)与 [0.5 页面清单](design/collaboration-v050/page-list.md)。独立包和主分支复验另行记录。rc.7截图保留在 [历史页面清单](design/collaboration-rc7/page-list.md)；旧预览 HTML 与 rc.4 ZIP 不能证明当前能力。
+本轮按用户最后要求执行 R7 综合验收；冻结候选已通过 64 文件/617 契约与 Windows 构建，管理者发布到成员重交、逐项通过和阶段归档恢复的真实 GUI 记录见 [UX](UX.md)与 [0.5 页面清单](design/collaboration-v050/page-list.md)。独立候选包首启、关闭/重启、旧样例升级和摘要保留已记录，主分支与正式包复验另行登记。rc.7截图保留在 [历史页面清单](design/collaboration-rc7/page-list.md)；旧预览 HTML 与 rc.4 ZIP 不能证明当前能力。

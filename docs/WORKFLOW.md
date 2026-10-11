@@ -333,6 +333,8 @@ git describe --tags --always
 
 ## 相关文档
 
+用户授权 Antigravity Python SDK 与 OpenAI Agents Python SDK 辅助开发审查，属于开发工具，不接入产品 AI 或依赖。按模块 Owner 选取源码与公开契约片段，由 root 汇总建议并执行必要检查、合并和发布。默认 Gemini SDK 需要 API key，Vertex 支持 project/location + ADC；桌面或 CLI 登录不能据此视为 SDK 已认证。当前本机未配置可用 SDK 认证，尚未执行 SDK 子代理；不能以未执行的模型审查替代实际测试。[Antigravity 官方认证](https://github.com/google-antigravity/antigravity-sdk-python)、[OpenAI Agents SDK](https://github.com/openai/openai-agents-python)。
+
 | 文档 | 用途 |
 |---|---|
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | 贡献规则速查 |

@@ -146,3 +146,5 @@ npm run clean      # 清 .next / coverage
 用户在本轮补充要求管理者发布任务至最终验收的链路成熟完整。沿用 `codex/v050-collaboration-release`：A/tasks 与 delivery Owner 接续发布时的负责人、逐项验收要求、稳定请求键、编辑版本与草稿保护，以及指派/认领、执行、结构化提交、打回重交、逐项验收、重开和真实交付引用；C/review Owner 通过 tasks 公开查询与 `availableTransitions` 补齐并保留依赖、子任务与当前权限守卫，不复制状态机。创建输入实际字段为 acceptanceCriteria，验收要求保存使用 criteria；GUI 编辑必须携带 expectedUpdatedAt，submitted/accepted 的工作目标与验收要求冻结，变更需先打回或重开，历史提交/评审/交付快照保留。范围与签名见 [docs/TEAM.md](docs/TEAM.md) 的 0.5.0 契约。
 
 该接续范围不增加第六状态，不修改 core、登录文件或依赖，不扩大为 Sprint、代码同步、模型调用、实时共同编辑或群聊；各 Owner 只修改自身模块并通过登记的公开契约协作。DB 检查、构建、综合 GUI 验收及最终 main/0.5.0 Release 仍由 root 串行完成，不以子代理的局部检查代替发布验收。
+
+用户随后授权使用 Antigravity Python SDK 与 OpenAI Agents Python SDK 作为开发子代理；仅属于仓库开发协作工具，不解除产品模型/API/依赖限制。按 Owner 提供已检查的源码片段与公开契约，root 集成建议；SDK 认证按官方 API/Vertex ADC 路径核实，不读取或复用 IDE 私有 token，不以 SDK 绕过审批、模块权限或发布检查。当前认证尚未配置，实际执行状态见 WORKFLOW。
