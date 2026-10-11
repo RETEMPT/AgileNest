@@ -1,6 +1,6 @@
 # AgileNest 协作工作区与分步执行
 
-更新：2026-10-11 · 发布目标：0.5.0 · 实施分支：`codex/v050-collaboration-release`
+更新：2026-10-11 · 正式源码：0.5.0 · 发布分支：`main` · 实施分支：`codex/v050-collaboration-release`
 
 以飞书日常协作为主参考，GitHub 补充任务组织与研发证据。产品账号、资料和授权由本平台独立管理。当前源码能力、后续方案和已发布运行包分别记录，参考不代表外部连接或整仓复刻。
 
@@ -107,4 +107,4 @@ R2–R4的主要基础在 rc.8 源码落地；R5/R6 按本轮执行范围补齐�
 
 ## 实际检查与历史
 
-本轮按用户最后要求执行 R7 综合验收；冻结候选已通过 64 文件/617 契约与 Windows 构建，管理者发布到成员重交、逐项通过和阶段归档恢复的真实 GUI 记录见 [UX](UX.md)与 [0.5 页面清单](design/collaboration-v050/page-list.md)。独立候选包首启、关闭/重启、旧样例升级和摘要保留已记录，主分支与正式包复验另行登记。rc.7截图保留在 [历史页面清单](design/collaboration-rc7/page-list.md)；旧预览 HTML 与 rc.4 ZIP 不能证明当前能力。
+本轮R6通用协作与R7实际综合检查已完成，PR #10 合入main后再次通过64文件/617契约与Windows构建。管理者发布到成员重交、逐项通过和阶段归档恢复的真实GUI记录见 [UX](UX.md)与 [0.5 页面清单](design/collaboration-v050/page-list.md)。独立候选包首启、关闭/重启、旧样例升级和摘要保留已记录，正式运行包结果与附件见 [0.5.0 Release](https://github.com/RETEMPT/AgileNest/releases/tag/v0.5.0)。rc.7截图保留在 [历史页面清单](design/collaboration-rc7/page-list.md)；旧预览HTML与rc.4 ZIP不能证明当前能力。

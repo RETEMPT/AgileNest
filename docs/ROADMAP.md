@@ -33,7 +33,7 @@
 - [x] 统一协作图标、真实站内通知与独立本地草稿页签
 - [x] 发布时验收要求、提交后目标冻结、依赖/子任务守卫、不可变版本与逐项打回
 - [x] 通用阶段交付、通过版本绑定、评审问题、清单、历史与归档导出
-- [ ] 0.5.0 最终主分支验证、独立包升级检查和 GitHub Release（本轮执行中）
+- [x] 0.5.0 主分支617条契约/Windows构建与独立候选包升级检查；正式包结果与附件见 [Release](https://github.com/RETEMPT/AgileNest/releases/tag/v0.5.0)
 
 文档提炼、当轮计划与后续优先顺序见 [PROJECT-STATE](PROJECT-STATE.md)。
 

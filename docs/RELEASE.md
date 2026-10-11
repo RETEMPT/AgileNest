@@ -1,8 +1,8 @@
-# AgileNest · Windows 一键运行与阶段汇总（0.5.0-rc.1）
+# AgileNest · Windows 一键运行与阶段汇总（0.5.0）
 
-当前源码候选版 **0.5.0-rc.1** 面向研究、课程、竞赛和软件项目，补齐分类内主题目录、资料回收恢复、统一消息与本地草稿入口，以及绑定真实通过版本的阶段交付。管理者发布时填写验收要求；成员领取、提交证据、收到逐项意见并重交；验收后进入交付清单、问题处理、归档和导出。已提交及已完成的目标与要求只读，重开或打回后才能调整范围。实际检查见[更新日志](../CHANGELOG.md)和[UX](UX.md)，公开契约见[TEAM](TEAM.md)。
+当前正式源码 **0.5.0** 面向研究、课程、竞赛和软件项目，补齐分类内主题目录、资料回收恢复、统一消息与本地草稿入口，以及绑定真实通过版本的阶段交付。管理者发布时填写验收要求；成员领取、提交证据、收到逐项意见并重交；验收后进入交付清单、问题处理、归档和导出。已提交及已完成的目标与要求只读，重开或打回后才能调整范围。实际检查见[更新日志](../CHANGELOG.md)和[UX](UX.md)，公开契约见[TEAM](TEAM.md)。
 
-本轮候选与最终 Windows 包分别验证；合入 main 并重新检查后才发布 **0.5.0**。已有 [rc.4 候选包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.4) 与 [0.3.0 历史稳定包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0) 保留，不包含此后协作功能。GitHub 自动生成的 Source code 是源码，运行包须选择 Windows ZIP。
+本轮候选通过完整链路与独立运行包检查，PR #10 合入 main 后重新通过617条契约和Windows构建。正式包的发布记录、首启/升级结果与校验附件见 [0.5.0 Release](https://github.com/RETEMPT/AgileNest/releases/tag/v0.5.0)。已有 [rc.4 候选包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.4) 与 [0.3.0 历史稳定包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0) 保留。GitHub 自动生成的 Source code 是源码，运行包须选择 Windows ZIP。
 
 ## 运行发布包
 

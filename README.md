@@ -2,7 +2,7 @@
 
 面向课程设计、实验室课题和竞赛团队，覆盖团队空间 → 成员与职务 → 项目 → 任务协作 → 教师验收。
 
-当前源码版本：**0.5.0-rc.1**，以飞书协作为主参考，适用于课题研究、课程、竞赛与软件项目。新增分类内主题/多层资料、可恢复回收站、统一消息与本地草稿入口，以及绑定真实通过版本的阶段交付、评审问题、清单和版本导出；原有任务组织、资料协作、个人提醒及成果验收保留。GitHub 是可选成果证据，实时共同编辑、群聊及外部同步仍为独立后续方案。[当前能力与分步计划](docs/COLLABORATION-WORKSPACE.md)、[Agent文档入口](docs/PROJECT-STATE.md)、[模块契约](docs/TEAM.md)。实际检查与升级记录见 [CHANGELOG](CHANGELOG.md)。
+当前源码版本：**0.5.0**，以飞书协作为主参考，适用于课题研究、课程、竞赛与软件项目。新增分类内主题/多层资料、可恢复回收站、统一消息与本地草稿入口，以及绑定真实通过版本的阶段交付、评审问题、清单和版本导出；原有任务组织、资料协作、个人提醒及成果验收保留。GitHub 是可选成果证据，实时共同编辑、群聊及外部同步仍为独立后续方案。[当前能力与分步计划](docs/COLLABORATION-WORKSPACE.md)、[Agent文档入口](docs/PROJECT-STATE.md)、[模块契约](docs/TEAM.md)。实际检查与升级记录见 [CHANGELOG](CHANGELOG.md)。
 
 ## 开始使用
 
@@ -16,7 +16,7 @@
 
 本机 PostgreSQL 用户应先运行 `.\start.bat -ConfigOnly`，填写 `.env` / `.env.test` 的连接信息，再运行 `.\start.bat -Setup`。详细要求、已有库迁移和排错见 [Windows 使用说明](docs/WINDOWS.md)。
 
-无需开发环境的试用者可以下载 [上一候选 rc.4 的 Windows ZIP](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.4) 或已发布的 [0.3.0 稳定版](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0)，完整解压后运行其中的 start.bat。rc.4 包不包含 rc.5–rc.8 的改动。旧版 0.3.0 仍使用独立 stop.bat；rc.4 包采用窗口关闭即停止网站的方式。见 [发布与数据备份](docs/RELEASE.md)。
+无需开发环境的试用者请从 [0.5.0 Release](https://github.com/RETEMPT/AgileNest/releases/tag/v0.5.0) 选择 `AgileNest-0.5.0-windows-x64.zip` 与 SHA256 文件，完整解压后运行其中的 start.bat；网站、Node.js 和 PostgreSQL 均已包含。GitHub 自动生成的 Source code 是源码。历史版本与旧 data 保留，升级前停止旧包并备份完整 data，见 [发布与数据备份](docs/RELEASE.md)。
 
 | 演示账号 | 初始密码 | 职务 |
 |---|---|---|

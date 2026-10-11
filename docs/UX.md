@@ -2,7 +2,7 @@
 
 ## 0.5.0 综合验收进度 · 2026-10-11
 
-当前实施分支为 `codex/v050-collaboration-release`，定位为通用项目协作；规则与参考见 [前端指南](FRONTEND-DESIGN-GUIDE.md)、[协作链路](DESIGN.md) 和 [产品调研](PR-RESEARCH.md)。本节记录已实际完成的点验，不表示正式版已发布。下方 0.4/0.3 的截图、测试数量、独立运行包与页面记录保留为当轮历史证据。
+实施分支 `codex/v050-collaboration-release` 已经由PR #10 合入 main，正式源码版本0.5.0，定位为通用项目协作；规则与参考见 [前端指南](FRONTEND-DESIGN-GUIDE.md)、[协作链路](DESIGN.md) 和 [产品调研](PR-RESEARCH.md)。本节记录实际点验，运行包最终结果见 [0.5.0 Release](https://github.com/RETEMPT/AgileNest/releases/tag/v0.5.0)。下方 0.4/0.3 的截图、测试数量、独立运行包与页面记录保留为当轮历史证据。
 
 | 已完成的真实 GUI 流程 | 实际结果 |
 |---|---|
@@ -25,7 +25,7 @@
 
 主题目录真实截图：[资料分类与主题](design/collaboration-v050/topics.jpg)。八层目录、引用保护、旧版本冲突和各职务能力分别由契约覆盖，不把单次 GUI 操作描述成所有边界均已手测。
 
-当前候选冻结检查：完整真实数据库测试 64 文件 / 617 条通过，Windows 生产构建、全源码/契约 ESLint 与启动生命周期通过，含新增时间一致性和指派姓名回归。指派活动的显示转换保留数据库原文，成员离队显示“原团队成员”，非成员仍无读取权限。主分支最终复验在实际完成后登记，本节不使用历史版本测试数替代当前结果。
+候选冻结检查：完整真实数据库测试64文件/617条、Windows生产构建、全源码/契约ESLint与启动生命周期通过，含新增时间一致性和指派姓名回归。指派活动转换保留数据库原文，成员离队显示“原团队成员”，非成员仍无读取权限。PR #10 合入main后再次通过64文件/617条及Windows构建，本节不使用历史版本测试数替代当前结果。
 
 阶段交付深色主题已点验；个人外观结束时恢复跟随系统。真实页面证据：[阶段交付](design/collaboration-v050/delivery.jpg)、[深色交付](design/collaboration-v050/delivery-dark.jpg)、[统一草稿面板](design/collaboration-v050/collaboration-hub.jpg)、[手机消息](design/collaboration-v050/mobile-hub.jpg)、[手机资料](design/collaboration-v050/mobile-resources.jpg)。截图仅为本机合成验收数据。独立包检查基于提交3ff586b的0.5.0-rc.1包，后续指派姓名显示由617条源码检查覆盖，正式运行包另验。升级样例包含旧任务、成员和节点；未把该旧样例描述成含真实用户文件或全部版本成果的数据库。
 
