@@ -46,7 +46,7 @@ node scripts/migrate-schedules.mjs --test
 
 Java/MyBatis 实体、Vue 路由及请求封装、MySQL 自增 ID 与建表语法不直接移植；按现有 Next.js、Zod、Drizzle 和 PostgreSQL 契约实现。新增 UUID、用户外键、版本并发校验、全天与真实日期校验，不增加依赖、不调整登录。原文件仅作参考且不修改；不是部署脚本或授权依据。
 
-## 本人日程提醒 · rc.8
+## 本人日程提醒
 
 日历中“本人提醒”保存enabled和提前量（0/5/10/15/30/60/1440分钟），请求同时携带scheduleVersion与reminderVersion；旧任一版本409，UI保留选择。时刻使用明确北京时间+08，全天日程以09:00为基准，不依赖服务器时区。
 
