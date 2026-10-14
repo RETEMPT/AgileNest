@@ -9,53 +9,43 @@
 - 目标平台是 **Windows**。禁止 bash-only 语法（`export`、`rm -rf`、`&&` 链式脚本）；npm scripts 必须跨平台。
 - 本期目标：课设框架，**刚需完整 + 重要占位 + 创新只挂路牌**。用户已授权 AI 侧栏入口、对话界面与本地草稿；不实现模型调用、三级 Agent / Agent API / 甘特 / Sprint / 作品集 / 模板库。
 
-## 1. 目录边界（最重要）
+## 1. 模块边界与当前授权
 
-默认按单模块 Owner 开发。用户明确要求跨模块的完整体验链路时，可在同一集成分支内按模块分别落实，并在变更说明列出范围与对应 Owner；仍通过公开契约协作，不做顺手重构。本次体验迭代范围为 identity、tasks、board 及直接服务这些入口的共享 UI。用户随后确认学术身份与可叠加职务；foundation 通过短分支 `feature/core-patch/member-capabilities` 调整统一 ACL，以支持按场景计算权限。登录文件继续锁定。
+默认单模块 Owner 开发；完整跨模块链路先登记范围，再由对应 Owner 通过公开契约协作。root 可接续已登记模块的集成遗漏，不覆盖成员分支、不顺手重构。
 
-| 路径 | 谁可以改 | 规则 |
+| 路径 | Owner / 规则 |
+|---|---|
+| `src/modules/<m>/**` | 仅该模块 Owner 修改 |
+| `src/lib/{auth,password,feishu,user}.ts` | 锁定；登录原样保留，不换库 |
+| `src/modules/core/**` | 仅 foundation；说明理由并走 `feature/core-patch/<slug>` |
+| `src/db/schema.ts` | root 串行集成，只在末尾追加，不重排既有块 |
+| `package.json` 依赖 | 锁定；确需新增在 PR 单独声明理由 |
+| `src/app/**/page.tsx` | 对应 Owner；只调模块 UI/views，不写业务 |
+| `tests/contract/<m>/**` | 对应 Owner；每模块至少 6 条 |
+| `docs/TEAM.md` | 对应契约 Owner；改变 index.ts 签名必须同步 |
+
+| 模块 | Owner | 职责 |
 |---|---|---|
-| `src/modules/<m>/**` | 仅该模块 Owner | **禁止跨模块改文件** |
-| `src/lib/{auth,password,feishu,user}.ts` | 锁定 | 登录链路逻辑**原样保留**，不重构、不换库 |
-| `src/modules/core/**` | 仅 foundation | 要改 → 说明理由，走短分支 `feature/core-patch/<slug>` |
-| `src/db/schema.ts` | 谨慎 | 只**追加**本模块表到文件末尾，不重排既有块 |
-| `package.json` 依赖 | 锁定 | 不新增依赖；确需则在 PR 里单独声明理由 |
-| 路由 `src/app/**/page.tsx` | 对应 Owner | **只做壳**：调本模块 `ui/`，不写业务 |
-| `tests/contract/<m>/**` | 对应 Owner | 每模块 ≥6 条 |
-| `docs/TEAM.md` 契约节 | 对应 Owner | 改了 `index.ts` 签名必须同步 |
+| core、identity、共享 UI、lib | foundation | ACL/session/日期、团队项目与职务、共享入口 |
+| resources | foundation/resources Owner | 共享资料、目录、版本、权限、恢复与引用保护 |
+| tasks、delivery | A | 五态任务、结构化成果/逐项验收、阶段交付 |
+| board | B | 看板/表格、同源筛选、拖拽与本人视图 |
+| review、discussions | C / root | 工作台、验收、活动、讨论及历史 |
+| worklog（含 stats） | D | 工时、完成度与贡献 |
+| calendar、milestone、notify | E | 日历、节点、关注/偏好与本人通知 |
 
-模块地图：
+0.5.0 跨模块协作与 R7 验收已完成，`codex/v050-collaboration-release` 已合入 main 并发布。现行能力与数据规则见 [DESIGN](docs/DESIGN.md)，契约见 [TEAM](docs/TEAM.md)，实际检查见 [UX](docs/UX.md)，历史范围见 CHANGELOG/Git。DB 检查、schema/迁移集成和最终发布由 root 串行执行。
 
-| 模块 | Owner | 分支 | 职责 |
-|---|---|---|---|
-| `core` `identity` `components/ui` `lib/*` | foundation | `chore/foundation` | 错误/ACL/session/日期 · 团队项目 · UI 原语 |
-| `tasks` | A | `feature/tasks-status` | 任务 CRUD · 子任务 · **五态状态机** |
-| `board` | B | `feature/board-views` | 看板 + 表格 · 筛选分组 · 拖拽 |
-| `review` | C | `feature/review-portal` | 双端工作台 · 验收台 · 活动流 |
-| `worklog`（含 stats） | D | `feature/worklog-stats` | 工时 · 完成度 · 贡献 |
-| `calendar` `milestone` `notify` | E | `feature/calendar-notify` | 日历 · 节点 · 提醒 |
+当前授权保留团队/项目共享资料、身份与叠加职务、任务/讨论/验收/交付、本人日程提醒、统一通知和 AI 本地草稿；不调整 core、登录或依赖，不运行 OCR、产品模型、实时共同编辑、群聊或外部自动同步。Marker 仅导入真实转换产物。副管理员仅作为已追加的 deputy 枚举值，旧迁移与其他成员职务不改写。
 
-本轮用户继续要求完整协作、个人资料及成员 PR 集成；集成分支按职责覆盖 identity/shared UI（foundation）、tasks（A）、board（B）、review（C）、worklog/stats（D）、notify（E），详见 docs/TEAM.md。本轮不调整 core 或登录文件。
+文档整理已完成。用户随后授权修复侧栏项目选择丢失：foundation/root 仅调整共享 AppSidebar、按账号保存的浏览器项目上下文及对应契约测试/文档；全局页面沿用选中的可访问项目，进入另一项目时切换，不自动选取首个项目。保留现有文档整理，不调整业务、core、登录、数据库或依赖，不覆盖已发布 tag/Release。
 
-用户提供个人日程文档并授权改进、按分支集成：E 在 `codex/calendar-schedules` 实现 calendar 服务、接口、个人日历和追加表/迁移；foundation 仅增加直接服务该功能的共享导航。验证后合入 `codex/collaboration-completion`，范围与契约见 docs/TEAM.md；不覆盖其他成员分支、不改变项目任务状态机或登录。
+接续优化包含共享 AppShell 的侧栏折叠存储与快捷键、AppSidebar 的项目选择空状态和选中提示，以及相应测试与文档，继续保持上述模块边界。
 
-用户授权本轮交互反馈优化、阶段汇总与一键运行 Release：沿用集成分支，foundation 负责共享反馈/动效、个人设置和 Windows 发布包；A/B/E 分别调整任务/看板/日历的直接反馈入口，E 整合已合入主分支的 PR #7 项目日程与跨天排期。范围与公开契约同步 docs/TEAM.md；不调整 core、登录或依赖声明，个人日程仍仅本人、同日时间。
+用户进一步授权完善现有功能与排版。本轮登记 root/review 工作台范围：基于现有 getWorkbench 权限结果增加待办摘要、状态/日期筛选、排序、分页与响应式布局，修改 review 的 client/views、对应契约和文档；通过已公开的 identity/tasks 契约读取项目与执行任务操作，不修改其他模块业务、core、登录、数据库或依赖。
 
-用户授权仓库与单一启动入口整理：foundation 在 codex/single-launcher-cleanup 调整根目录脚本、scripts/windows、发布包生命周期、检查与文档；不改业务模块、core、登录、schema 或依赖。关闭启动窗口默认停止网站，开发数据与课设资料保留。
+2026-10-14 用户授权“更新 md 并 PR”：同步本轮文档，将已有文档整理、共享侧栏及 root/review 工作台成果、契约测试和截图提交到 `codex/v051-workbench-sidebar-docs`，创建目标为 main 的 PR。候选版本保持 `0.5.1-rc.5`；该授权取代此前仅本地修改的限制，不包含合并、tag、Release 或运行包发布。浏览器待测项继续如实保留在 UX。
 
-用户授权本轮按 AgileNest 体验方案分步实施并使用子代理，集成分支为 `codex/experience-integration`。foundation 负责共享导航、详情容器、状态 tokens 和 identity 项目上下文；A/B/C/D/E 分别负责任务、看板、工作台与验收、统计、日历与通知入口。公开 UI 契约及验收范围登记于 `docs/TEAM.md`、`docs/AGILENEST-EXECUTION.md`；不修改 core、登录、schema 或依赖，不实现 Sprint、GitHub 同步或模型调用。
-
-用户随后授权完善成果提交、提交版本、逐项验收、团队信息和资料整理，分支为 `codex/business-completion`。foundation 集成共享 UI、导航、迁移，并负责新增 resources 模块（团队/项目资料、文件预览与 Markdown/JSON 整理）；identity Owner 负责团队资料、公告及成员管理；A 负责验收要求、不可变提交与 transitionTask 中的原子验收；C/B 负责提交历史展示、验收台及任务视图导航。schema 仅在末尾追加，由集成人串行落实；契约见 `docs/BUSINESS-COMPLETION.md`。用户本轮授权团队共享资料，个人 AI 文件仍保持私有；不修改 core、登录或依赖，不运行 OCR/模型、Sprint 或 GitHub 自动同步。Marker 参考用于导入真实转换产物，不宣称已运行文档识别。
-
-用户于本轮后续要求整理全部 Markdown、更新执行计划后继续业务/前端/交互；本轮保留必要自动检查，完整人工综合验收留到最后迭代按用户要求执行。统一提炼与计划见 `docs/PROJECT-STATE.md`；子代理交付后的 A/B/C 联调与遗漏由 root 在已登记集成范围接续，不覆盖成员分支。
-
-用户随后确认分多轮尽可能全面覆盖协作能力，以飞书为主参考、GitHub 为补充，并授权右下角通知 bot。本轮 `codex/collaboration-workspace`：foundation/identity 负责项目路径与团队入口；foundation/resources 负责多文件附件、资料范围/筛选与深链接；C/root 新增 discussions 模块及任务/共享详情入口，追加讨论/历史/文件引用表与独立迁移；E/foundation 负责本人通知摘要、已读操作与共享协作助手，保留 AI 草稿并协调浮窗。本轮通知为真实站内数据，不接系统 Web Push、飞书投递或模型。后续多轮范围见 `docs/COLLABORATION-WORKSPACE.md`，core、登录和依赖继续锁定。
-
-用户继续授权尽可能完善协作、查阅官方资料并清理失效 Markdown。本轮 `codex/collaboration-foundations`：foundation/root 负责 identity 项目目录、共享详情/个人通知设置、schema 追加迁移与文档整合；A 负责任务标签、依赖守卫和文档/会议行动项；B/root 委托代理负责 board 与 tasks/pool-filters 单文件的统一筛选及本人保存视图；C/root 负责 discussions 提及快照与完整历史分页；resources Owner 负责文件夹、置顶、双向关联、引文评论和协作者权限；E 负责 notify 关注/偏好与 calendar 本人提醒。模块提供公开契约，不跨改内部服务；所有 DB 检查由 root 串行执行。完整多人实时编辑、群聊/通信、外部同步仍另立方案，core、登录及依赖锁定。
-
-用户随后明确要求管理员、副管理员、组员等多重职务。foundation/identity 增加独立 deputy 职务、同源能力与成员界面；root 接续 resources 管理能力与 notify 验收收件人。仅为该新职务在既有 team_position 枚举末尾追加 deputy，另立 member-deputy.sql 迁移，不重排旧 schema/修改旧迁移。副管理员管理日常团队、项目、资料和验收；职务授予、身份确认及最后管理员保护保持主管理员负责。其他成员未被自动升职，core、登录与依赖仍锁定。
-
-用户授权本轮完善分类内主题文件夹、多层资料、可恢复回收站，统一右下角消息与 AI 草稿图标，并以飞书为主将 R6 调整为通用项目协作。集成分支 `codex/v050-collaboration-release`：resources Owner 负责分类目录与资料恢复；A/tasks 和新增 delivery Owner 负责绑定通过版本的阶段交付、评审问题、清单、归档和导出；foundation/notify UI Owner 负责统一协作中心；root 串行追加 schema/迁移、公开壳和导航、契约文档、R7 综合验收与 Windows 运行包。验收后按用户明确授权合入 main，发布 0.5.0 和 GitHub Release；core、登录和依赖继续锁定，GitHub 仅可选成果链接，不将所有项目视为代码项目，不实现外部同步、实时共同编辑或群聊。范围和检查记录统一见 docs/COLLABORATION-WORKSPACE.md。
 
 ## 2. 架构不变量
 
@@ -67,7 +57,7 @@
    - 一切状态变更必须走 `transitionTask()`，**禁止**直接 `update tasks.status`。
    - 非法转移抛 `ConflictError`（409）。
 3. **ACL 先行**：每个 service 函数入口先调
-   `requireProjectForUser` / `requireTaskWrite`（具有执行职务）/ `requireReviewer`（管理员/指导老师）/ `requireTeamRole`。任务能力由 `identity/client.capabilitiesFor` 按职务并集和项目场景计算，身份不得参与授权。
+   `requireProjectForUser` / `requireTaskWrite`（具有执行职务）/ `requireReviewer`（管理员/副管理员/指导老师）/ `requireTeamRole`。任务能力由 `identity/client.capabilitiesFor` 按职务并集和项目场景计算，身份不得参与授权。
 4. **错误**：只抛 `AppError` / `ForbiddenError` / `NotFoundError` / `ConflictError`；message 可直接展示给用户（中文）。
 5. **日期**：一律 `YYYY-MM-DD` 字符串（用 `@/modules/core/dates`）；工时用 `minutes: number`。
 6. **校验**：边界输入用 Zod v4；DB 信任内部调用。
@@ -100,7 +90,7 @@ npm run build     # Windows 上零改动通过
 - 改了 `index.ts` 导出 → 同步 [docs/TEAM.md](docs/TEAM.md) 对应契约节。
 - 只包含本模块相关文件；不顺手重构别人的目录。
 - 体验改动按 [docs/UX.md](docs/UX.md) 检查空状态、姓名指派、取消/失败、角色权限、键盘操作与窄屏；看板/表格切换保留 URL 筛选。
-- 每轮完成验收的集成迭代递增版本，同步 `package.json`、`package-lock.json` 根与根包版本、README 及 `CHANGELOG.md`。候选版递增 `rc` 序号，合入主分支并重新验证后才标正式版；只为本轮版本创建对应 tag，不覆盖历史 tag。规则见 [docs/WORKFLOW.md](docs/WORKFLOW.md#9-迭代版本与发布)。
+- 每轮完成验收的集成迭代递增版本，同步 `package.json`、`package-lock.json` 根与根包版本、README 及 `CHANGELOG.md`。候选版递增 `rc` 序号，合入主分支并重新验证后才标正式版；只为本轮版本创建对应 tag，不覆盖历史 tag。规则见 [docs/WORKFLOW.md](docs/WORKFLOW.md#8-迭代版本与发布)。
 
 ## 5. 测试约定
 
@@ -131,7 +121,7 @@ npm run clean      # 清 .next / coverage
 
 - 学术身份由本人填写、另一位团队管理员按当前资料版本确认；修改资料使旧确认失效，确认不得跨团队复用。
 - 职务管理必须验证操作者、目标归属并保留至少一名管理员。兼容三态 role 由职务派生，不赋予学术身份任何权限。
-- 队长仅管理实验室/竞赛项目与指派；验收保持管理员/指导老师权限。按钮、拖动和服务端共享能力及转移规则。
+- 队长仅管理实验室/竞赛项目与指派；验收保持管理员/副管理员/指导老师权限。按钮、拖动和服务端共享能力及转移规则。
 - schema 只追加，已有库升级运行 `node scripts/migrate-identity.mjs`，不得通过清空历史数据消除约束差异。
 - 调整身份/职务/状态行为时同步 [docs/IDENTITY.md](docs/IDENTITY.md) 与契约测试；PR 来源与取舍记录在 [docs/PR-RESEARCH.md](docs/PR-RESEARCH.md)。
 
@@ -141,10 +131,8 @@ npm run clean      # 清 .next / coverage
 - 连接摘要不暴露 openId、密码或应用密钥；解绑只允许会话本人，校验当前绑定版本并保留可用登录方式。历史 `@feishu.local` 占位邮箱账号当前禁止解绑。
 - 尚未接入业务投递的飞书私信不显示启用开关或成功承诺；实际能力与联调范围同步 [docs/FEISHU.md](docs/FEISHU.md)。公共验证归 foundation，成员模块继续按 Owner 协作。
 
-## 9. 0.5.0 全态发布与验收接续范围
+## 9. 任务交付边界
 
-用户在本轮补充要求管理者发布任务至最终验收的链路成熟完整。沿用 `codex/v050-collaboration-release`：A/tasks 与 delivery Owner 接续发布时的负责人、逐项验收要求、稳定请求键、编辑版本与草稿保护，以及指派/认领、执行、结构化提交、打回重交、逐项验收、重开和真实交付引用；C/review Owner 通过 tasks 公开查询与 `availableTransitions` 补齐并保留依赖、子任务与当前权限守卫，不复制状态机。创建输入实际字段为 acceptanceCriteria，验收要求保存使用 criteria；GUI 编辑必须携带 expectedUpdatedAt，submitted/accepted 的工作目标与验收要求冻结，变更需先打回或重开，历史提交/评审/交付快照保留。范围与签名见 [docs/TEAM.md](docs/TEAM.md) 的 0.5.0 契约。
+管理者发布至最终验收使用以下约束：A/tasks 与 delivery Owner 负责负责人、逐项验收要求、稳定请求键、编辑版本与草稿保护，以及指派/认领、执行、结构化提交、打回重交、逐项验收、重开和真实交付引用；C/review Owner 通过 tasks 公开查询与 `availableTransitions` 保留依赖、子任务与当前权限守卫，不复制状态机。创建输入实际字段为 acceptanceCriteria，验收要求保存使用 criteria；GUI 编辑必须携带 expectedUpdatedAt，submitted/accepted 的工作目标与验收要求冻结，变更需先打回或重开，历史提交/评审/交付快照保留。签名见 [docs/TEAM.md](docs/TEAM.md) 的公开契约。
 
-该接续范围不增加第六状态，不修改 core、登录文件或依赖，不扩大为 Sprint、代码同步、模型调用、实时共同编辑或群聊；各 Owner 只修改自身模块并通过登记的公开契约协作。DB 检查、构建、综合 GUI 验收及最终 main/0.5.0 Release 仍由 root 串行完成，不以子代理的局部检查代替发布验收。
-
-用户随后授权使用 Antigravity Python SDK 与 OpenAI Agents Python SDK 作为开发子代理；仅属于仓库开发协作工具，不解除产品模型/API/依赖限制。按 Owner 提供已检查的源码片段与公开契约，root 集成建议；SDK 认证按官方 API/Vertex ADC 路径核实，不读取或复用 IDE 私有 token，不以 SDK 绕过审批、模块权限或发布检查。当前认证尚未配置，实际执行状态见 WORKFLOW。
+该接续范围不增加第六状态，不修改 core、登录文件或依赖，不扩大为 Sprint、代码同步、模型调用、实时共同编辑或群聊；各 Owner 只修改自身模块并通过登记的公开契约协作。DB 检查、构建、综合 GUI 验收及最终 main/0.5.0 Release 仍由 root 串行完成，不以局部检查代替发布验收。
