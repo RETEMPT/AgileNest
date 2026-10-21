@@ -73,3 +73,6 @@ jobs:
       - name: Verify Windows launcher lifetime
         shell: powershell
         run: .\tests\windows\launcher.ps1
+      - name: Verify local stop ownership
+        shell: powershell
+        run: .\tests\windows\stop.ps1

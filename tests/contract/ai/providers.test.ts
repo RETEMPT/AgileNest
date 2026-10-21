@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeModelProvider, listModelProviders, resolveModelProvider, saveModelProvider } from "@/modules/ai/providers";
@@ -7,7 +7,7 @@ import type { ModelConfiguration } from "@/modules/ai/client";
 
 const configuration: ModelConfiguration = { name: "服务甲", provider: "compatible", baseUrl: "https://models.example.com/v1", model: "test-model", protocol: "chat", timeoutSeconds: 90, maxOutputTokens: 4096 };
 let directory: string;
-beforeEach(async () => { directory = await mkdtemp(path.resolve(".tools/provider-test-")); vi.stubEnv("AI_PROVIDER_STORE_DIR", directory); vi.stubEnv("AUTH_SECRET", "provider-store-contract-secret"); });
+beforeEach(async () => { directory = ""; await mkdir(path.resolve(".tools"), { recursive: true }); directory = await mkdtemp(path.resolve(".tools/provider-test-")); vi.stubEnv("AI_PROVIDER_STORE_DIR", directory); vi.stubEnv("AUTH_SECRET", "provider-store-contract-secret"); });
 afterEach(async () => { vi.unstubAllEnvs(); if (directory.startsWith(path.resolve(".tools") + path.sep)) await rm(directory, { recursive: true, force: true }); });
 const save = (revision = 0) => saveModelProvider("alice", { expectedRevision: revision, configuration: { ...configuration, apiKey: "private-test-key" } });
 
