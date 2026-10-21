@@ -1,8 +1,8 @@
 # Windows 发布包：运行、升级与构建
 
-当前正式版本 **0.5.0**。本页只维护发布包运行、数据保留和打包流程；功能见 [DESIGN](DESIGN.md)，验收见 [UX](UX.md)，版本变化见 [CHANGELOG](../CHANGELOG.md)。
+当前正式版本 **0.6.0**。本页只维护发布包运行、数据保留和打包流程；功能见 [DESIGN](DESIGN.md)，验收见 [UX](UX.md)，版本变化见 [CHANGELOG](../CHANGELOG.md)。
 
-本轮候选通过完整链路与独立运行包检查，PR #10 合入 main 后重新通过617条契约和Windows构建。正式包的发布记录、首启/升级结果与校验附件见 [0.5.0 Release](https://github.com/RETEMPT/AgileNest/releases/tag/v0.5.0)。已有 [rc.4 候选包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.4) 与 [0.3.0 历史稳定包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0) 保留。GitHub 自动生成的 Source code 是源码，运行包须选择 Windows ZIP。
+PR #12 合入 main 后重新通过104文件/1030条契约与Windows构建。独立候选包已检查首装、关闭/重启、旧数据保留和API配置隔离；正式包的逐项验收与校验附件见 [0.6.0 Release](https://github.com/RETEMPT/AgileNest/releases/tag/v0.6.0)。已有 [0.5.0 稳定包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.5.0)、[rc.4 候选包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.4) 与 [0.3.0 历史稳定包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0) 保留。GitHub 自动生成的 Source code 是源码，运行包须选择 Windows ZIP。
 
 ## 运行发布包
 
@@ -29,7 +29,7 @@
 - 默认网站端口 3000，数据库端口 55432。端口占用时会保留错误提示，不关闭其他程序。需要并行试用可在本包目录执行 `.\start.bat -WebPort 3001`。
 - 首次安装如需更换数据库端口，可给同一命令增加 `-DbPort 55433`。已有安装应先停止，然后修改 data/config.json 的 dbPort。诊断启动可增加 `-NoBrowser`。
 - 启动失败会保留窗口，请查看对应日志；不要通过删除 data 来尝试修复已有资料。
-- 可用 `Get-FileHash .\AgileNest-0.5.0-windows-x64.zip -Algorithm SHA256` 对照 Release 附件 `AgileNest-0.5.0-windows-x64.sha256.txt` 校验文件；候选包用其完整候选版本号。
+- 可用 `Get-FileHash .\AgileNest-0.6.0-windows-x64.zip -Algorithm SHA256` 对照 Release 附件 `AgileNest-0.6.0-windows-x64.sha256.txt` 校验文件；候选包用其完整候选版本号。
 
 ## 构建发布包（维护者）
 
