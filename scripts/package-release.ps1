@@ -33,7 +33,9 @@ New-Item -ItemType Directory -Path $appRoot -Force | Out-Null
 # Copy only the standalone runtime; tracing may also include source and local .env files.
 foreach ($file in @('server.js', 'package.json')) { Copy-Item -LiteralPath (Join-Path $workspaceRoot ".next/standalone/$file") -Destination $appRoot }
 foreach ($directory in @('.next', 'node_modules')) {
-    & robocopy.exe (Join-Path $workspaceRoot ".next/standalone/$directory") (Join-Path $appRoot $directory) /E /NFL /NDL /NJH /NJS /NP /XF '.env' '.env.*' '*.log' '*.tsbuildinfo' /XD 'cache' 'dev' '.data' '.tmp' '.tools' | Out-Null
+    $excludedDirectories = @('.data', '.tmp', '.tools')
+    if ($directory -eq '.next') { $excludedDirectories += @('cache', 'dev') }
+    & robocopy.exe (Join-Path $workspaceRoot ".next/standalone/$directory") (Join-Path $appRoot $directory) /E /NFL /NDL /NJH /NJS /NP /XF '.env' '.env.*' '*.log' '*.tsbuildinfo' /XD $excludedDirectories | Out-Null
     if ($LASTEXITCODE -gt 7) { throw "Standalone runtime copy failed: $directory" }
 }
 Copy-Item -LiteralPath '.next/static' -Destination (Join-Path $appRoot '.next/static') -Recurse
