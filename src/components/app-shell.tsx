@@ -6,36 +6,9 @@ import { AppSidebar, type ProjectSummary } from "./app-sidebar";
 import { FeedbackProvider } from "./ui/feedback";
 import { AppearanceProvider, useUiPreferences } from "./preferences";
 import { CollaborationDock } from "./ai/floating";
-
-const preferenceKey = "agilenest_sidebar_collapsed";
-const preferenceEvent = "agilenest:sidebar-preference";
-let memoryPreference = false;
-
-function readPreference() {
-  try {
-    const saved = localStorage.getItem(preferenceKey);
-    return saved === null ? memoryPreference : saved === "true";
-  } catch {
-    return memoryPreference;
-  }
-}
-
-function subscribePreference(onChange: () => void) {
-  window.addEventListener("storage", onChange);
-  window.addEventListener(preferenceEvent, onChange);
-  return () => {
-    window.removeEventListener("storage", onChange);
-    window.removeEventListener(preferenceEvent, onChange);
-  };
-}
-
-function togglePreference() {
-  memoryPreference = !readPreference();
-  try {
-    localStorage.setItem(preferenceKey, String(memoryPreference));
-  } catch {}
-  window.dispatchEvent(new Event(preferenceEvent));
-}
+import { isSidebarToggleShortcut, sidebarPreferenceStore } from "./sidebar-preference";
+import { AccountBoundary } from "./account-boundary";
+import { ACCOUNT_STORAGE_KEY, ACCOUNT_CHANGED_EVENT } from "./account-context";
 
 type AppShellProps = {
   user: {
@@ -56,20 +29,22 @@ export function AppShell({
   children,
 }: AppShellProps) {
   const pathname = usePathname();
-  const workspacePage = pathname === "/ai" || pathname === "/settings";
+  const workspacePage = pathname === "/ai" || pathname === "/settings" || /^\/(?:p|t)\/[^/]+\/resources$/.test(pathname);
   const { preferences } = useUiPreferences(user.id);
   const collapsed = useSyncExternalStore(
-    subscribePreference,
-    readPreference,
+    sidebarPreferenceStore.subscribe,
+    sidebarPreferenceStore.getSnapshot,
     () => false,
   );
 
-  // 支持通用快捷键 Ctrl+B 或 Cmd+B 一键展开/收起侧边栏
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+      const target = e.target;
+      const editing = target instanceof HTMLElement &&
+        (target.isContentEditable || target.closest("input, textarea, select, [role='textbox']") !== null);
+      if (window.matchMedia("(min-width: 768px)").matches && isSidebarToggleShortcut(e, editing)) {
         e.preventDefault();
-        togglePreference();
+        sidebarPreferenceStore.toggle();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -77,16 +52,22 @@ export function AppShell({
   }, []);
 
   return (
+    <AccountBoundary key={user.id} userId={user.id}>
     <FeedbackProvider>
     <AppearanceProvider userId={user.id} />
     <div className="min-h-screen bg-background">
       {/* 统一全局可伸缩侧栏 */}
       <AppSidebar
+        key={`sidebar:${user.id}`}
         user={user}
         projects={projects}
-        onSignOut={onSignOut}
+        onSignOut={async () => {
+          try { localStorage.setItem(ACCOUNT_STORAGE_KEY, ""); } catch {}
+          window.dispatchEvent(new Event(ACCOUNT_CHANGED_EVENT));
+          await onSignOut();
+        }}
         isCollapsed={collapsed}
-        onToggleCollapse={togglePreference}
+        onToggleCollapse={sidebarPreferenceStore.toggle}
       />
 
       {/* 主界面区域：随侧栏展开/收起平滑阻尼过渡 */}
@@ -99,8 +80,9 @@ export function AppShell({
           {children}
         </main>
       </div>
-      <CollaborationDock key={user.id} userId={user.id} projects={projects} aiEnabled={preferences.aiFloating && pathname !== "/ai"} />
+      <CollaborationDock key={user.id} userId={user.id} projects={projects} aiEnabled={preferences.aiFloating && pathname !== "/ai"} showLauncher={pathname !== "/ai"} />
     </div>
     </FeedbackProvider>
+    </AccountBoundary>
   );
 }

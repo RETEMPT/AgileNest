@@ -1,5 +1,6 @@
 "use client";
 
+import { accountFetch } from "@/components/account-request";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bell, BellOff, Check, RefreshCw, Save, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,7 +38,7 @@ function FollowControl({ target }: { target: FollowTarget }) {
     fetching.current = controller;
     setLoading(true);
     try {
-      const response = await fetch(`/api/v1/notify/follows?kind=${target.kind}&id=${encodeURIComponent(target.id)}`, { cache: "no-store", signal: controller.signal });
+      const response = await accountFetch(`/api/v1/notify/follows?kind=${target.kind}&id=${encodeURIComponent(target.id)}`, { cache: "no-store", signal: controller.signal });
       const next = parseFollowState(await readResponse(response));
       if (!next || next.target.id !== target.id || next.target.kind !== target.kind) throw new Error("关注设置无法读取，请重试");
       if (!active.current || controller.signal.aborted) return;
@@ -62,7 +63,7 @@ function FollowControl({ target }: { target: FollowTarget }) {
     writing.current = controller;
     setPending(true); setError("");
     try {
-      const response = await fetch("/api/v1/notify/follows", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...state, following: !state.following }), signal: controller.signal });
+      const response = await accountFetch("/api/v1/notify/follows", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...state, following: !state.following }), signal: controller.signal });
       const next = parseFollowState(await readResponse(response));
       if (!next || next.target.id !== target.id || next.target.kind !== target.kind) throw new Error("关注结果无法确认，请重新加载");
       if (!active.current || controller.signal.aborted) return;
@@ -91,7 +92,7 @@ const preferenceRows: { key: Exclude<keyof NotificationPreferences, "version">; 
   { key: "mentions", title: "直接 @ 提及", description: "成员在讨论或资料评论中明确提及你时提醒。" },
   { key: "resourceUpdates", title: "资料更新", description: "你关注的资料或项目内文档内容发生更新时提醒。" },
   { key: "reminders", title: "本人到期提醒", description: "已接入的任务到期与本人提醒；不包含他人的私人日程。" },
-  { key: "showBubble", title: "协作中心浮动入口", description: "显示右下角统一的消息与 AI 草稿入口。关闭后消息继续接收，可从消息中心查看；AI 草稿仍可在完整工作区编辑。" },
+  { key: "showBubble", title: "协作中心浮动入口", description: "显示右下角统一的消息与 AI 入口。关闭后消息继续接收，可从消息中心查看；AI 仍可在完整工作区使用。" },
 ];
 
 export function NotificationPreferencesPanel({ compact = false }: { compact?: boolean }) {
@@ -112,7 +113,7 @@ export function NotificationPreferencesPanel({ compact = false }: { compact?: bo
     fetching.current = controller;
     setLoading(true);
     try {
-      const next = parseNotificationPreferences(await readResponse(await fetch("/api/v1/notify/preferences", { cache: "no-store", signal: controller.signal })));
+      const next = parseNotificationPreferences(await readResponse(await accountFetch("/api/v1/notify/preferences", { cache: "no-store", signal: controller.signal })));
       if (!next) throw new Error("通知偏好无法读取，请重试");
       if (!active.current || controller.signal.aborted) return;
       setSaved(next);
@@ -138,7 +139,7 @@ export function NotificationPreferencesPanel({ compact = false }: { compact?: bo
     writing.current = controller;
     setPending(true); setError(""); setSuccess("");
     try {
-      const response = await fetch("/api/v1/notify/preferences", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...draft, version: saved.version }), signal: controller.signal });
+      const response = await accountFetch("/api/v1/notify/preferences", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...draft, version: saved.version }), signal: controller.signal });
       const next = parseNotificationPreferences(await readResponse(response));
       if (!next) throw new Error("设置保存结果无法确认，请重新加载");
       if (!active.current || controller.signal.aborted) return;

@@ -27,7 +27,7 @@ export function MaterialsDialog({mode,onClose,onReturnFocus,items,userId,importE
   return <Dialog.Root open={mode !== null} onOpenChange={(open) => {if (!open) onClose();}}><Dialog.Portal>
     <Dialog.Overlay className="dialog-overlay fixed inset-0 z-80 bg-black/35" />
     <Dialog.Content className={`ai-material-dialog fixed top-1/2 left-1/2 z-80 flex max-h-[88dvh] w-[calc(100%-1.5rem)] max-w-4xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl ${mode?.kind !== "paste" ? "h-[80dvh]" : ""}`} onCloseAutoFocus={(event) => {if (onReturnFocus) {event.preventDefault();onReturnFocus();}}}>
-      <div className="shrink-0 border-b border-border px-4 py-4 sm:px-5"><Dialog.Title className="pr-8 text-base font-semibold">{mode?.kind === "paste" ? "添加文本资料" : "会话资料"}</Dialog.Title><Dialog.Description className="mt-1 text-xs text-muted-foreground">仅保存在此浏览器 · 不发送给模型</Dialog.Description><Dialog.Close asChild><Button variant="ghost" size="icon" aria-label="关闭资料面板" className="absolute top-3 right-3 h-8 w-8"><X size={16} /></Button></Dialog.Close></div>
+      <div className="shrink-0 border-b border-border px-4 py-4 sm:px-5"><Dialog.Title className="pr-8 text-base font-semibold">{mode?.kind === "paste" ? "添加文本资料" : "会话资料"}</Dialog.Title><Dialog.Description className="mt-1 text-xs text-muted-foreground">选择的 PPTX / DOCX 会上传服务器提取文字，其他文件在本机读取；发送消息时才将文字交给模型。</Dialog.Description><Dialog.Close asChild><Button variant="ghost" size="icon" aria-label="关闭资料面板" className="absolute top-3 right-3 h-8 w-8"><X size={16} /></Button></Dialog.Close></div>
       {importError && <p role="alert" className="shrink-0 px-5 pt-3 text-xs text-destructive">{importError}</p>}
       {importing && <p role="status" className="shrink-0 px-5 pt-3 text-xs text-brand">正在读取并保存资料…</p>}
       {mode?.kind === "paste" ? <PasteMaterial onImport={onImport} onClose={onClose} /> : <>
@@ -35,7 +35,7 @@ export function MaterialsDialog({mode,onClose,onReturnFocus,items,userId,importE
           {items.map((item) => <button type="button" key={item.id} onClick={() => setSelectedId(item.id)} className={`ui-press max-w-52 shrink-0 truncate rounded-lg px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected?.id === item.id ? "bg-brand-soft text-brand" : "hover:bg-accent"}`}>{item.name}</button>)}
           <Button variant="outline" size="sm" disabled={importing} className="h-8 shrink-0 text-xs" onClick={onPick}><Plus size={14} />添加文件</Button>
         </div>
-        {selected ? <MaterialReader key={selected.id} item={selected} userId={userId} initialTab={mode?.kind === "organize" ? "outline" : "text"} onAttachText={onAttachText} /> : <div className="px-6 py-14 text-center"><FileText size={28} className="mx-auto text-brand" /><p className="mt-4 text-sm">添加资料后，可在这里读取和整理内容</p><p className="mt-2 text-xs text-muted-foreground">文本、Markdown、CSV、JSON、代码、PDF 和图片</p><Button className="mt-5" onClick={onPick}>选择文件</Button></div>}
+        {selected ? <MaterialReader key={selected.id} item={selected} userId={userId} initialTab={mode?.kind === "organize" ? "outline" : "text"} onAttachText={onAttachText} /> : <div className="px-6 py-14 text-center"><FileText size={28} className="mx-auto text-brand" /><p className="mt-4 text-sm">添加资料后，可在这里读取和整理内容</p><p className="mt-2 text-xs text-muted-foreground">文本、Markdown、CSV、JSON、代码、PPTX、DOCX、PDF 和图片</p><Button className="mt-5" onClick={onPick}>选择文件</Button></div>}
       </>}
     </Dialog.Content>
   </Dialog.Portal></Dialog.Root>;
@@ -80,6 +80,7 @@ function MaterialReader({item,userId,initialTab,onAttachText}: {item:MaterialRef
   if (!loaded) return <p role="status" className="p-6 text-sm text-muted-foreground">正在读取资料…</p>;
   return <div className="flex min-h-0 flex-1 flex-col">
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-4 pt-4 sm:px-5"><p className="min-w-0 truncate text-xs text-muted-foreground">{formatBytes(item.size)}{item.kind !== "text" && " · 浏览器预览，尚未提取正文"}</p><div className="flex items-center gap-3"><span role="status" className="text-xs text-brand">{feedback}</span><a href={loaded.url} download={item.name} className="ui-press inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Download size={14} />下载原文件</a></div></div>
+    {item.extraction && <p className="mx-4 mt-3 rounded-lg bg-brand-soft p-3 text-xs leading-5 sm:mx-5">已提取 {item.extraction.format.toUpperCase()} 可读取文字，不包含图片中的文字。{item.extraction.truncated && "正文超过读取上限，仅保留部分内容。"}{item.extraction.warnings.join("；")}</p>}
     {item.kind === "text" ? <TextMaterial item={item} text={loaded.material.text!} initialTab={initialTab} onCopy={copy} onAttachText={onAttachText} /> : <div className="custom-scrollbar min-h-0 overflow-auto p-4 sm:p-5">{item.kind === "image" ? <Image src={loaded.url} alt={item.name} unoptimized width={1200} height={900} className="mx-auto max-h-[60dvh] max-w-full rounded-lg object-contain" /> : <PdfMaterial item={item} url={loaded.url} />}</div>}
   </div>;
 }

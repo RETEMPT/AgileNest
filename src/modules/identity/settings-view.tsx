@@ -6,6 +6,7 @@ import { AcademicProfileForm } from "./academic-ui";
 import { getFeishuConnection } from "./connection-service";
 import { FeishuConnectionPanel } from "./connection-ui";
 import { SettingsWorkspace } from "./settings-workspace";
+import { redirect } from "next/navigation";
 import { settingsSection } from "./settings-sections";
 import { SettingsProjects } from "./settings-projects";
 import { AiSettings, AppearanceSettings } from "./settings-preferences";
@@ -16,9 +17,11 @@ export async function SettingsView({ searchParams }: {
   searchParams: Promise<{ section?: string; feishu?: string; notice?: string }>;
 }) {
   const user = await requireUser();
-  const [profile, academic, connection, projects, teams, query] = await Promise.all([
+  const query = await searchParams;
+  if (query.section === "guide" && !query.feishu && !query.notice) redirect("/guide");
+  const [profile, academic, connection, projects, teams] = await Promise.all([
     getAccountProfile(user.id), getAcademicProfile(user.id), getFeishuConnection(user.id),
-    listMyProjects(user.id), listTeamSpaces(user.id), searchParams,
+    listMyProjects(user.id), listTeamSpaces(user.id),
   ]);
   return <SettingsWorkspace profile={profile} joinedAt={profile.createdAt.toLocaleDateString("zh-CN", { timeZone: "Asia/Shanghai" })}
     initialSection={query.feishu || query.notice ? "connections" : settingsSection(query.section)}

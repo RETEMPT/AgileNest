@@ -142,7 +142,7 @@ function EditTaskForm({
         </div>
         <details
           className="rounded-xl border border-border p-3"
-          open={Boolean(task.startDate || task.dueDate || task.estimatedMinutes !== null || task.milestoneId || task.priority !== "medium")}
+          open={Boolean(task.startDate || task.dueDate || task.milestoneId || task.priority !== "medium")}
         >
           <summary className="cursor-pointer text-sm font-medium text-muted-foreground">
             日期、优先级与里程碑
@@ -178,18 +178,6 @@ function EditTaskForm({
               <option value="medium">中</option>
               <option value="high">高</option>
             </select>
-          </div>
-          <div className={field}>
-            <label htmlFor={`${id}-minutes`}>预计工时（分钟）</label>
-            <Input
-              id={`${id}-minutes`}
-              type="number"
-              name="estimatedMinutes"
-              min={0}
-              max={1000000}
-              step={1}
-              defaultValue={task.estimatedMinutes ?? ""}
-            />
           </div>
           </div>
           <div className={`mt-4 ${field}`}>

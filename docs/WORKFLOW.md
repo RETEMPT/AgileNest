@@ -1,348 +1,109 @@
-# 开发工作流全流程
+# 开发与发布流程
 
-> 从新人上手到发布上线的完整路径。配合 [CONTRIBUTING.md](../CONTRIBUTING.md) 和 [AGENTS.md](../AGENTS.md) 使用。
+本文只维护仓库工作流程。环境与排错见 [WINDOWS.md](WINDOWS.md)，模块契约见 [TEAM.md](TEAM.md)，业务与验收见 [DESIGN.md](DESIGN.md)、[UX.md](UX.md)，编码硬约束见 [AGENTS.md](../AGENTS.md)。
 
----
+## 1. Windows 开发环境
 
-## 1. 全流程总览
-
-```
-环境准备 → 创建分支 → 开发 → 本地测试 → 提交 → 推送 → PR → Review → 合并 → 发布
-                                              ↑                         │
-                                              └───── 修复反馈 ←──────────┘
-```
-
----
-
-## 2. 新人首次上手（30 分钟）
+安装 Node.js 22 LTS 和 Git，然后运行根目录 `start.bat`；首次自动初始化，之后直接启动，关闭窗口停止网站。配置、便携 PostgreSQL、测试库和示例账号的细节统一放在 [WINDOWS.md](WINDOWS.md)。
 
 ```powershell
-# ① 确认前置工具
-node -v     # >= 22
-git --version
-
-# ② 克隆仓库
-git clone https://github.com/RETEMPT/AgileNest.git
-cd AgileNest
-
-# ③ 首次自动初始化，以后直接启动开发服务器
 .\start.bat
-
-# ④ 保持窗口打开，关闭窗口停止网站
-
-# ⑤ 浏览器验证
-# http://localhost:3000/login → 用 admin@agilecampus.local / password123 登录
+.\start.bat -ConfigOnly # 仅生成缺失配置
+.\start.bat -Setup      # 显式安装锁定依赖、初始化空库
 ```
 
-初始化完成后你会看到：登录页 → 今日工作台（有示例任务可点）。
+只操作本仓 `E:\AgileCampus`；旧仓只读。脚本必须跨平台或明确为 Windows PowerShell，不使用 bash-only 语法。环境配置、密钥和运行数据不提交。
 
----
+## 2. 分支与 Owner
 
-## 3. Git 分支模型
-
-### 分支结构
-
-```
-main          ← 生产发布，打 tag
-  └─ develop  ← 集成分支，所有 PR 合到这
-       ├─ feature/tasks-status         ← A：五态状态机
-       ├─ feature/board-views          ← B：看板 / 表格
-       ├─ feature/review-portal        ← C：验收台 / 双首页
-       ├─ feature/worklog-stats        ← D：工时 / 统计
-       ├─ feature/calendar-notify      ← E：日历 / 里程碑
-       └─ feature/core-patch/<slug>    ← 任何人修 core 的临时分支
-```
-
-### 创建分支
+`main` 保存已合入的稳定代码。工作分支从已确认的基线创建，默认使用 `codex/<描述>`；多人集成明确集成分支与 PR 目标，不假定必须有 `develop`，不得覆盖其他 Owner 的未合入工作。
 
 ```powershell
-git checkout develop
-git pull origin develop
-git checkout -b feature/<模块名>
-# 例：feature/tasks-status
-```
-
-### 提交规范
-
-```
-<type>(<scope>): <一句话说明>
-
-type: feat | fix | chore | docs | test | refactor | perf
-scope: tasks | board | review | worklog | calendar | milestone | notify | core | identity
-
-feat(tasks): add subtask completion ratio calculation
-fix(board): prevent drag to illegal status column
-docs(worklog): update API contract for addWorklog
-```
-
-### 合并策略
-
-```powershell
-# PR 合并前 rebase 保持历史干净
-git checkout feature/tasks-status
 git fetch origin
-git rebase origin/develop
-# 解决冲突后
-git push origin feature/tasks-status --force-with-lease
-
-# 合并到 develop（保留提交历史）
-git checkout develop
-git merge --no-ff feature/tasks-status
-git push origin develop
+git switch main
+git pull --ff-only origin main
+git switch -c codex/<描述>
 ```
 
----
+按 [TEAM.md](TEAM.md) 的 Owner 开发。完整链路先登记跨模块范围，再通过公开契约协作；core 修改由 foundation 说明理由并使用 `feature/core-patch/<slug>`。登录文件、依赖、schema 与格式文件继续遵守 AGENTS 约束。
 
-## 4. 新功能开发完整路径
+## 3. 实现与契约
 
-### 4.1 规划
+确认目标行为、模块边界和公开签名，再实现 service → actions/API → UI。service 入口先 ACL；路由只做壳；跨模块业务从根 `index.ts` 导入，已登记的 `client/ui/views` 不得泄露 DB/session/service 运行时代码。
 
-```
-1. 打开 docs/TEAM.md → 找到你的模块目录和契约
-2. 确认要改哪些 service 函数（签名是否需要变动）
-3. 写契约测试（先于代码，保证接口稳定）
-```
+任务状态只由 `transitionTask()` 改变，按钮和拖动使用 `availableTransitions()`；指派按姓名选择。行为变更同步契约测试，公开签名变更同步 TEAM。日期使用 `YYYY-MM-DD`，工时为整数分钟，边界输入用 Zod，错误使用可展示中文消息的 AppError 家族，保持 TypeScript strict。
 
-### 4.2 编码
+## 4. 验证
 
-```
-src/modules/<你的模块>/
-  schema.ts      ← 加字段/表（只追加，不重排）
-  service.ts     ← 业务逻辑 + ACL（纯函数，无 UI 依赖）
-  actions.ts     ← server action（useActionState 用的）
-  api.ts         ← RESTful 路由处理（可选）
-  ui.tsx         ← 客户端组件（"use client"）
-  index.ts       ← 公开契约（只 export 需要被外部 import 的）
-```
-
-**核心规则：**
-- actions/API 使用 session；service 接收 actorId 并在读取项目或团队数据时先检查 ACL
-- 状态变更走 `transitionTask()`，绝不直接 `UPDATE tasks SET status=...`
-- 路由 `page.tsx` 只做壳：调 `ui.tsx` 的组件，不写业务
-- 页面组合放在模块 `views.tsx`；客户端规则从登记的 `client.ts` 导入，业务仍走模块根契约
-- 状态按钮与看板目标复用 `availableTransitions()`，不得复制角色×状态表
-
-### 4.3 写测试
+按用户 2026-10-15 的最新要求，日常修改只运行受影响的针对性检查和必要页面确认，不默认重复全量测试或生产构建。发现异常时补查相关范围；以下完整检查留到发布前执行，未检项如实记录。
 
 ```powershell
-# 在 tests/contract/<模块>/ 下新建测试文件
-# 每个模块 ≥ 6 条：happy path + 越权 + 非法状态转移
+npm test
+npm run build
 ```
 
-示例结构：
-```ts
-describe("tasks", () => {
-  it("happy path: claim → submit → accept", ...);
-  it("越权：student 不能 accept", ...);
-  it("非法状态：accepted 状态不能 claim（409）", ...);
-  it("submit 必须填 completionNote", ...);
-  it("非本项目成员不能读", ...);
-  it("subtask 完成度计算正确", ...);
-});
-```
+契约测试每模块至少 6 条，覆盖正常、越权和非法转移；新 service/ACL/并发行为验证对应边界。集成测试使用真实 `agilecampus_test`、`.env.test` 与串行文件执行，夹具使用 `resetDb()/makeUser()`。多人开发由集成人串行运行 DB 检查，禁止重置开发库。
 
-### 4.4 本地验证
-
-```powershell
-npm test        # 全绿
-npm run build   # 零错误
-npm run dev     # 浏览器手动点一遍流程
-```
-
-### 4.5 提交 & 推送
-
-```powershell
-git add <你改的文件>
-git commit -m "feat(tasks): ..."
-git push origin feature/<分支名>
-```
-
-### 4.6 开 PR
-
-在 GitHub 上开 PR 到 `develop`，使用仓库自带的 PR 模板：
-
-- 勾选「模块归属」
-- 填「做了什么」（重点说 why，不是 what）
-- 确认「契约变更」和「测试证据」
-- 如果动了不属于你的目录，在「目录越界」里说明理由
-
----
-
-## 5. Bug 修复路径
-
-```powershell
-# ① 从 develop 切分支
-git checkout develop
-git pull
-git checkout -b fix/<简短描述>
-
-# ② 定位问题 → 写失败测试（先失败再修）
-# ③ 修复 → 测试通过
-# ④ npm test + npm run build
-# ⑤ 开 PR，type 填 fix
-```
-
----
-
-## 6. 测试工作流
-
-### 快速测试（纯函数，无需数据库）
+无数据库时至少运行纯函数检查，明确完整 DB 验证尚未完成，不能据此宣布发布验收通过：
 
 ```powershell
 npx vitest run tests/contract/exports.test.ts tests/contract/core tests/contract/identity/password.test.ts tests/contract/tasks/states.test.ts tests/contract/board/board.test.ts
 ```
 
-### 完整测试（需要 Postgres）
+UI 按 [UX.md](UX.md) 检查核心链路、职务权限、姓名指派、空状态、失败/取消保留、键盘和窄屏；看板/表格切换保留 URL 条件。文档整理等低影响变更先做链接、内容与差异检查；提交 DoD 仍以 AGENTS 与本次授权范围为准。
+
+## 5. 数据库升级
+
+仅追加本模块表到 `src/db/schema.ts` 末尾，不重排旧块、不修改历史 SQL/hash。既有 schema 的授权变化单独说明，不能用清库消除约束差异。
+
+新增独立可重复的 SQL 迁移与迁移脚本，在旧库副本验证后由集成人串行应用开发/测试库。迁移成功再跑契约检查；已有库使用对应脚本，`db:push` 不能替代旧数据升级验收。
 
 ```powershell
-npm test
+node scripts/migrate-identity.mjs
+# 其他追加迁移使用对应 scripts/migrate-*.mjs；支持时用 --test 指向测试库
 ```
 
-> Docker 测试库 `agilecampus_test` 在首次初始化数据卷时创建。已有卷或本机 PostgreSQL 需先创建测试库，再执行 `npm run db:push:test`，见 [Windows 说明](WINDOWS.md)。
+新表同步公开入口、契约和 Windows 运行包 bootstrap 迁移列表。发布包迁移记录验证文件哈希，重复启动保留配置与数据。空库初始化与测试库建立见 WINDOWS。
 
-### 什么必须写测试
+## 6. 提交与 PR
 
-| 改动 | 测试要求 |
-|---|---|
-| 新增 service 函数 | happy path + 越权 + 边界 |
-| 状态转移逻辑 | 覆盖 `TRANSITIONS` 表中所有合法/非法路径 |
-| ACL 变更 | 越权访问必须返回 `ForbiddenError` |
-| 前端 UI | 可选，手动浏览器验证 |
-| 改了 `index.ts` 导出 | 必须更新 `docs/TEAM.md` |
-
----
-
-## 7. 数据库 Schema 变更
-
-```
-# ① 在模块的 schema.ts 加字段/表（追加到文件末尾）
-# ② 生成迁移 SQL
-npx drizzle-kit generate
-
-# ③ 手动应用（Windows）
-# 用 .tools/pgsql/pgsql/bin/psql 或你的 Postgres 客户端
-psql -d agilenest -f drizzle/0000_<name>.sql
-
-# ④ 同步测试库
-psql -d agilecampus_test -f drizzle/0000_<name>.sql
-
-# ⑤ 同步 .env.test 的连接串（如改了数据库名）
-# ⑥ 更新 db/schema.ts barrel（如有新表）
-# ⑦ 在 PR 里附上迁移文件
-```
-
----
-
-## 8. PR / Code Review 流程
-
-```
-PR 打开 → CI（npm test + build）自动跑
-         → 至少 1 人 Review
-         → 通过 → 合并到 develop
-         → 有问题 → 评论反馈 → 作者修复 → 再次 Review
-```
-
-### Reviewer 检查清单
-
-- [ ] 只改了 Owner 目录（对照 docs/TEAM.md）
-- [ ] `npm test` 全绿（截图或本地日志）
-- [ ] `npm run build` 零错误
-- [ ] service 函数入口有 ACL 检查
-- [ ] 状态变更走 `transitionTask()`
-- [ ] 契约测试 ≥ 6 条
-- [ ] 没有引入新依赖（或在 PR 中说明理由）
-- [ ] 改了 `index.ts` 签名 → `docs/TEAM.md` 已同步
-- [ ] UI 状态操作与服务端同源，指派使用成员姓名
-- [ ] 取消/失败不移动任务，看板/表格切换保留 URL 条件
-- [ ] 依照 [UX.md](UX.md) 验证团队→项目→任务→验收、角色差异与窄屏
-
----
-
-## 9. 迭代版本与发布
-
-版本唯一来源为 `package.json.version`；`package-lock.json` 的根版本和 `packages[""].version` 必须相同。README 显示当前分支版本，CHANGELOG 按版本记录变化、升级要求和验证范围。本轮集成分支为 `codex/v050-collaboration-release`，从 rc.8 接续，通过 PR 交付到 `main`，不要求另建 `develop`。上文 develop 是常规团队分支模型，本轮以这里的集成目标为准。
-
-每轮完成验收的集成迭代必须有递增编号；同一轮中的编辑、小提交和成员模块 PR 不各自升版，由 foundation 集成人统一维护，避免多分支抢占版本。
-
-| 变化 | 递增方式 | 示例 |
-|---|---|---|
-| 修复、文案、性能或其他兼容维护 | 补丁号 | `0.3.0` → `0.3.1` |
-| 新功能或完整体验迭代 | 次版本号 | `0.3.1` → `0.4.0` |
-| 不兼容的契约或升级要求 | 次版本号（0.x 阶段），1.0 后主版本号 | `0.4.0` → `0.5.0`，`1.2.0` → `2.0.0` |
-| 同一目标正式版的下一轮候选迭代 | 候选序号 | `0.3.0-rc.1` → `0.3.0-rc.2` |
-
-候选版使用 `<目标版本>-rc.<序号>`。0.5.0-rc.1 衔接 rc.5–rc.8 的导航、版本验收、资料协作与多重职务，增加分类主题、可恢复回收站、阶段交付和统一协作图标，并完善发布到验收的全链路。范围和实际验收见 [COLLABORATION-WORKSPACE](COLLABORATION-WORKSPACE.md) 与 [UX](UX.md)。PR 尚未合入主分支时保留候选标识。正式版必须先解决主分支冲突、完成合并，再对最终代码运行测试与 Windows 构建，随后移除候选后缀并提交元数据。Windows 包须另验首启、停止、重启、旧数据升级、源码/配置排除与 SHA256；不得把分支推送或 tag 当作已经部署。
-
-维护下一轮候选版时，可在版本管理短分支运行下列命令，同步 README、CHANGELOG 与 PR 后完成验证；这里仅更新包和锁文件，不自动提交或打 tag。
+小步提交一个逻辑单元，列出变更范围与 Owner。Commit 使用 `<type>(<scope>): <说明>`；type 为 feat/fix/chore/docs/test/refactor/perf，scope 使用对应模块或 docs。
 
 ```powershell
-npm version prerelease --preid=rc --no-git-tag-version
-npm test
-npm run build
+git add <相关文件>
+git commit -m "docs(team): consolidate current contracts"
+git push -u origin codex/<描述>
 ```
 
-每个完成验证并提交的集成版本创建同名注释 tag，如 `v0.5.0-rc.1`；tag 指向该版本提交，既有 tag 不移动、不覆盖。仅推送本轮具体 tag，不使用 `--tags` 批量推送。候选 tag 保留用于追溯；正式版 `v0.5.0` 指向 main 中已验证的正式版本提交。正式版本编号同样通过 `npm version <确定的版本> --no-git-tag-version` 更新，并同步上述记录。Release 的 release.json.commit 必须与 tag 目标一致；只上传原始无运行数据的 ZIP 与 SHA256 文件。
+PR 使用仓库模板，目标为已确认的 main 或集成分支；描述问题、最终行为、契约/迁移/依赖变化、检查结果与实际限制。多行正文使用 UTF-8 文件和 `--body-file`，保留真实换行。不默认强推或改写他人历史。
 
-查当前本地版本与提交：
+## 7. Review 与合并
+
+- 范围与 Owner 正确，跨模块只用公开契约，锁定文件保持边界。
+- service ACL、五态入口与 UI 同源，版本/并发冲突和历史引用有保护。
+- 公开签名与 TEAM 同步；契约覆盖正常、越权、非法转移。
+- Windows `npm test`、`npm run build` 通过，UI 检查范围与未完成项如实记录。
+- schema 仅授权追加，升级和运行包迁移列表一致；依赖变化有明确理由。
+
+修复反馈后检查受影响范围。合并前确认 CI 对应当前提交，至少一位协作者 Review；冲突按 Owner 协调，不替其他成员合并开放 PR。发布还需对最终 main 代码重新验证。
+
+## 8. 迭代版本与发布
+
+版本来源为 `package.json.version`，`package-lock.json` 根版本与 `packages[""].version` 必须一致；README 显示当前版本，CHANGELOG 记录变化、升级要求和验证范围。由 foundation 集成人维护，同一轮的小提交和成员 PR 不各自升版。
+
+| 变化 | 递增方式 |
+|---|---|
+| 兼容修复、文案、性能维护 | 补丁号 |
+| 新功能或完整体验迭代 | 次版本号 |
+| 不兼容契约/升级要求 | 0.x 递增次版本，1.0 后递增主版本 |
+| 同一目标的下一轮候选 | `<目标版本>-rc.<递增序号>` |
+
+候选版未合入 main 时保留 rc 后缀。正式发布顺序：解决冲突并合入 main → 最终代码完整测试和 Windows 构建 → 更新正式版本元数据并提交 → 构建正式包 → 独立目录验证 → tag 与 Release。源码出现新变化时重新检查受影响结果，不能以分支推送或 tag 代替发布。
 
 ```powershell
-node -p "require('./package.json').version"
-git branch --show-current
-git rev-parse --short HEAD
-git describe --tags --always
+npm version <确定的版本> --no-git-tag-version
 ```
 
----
+该命令仅同步包和锁文件，不自动提交/tag；README、CHANGELOG、PR 和记录仍须同步。完成验证的集成版本创建同名注释 tag，指向对应提交；历史 tag 不移动、不覆盖，只推送本轮具体 tag，不用 `--tags` 批量推送。
 
-## 10. 每日开发循环（建议）
-
-```
-早上  → git pull origin develop
-      → 同步你的 feature 分支：git rebase origin/develop
-
-开发  → 在 src/modules/<你的模块>/ 里改代码
-      → 在 tests/contract/<你的模块>/ 里写/改测试
-
-验证  → npm test（全绿）
-      → npm run build（零错误）
-      → 浏览器手点核心流程
-
-提交  → 小步提交（一个逻辑单元一个 commit）
-      → git push origin feature/<分支名>
-
-收尾  → 改动积累够一个功能点 → 开 PR
-      → 回复 Reviewer 评论
-```
-
----
-
-## 11. 常见场景速查
-
-| 我要做什么 | 怎么做 |
-|---|---|
-| 新增一个 service 函数 | 写 service → ACL → actions → ui → 测试 |
-| 加字段到现有表 | 改模块 schema.ts → generate → 手动 SQL → 同步测试库 |
-| 改公开接口签名 | 改 index.ts → 更新 docs/TEAM.md 对应契约节 |
-| 修 core 的 bug | foundation 使用 `feature/core-patch/<slug>`，PR 里说明理由 |
-| 加新依赖 | 先在 PR 里声明理由，等 foundation Owner 确认 |
-| 本地库起不来 | 跑 `start.bat -Setup`，或检查 5432 端口，或用 `.tools/pgsql` 便携 Postgres |
-| 想改登录逻辑 | **不要改**，逻辑原样保留（AGENTS.md §3） |
-| 实现 AI / 甘特 / Sprint | **不实现**，只在 ROADMAP.md 留条目 |
-
----
-
-## 相关文档
-
-用户授权 Antigravity Python SDK 与 OpenAI Agents Python SDK 辅助开发审查，属于开发工具，不接入产品 AI 或依赖。按模块 Owner 选取源码与公开契约片段，由 root 汇总建议并执行必要检查、合并和发布。默认 Gemini SDK 需要 API key，Vertex 支持 project/location + ADC；桌面或 CLI 登录不能据此视为 SDK 已认证。当前本机未配置可用 SDK 认证，尚未执行 SDK 子代理；不能以未执行的模型审查替代实际测试。[Antigravity 官方认证](https://github.com/google-antigravity/antigravity-sdk-python)、[OpenAI Agents SDK](https://github.com/openai/openai-agents-python)。
-
-| 文档 | 用途 |
-|---|---|
-| [CONTRIBUTING.md](../CONTRIBUTING.md) | 贡献规则速查 |
-| [AGENTS.md](../AGENTS.md) | 编码 Agent 硬约束 |
-| [docs/TEAM.md](TEAM.md) | 模块分工 + 契约 |
-| [docs/DESIGN.md](DESIGN.md) | 链路设计 + 状态机 |
-| [docs/WINDOWS.md](WINDOWS.md) | 环境配置 |
-
-## 本轮身份权限交付
-
-学术身份、可叠加职务和场景权限按 [IDENTITY.md](IDENTITY.md) 与 [PR-RESEARCH.md](PR-RESEARCH.md) 落地。core ACL 补丁先在 `feature/core-patch/member-capabilities` 提交并通过兼容测试，再合入 `codex/workspace-workflow`。集成分支保留当前工作区已有业务与侧栏提交，统一推送并创建面向 `main` 的 PR，不替其他 Owner 合并开放 PR。已有库升级先执行追加迁移，再执行完整测试与 Windows 构建。
+Windows ZIP 独立验证首装、关闭/停止、重启保留、旧数据升级、配置/源码/密钥/运行数据排除及 SHA256。`release.json.commit` 等于 tag 目标；只上传原始未运行的 ZIP 和 SHA256，发布前核对完整附件与候选/正式状态，发布后验证下载信息。包操作与升级见 [RELEASE.md](RELEASE.md)，实际版本结果集中在 CHANGELOG 与 GitHub Release。

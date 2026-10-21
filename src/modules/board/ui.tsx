@@ -15,7 +15,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { CircleAlert, Copy, GripVertical, LayoutGrid, List, Plus, Search, X } from "lucide-react";
+import { CircleAlert, Copy, FileText, GripVertical, LayoutGrid, List, Plus, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormFeedback, useFeedback } from "@/components/ui/feedback";
@@ -24,16 +24,15 @@ import { TaskDrawer } from "@/components/cards/task-drawer";
 import { StatusPill, PriorityPill } from "@/components/ui/badge";
 import {
   TASK_STATUSES,
-  STATUS_DESCRIPTIONS,
   STATUS_LABELS,
   availableTransitions,
   transitionNeedsDialog,
+  taskDependencyMessage,
   type TaskDTO,
   type TransitionRule,
 } from "@/modules/tasks/client";
 import {
   CreateTaskForm,
-  TaskWorkflow,
   TransitionDialog,
   TaskLabelFilter,
   TaskLabelPill,
@@ -100,13 +99,13 @@ function LabelFilterField({ projectId, value }: { projectId: string; value: stri
   return <div className="min-w-0"><p className="mb-1 text-xs text-muted-foreground">项目标签</p><input type="hidden" name="labelId" value={labelId} /><TaskLabelFilter projectId={projectId} value={labelId} onChange={setLabelId} /></div>;
 }
 
-function TaskOrganizationBadges({ task }: { task: TaskDTO }) {
+function TaskOrganizationBadges({ task, tasks }: { task: TaskDTO; tasks: TaskDTO[] }) {
   const labels = task.labels ?? [];
   if (!labels.length && !task.blocked) return null;
-  return <div className="mt-2 flex max-w-full flex-wrap items-center gap-1.5" aria-label="任务标签与依赖状态">
+  return <div className="mt-2 flex max-w-full flex-wrap items-center gap-1.5" aria-label="任务标签与先后顺序">
     {labels.slice(0, 3).map((label) => <TaskLabelPill key={label.id} label={label} />)}
     {labels.length > 3 && <span title={labels.slice(3).map((label) => label.name).join("、")} className="rounded-full border border-border bg-muted/50 px-2 py-0.5 text-[10px] text-muted-foreground" aria-label={`另 ${labels.length - 3} 个标签，可在任务详情查看`}>+{labels.length - 3}</span>}
-    {task.blocked && <span title="前置任务尚未验收；可以继续执行，提交、重新提交及通过验收需等待前置任务全部通过" className="inline-flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:text-amber-200"><CircleAlert aria-hidden="true" className="h-3 w-3 shrink-0" />被阻塞</span>}
+    {task.blocked && <span title={taskDependencyMessage(task, tasks) ?? undefined} className="inline-flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:text-amber-200"><CircleAlert aria-hidden="true" className="h-3 w-3 shrink-0" />等待其他任务验收</span>}
   </div>;
 }
 
@@ -152,11 +151,13 @@ function MultiValueFilter({
 
 function TaskTile({
   task,
+  tasks,
   draggable,
   showStatus,
   onOpen,
 }: {
   task: TaskDTO;
+  tasks: TaskDTO[];
   draggable: boolean;
   showStatus: boolean;
   onOpen: (trigger: HTMLElement) => void;
@@ -174,6 +175,7 @@ function TaskTile({
       className={`rounded-xl border border-border bg-card p-3 shadow-xs ${isDragging ? "opacity-30" : "transition hover:border-brand/35 hover:shadow-sm"}`}
     >
       <div className="flex items-start gap-2">
+        <button type="button" onClick={(event) => onOpen(event.currentTarget)} aria-label={`查看任务详情：${task.title}`} title="查看任务详情" className="mt-0.5 shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><FileText aria-hidden="true" className="h-4 w-4" /></button>
         <button
           type="button"
           onClick={(event) => onOpen(event.currentTarget)}
@@ -194,7 +196,7 @@ function TaskTile({
           </button>
         )}
       </div>
-      <TaskOrganizationBadges task={task} />
+      <TaskOrganizationBadges task={task} tasks={tasks} />
       <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <PriorityPill priority={task.priority} />
         <span className="inline-flex min-w-0 items-center gap-1.5">
@@ -209,7 +211,7 @@ function TaskTile({
         {showStatus ? (
           <StatusPill status={task.status} />
         ) : (
-          <span className="font-mono">#{task.id.slice(0, 6)}</span>
+          <span>查看任务详情</span>
         )}
       </div>
     </article>
@@ -248,11 +250,6 @@ function BoardColumn({
           {column.tasks.length}
         </span>
       </div>
-      {status && (
-        <p className="mb-3 min-h-8 text-xs leading-relaxed text-muted-foreground">
-          {STATUS_DESCRIPTIONS[status]}
-        </p>
-      )}
       <div className="space-y-3">
         {children}
         {column.tasks.length === 0 && (
@@ -356,7 +353,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
       label: `里程碑：${milestones.find((milestone) => milestone.id === filters.milestoneId)?.title || "所选节点"}`,
     }] : []),
     ...(filters.labelId ? [{ name: "labelId", value: filters.labelId, label: `标签：${tasks.flatMap((task) => task.labels ?? []).find((label) => label.id === filters.labelId)?.name ?? "所选标签"}` }] : []),
-    ...(filters.blocked !== undefined ? [{ name: "blocked", value: filters.blocked ? "1" : "0", label: filters.blocked ? "仅被阻塞" : "仅无阻塞" }] : []),
+    ...(filters.blocked !== undefined ? [{ name: "blocked", value: filters.blocked ? "1" : "0", label: filters.blocked ? "等待其他任务验收" : "无需等待其他任务" }] : []),
   ];
   const completed = tasks.filter((task) => task.status === "accepted").length;
   const percent = tasks.length
@@ -415,11 +412,6 @@ export function ProjectWorkspace(props: WorkspaceProps) {
           <h1 className="text-2xl font-semibold tracking-tight">
             项目任务
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {view === "board"
-              ? "查看任务进展，打开详情继续处理。"
-              : "集中查看负责人、状态与排期，打开详情继续处理。"}
-          </p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" />
@@ -437,7 +429,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
             label: "待修改",
             value: tasks.filter((task) => task.status === "rejected").length,
           },
-          { label: "被阻塞", value: tasks.filter((task) => task.blocked).length },
+          { label: "等待其他任务验收", value: tasks.filter((task) => task.blocked).length },
           {
             label: "顶层验收完成",
             value: tasks.length ? `${completed}/${tasks.length} · ${percent}%` : "暂无完成度",
@@ -449,14 +441,6 @@ export function ProjectWorkspace(props: WorkspaceProps) {
           </div>
         ))}
       </dl>
-      <details className="rounded-xl border border-border bg-card p-3">
-        <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
-          查看任务流程与权限
-        </summary>
-        <div className="mt-3">
-          <TaskWorkflow />
-        </div>
-      </details>
       <div className="space-y-3 rounded-xl border border-border bg-card p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-3">
@@ -532,7 +516,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
           </div>
           <MultiValueFilter id={`${id}-priority`} name="priority" label="优先级" values={filters.priority ?? []} options={[{ value: "high", label: "高" }, { value: "medium", label: "中" }, { value: "low", label: "低" }]} />
           <LabelFilterField projectId={projectId} value={filters.labelId ?? ""} />
-          <div className="min-w-0"><label htmlFor={`${id}-blocked`} className="mb-1 block text-xs text-muted-foreground">依赖状态</label><select id={`${id}-blocked`} name="blocked" defaultValue={filters.blocked === undefined ? "" : filters.blocked ? "1" : "0"} className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs"><option value="">全部任务</option><option value="1">仅被阻塞</option><option value="0">仅无阻塞</option></select></div>
+          <div className="min-w-0"><label htmlFor={`${id}-blocked`} className="mb-1 block text-xs text-muted-foreground">任务先后</label><select id={`${id}-blocked`} name="blocked" defaultValue={filters.blocked === undefined ? "" : filters.blocked ? "1" : "0"} className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs"><option value="">全部任务</option><option value="1">等待其他任务验收</option><option value="0">无需等待其他任务</option></select></div>
           {(milestones.length > 0 || filters.milestoneId) && (
             <div className="min-w-0">
               <label
@@ -609,11 +593,6 @@ export function ProjectWorkspace(props: WorkspaceProps) {
         <>
           {view === "board" ? (
             <>
-              <p className="text-xs text-muted-foreground">
-                {groupBy === "status"
-                  ? "拖动把手可移动到高亮的合法状态列；提交、指派和打回会先补全必要信息。也可打开任务使用操作按钮。"
-                  : "当前分组用于查看分工；需要拖动状态时，请切换为按状态分组。"}
-              </p>
               <DndContext
                 id={id}
                 sensors={sensors}
@@ -654,6 +633,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
                           <TaskTile
                             key={task.id}
                             task={task}
+                            tasks={tasks}
                             showStatus={groupBy !== "status"}
                             draggable={
                               groupBy === "status" &&
@@ -704,9 +684,9 @@ export function ProjectWorkspace(props: WorkspaceProps) {
                           onClick={(event) => openTask(task.id, event.currentTarget)}
                           className="max-w-96 rounded text-left font-medium leading-6 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
-                          {task.title}
+                          <span className="inline-flex items-start gap-2"><FileText aria-hidden="true" className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" /><span>{task.title}</span></span>
                         </button>
-                        <TaskOrganizationBadges task={task} />
+                        <TaskOrganizationBadges task={task} tasks={tasks} />
                       </td>
                       <td className="p-3">
                         <StatusPill status={task.status} />

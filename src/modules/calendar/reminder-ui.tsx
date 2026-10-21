@@ -1,5 +1,6 @@
 "use client";
 
+import { accountFetch } from "@/components/account-request";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Bell, RefreshCw, Save, X } from "lucide-react";
@@ -51,7 +52,7 @@ function ReminderEditor({ scheduleId, onPendingChange, onClose }: { scheduleId: 
     fetching.current = controller;
     setLoading(true);
     try {
-      const next = parseScheduleReminder(await responseData(await fetch(`/api/v1/calendar/schedules/${scheduleId}/reminder`, { cache: "no-store", signal: controller.signal })));
+      const next = parseScheduleReminder(await responseData(await accountFetch(`/api/v1/calendar/schedules/${scheduleId}/reminder`, { cache: "no-store", signal: controller.signal })));
       if (!next || next.scheduleId !== scheduleId) throw new Error("提醒设置无法读取，请重试");
       if (!active.current || controller.signal.aborted) return;
       setSaved(next);
@@ -79,7 +80,7 @@ function ReminderEditor({ scheduleId, onPendingChange, onClose }: { scheduleId: 
     writing.current = controller;
     setPending(true); setError(""); setSuccess("");
     try {
-      const response = await fetch(`/api/v1/calendar/schedules/${scheduleId}/reminder`, { method: "PUT", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify({ scheduleVersion: saved.scheduleVersion, reminderVersion: saved.reminderVersion, enabled, minutes }) });
+      const response = await accountFetch(`/api/v1/calendar/schedules/${scheduleId}/reminder`, { method: "PUT", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify({ scheduleVersion: saved.scheduleVersion, reminderVersion: saved.reminderVersion, enabled, minutes }) });
       const next = parseScheduleReminder(await responseData(response));
       if (!next || next.scheduleId !== scheduleId) throw new Error("保存结果无法确认，请读取最新版本");
       if (!active.current || controller.signal.aborted) return;

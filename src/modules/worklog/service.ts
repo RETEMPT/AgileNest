@@ -1,13 +1,14 @@
-import { and, eq, getTableColumns, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, eq, getTableColumns, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { tasks, teamMembers, users, worklogs } from "@/db/schema";
+import { tasks, users, worklogs } from "@/db/schema";
 import { AppError, ForbiddenError, NotFoundError } from "@/modules/core/errors";
-import { isValidISODate } from "@/modules/core/dates";
+import { isOverdue } from "@/modules/core/dates";
 import {
   getProjectForUser,
   requireProjectForUser,
 } from "@/modules/core/permissions";
-import { z } from "zod";
+import { listTeamMembers } from "@/modules/identity";
+import { listProjectTasks, type TaskDTO } from "@/modules/tasks";
 
 export type WorklogDTO = {
   id: string;
@@ -39,7 +40,11 @@ export type Contribution = {
   userName: string | null;
   tasksAccepted: number;
   tasksSubmitted: number;
-  minutes: number;
+  tasksTotal: number;
+  statusCounts: Record<TaskDTO["status"], number>;
+  completionRatio: number;
+  overdue: number;
+  tasks: Pick<TaskDTO, "id" | "title" | "status" | "dueDate" | "parentTaskId">[];
 };
 
 function toDTO(
@@ -70,42 +75,9 @@ export async function addWorklog(
   taskId: string,
   input: { workDate: string; minutes: number; note?: string },
 ): Promise<WorklogDTO> {
-  const { task, access } = await loadTaskForWorklog(actorId, taskId);
-  if (!access.capabilities.execute || task.assigneeId !== actorId)
-    throw new ForbiddenError("请先认领任务，只能给自己负责的任务记工时");
-  const parsed = z
-    .object({
-      workDate: z.iso.date({ error: "日期需为有效的 YYYY-MM-DD" }),
-      minutes: z
-        .number({ error: "工时需为数字" })
-        .int("工时需为整数分钟")
-        .positive("工时需为正整数分钟")
-        .max(1440, "单条工时不能超过 24 小时"),
-      note: z.string().trim().max(2000, "工时说明最多 2000 字").optional(),
-    })
-    .safeParse(input);
-  if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
-  if (!isValidISODate(input.workDate))
-    throw new AppError("日期需为 YYYY-MM-DD");
-  if (!Number.isInteger(input.minutes) || input.minutes <= 0) {
-    throw new AppError("工时需为正整数（分钟）");
-  }
-  if (input.minutes > 24 * 60) throw new AppError("单条工时不能超过 24 小时");
-  if (task.assigneeId && task.assigneeId !== actorId) {
-    throw new ForbiddenError("只能给自己的任务记工时");
-  }
-
-  const [row] = await db
-    .insert(worklogs)
-    .values({
-      taskId,
-      userId: actorId,
-      workDate: input.workDate,
-      minutes: input.minutes,
-      note: input.note ?? null,
-    })
-    .returning();
-  return toDTO(row);
+  await loadTaskForWorklog(actorId, taskId);
+  void input;
+  throw new AppError("工时登记已停用，请在贡献页查看任务完成情况", 410);
 }
 
 export async function listWorklogs(
@@ -131,11 +103,8 @@ export async function deleteWorklog(
     .from(worklogs)
     .where(eq(worklogs.id, worklogId));
   if (!row) throw new NotFoundError("工时记录不存在");
-  const { access } = await loadTaskForWorklog(actorId, row.taskId);
-  if (row.userId !== actorId && access.role !== "admin") {
-    throw new ForbiddenError("只能删除自己的工时");
-  }
-  await db.delete(worklogs).where(eq(worklogs.id, worklogId));
+  await loadTaskForWorklog(actorId, row.taskId);
+  throw new AppError("工时记录已归档，不能删除", 410);
 }
 
 export async function completionRatio(
@@ -215,40 +184,28 @@ export async function memberContribution(
   projectId: string,
 ): Promise<Contribution[]> {
   const access = await requireProjectForUser(actorId, projectId);
-  const members = await db
-    .select({ userId: teamMembers.userId, userName: users.name })
-    .from(teamMembers)
-    .leftJoin(users, eq(teamMembers.userId, users.id))
-    .where(eq(teamMembers.teamId, access.project.teamId));
-
-  const accepted = await db
-    .select({
-      assigneeId: tasks.assigneeId,
-      n: sql<number>`count(*)`.mapWith(Number),
-    })
-    .from(tasks)
-    .where(and(eq(tasks.projectId, projectId), eq(tasks.status, "accepted")))
-    .groupBy(tasks.assigneeId);
-
-  const submitted = await db
-    .select({
-      assigneeId: tasks.assigneeId,
-      n: sql<number>`count(*)`.mapWith(Number),
-    })
-    .from(tasks)
-    .where(and(eq(tasks.projectId, projectId), isNotNull(tasks.submittedAt)))
-    .groupBy(tasks.assigneeId);
-
-  const hours = await taskHours(actorId, projectId);
-  const accMap = new Map(accepted.map((r) => [r.assigneeId, r.n]));
-  const subMap = new Map(submitted.map((r) => [r.assigneeId, r.n]));
-  const hourMap = new Map(hours.map((r) => [r.userId, r.minutes]));
-
-  return members.map((m) => ({
-    userId: m.userId,
-    userName: m.userName,
-    tasksAccepted: accMap.get(m.userId) ?? 0,
-    tasksSubmitted: subMap.get(m.userId) ?? 0,
-    minutes: hourMap.get(m.userId) ?? 0,
-  }));
+  const [members, projectTasks] = await Promise.all([
+    listTeamMembers(actorId, access.project.teamId),
+    listProjectTasks(actorId, projectId),
+  ]);
+  return members
+    .filter((member) => access.capabilities.review || member.id === actorId)
+    .map((member) => {
+      const assigned = projectTasks.filter((task) => task.assigneeId === member.id);
+      const statusCounts: Contribution["statusCounts"] = {
+        unclaimed: 0, in_progress: 0, submitted: 0, accepted: 0, rejected: 0,
+      };
+      for (const task of assigned) statusCounts[task.status] += 1;
+      return {
+        userId: member.id,
+        userName: member.name,
+        tasksAccepted: statusCounts.accepted,
+        tasksSubmitted: statusCounts.submitted,
+        tasksTotal: assigned.length,
+        statusCounts,
+        completionRatio: assigned.length ? statusCounts.accepted / assigned.length : 0,
+        overdue: assigned.filter((task) => task.status !== "accepted" && isOverdue(task.dueDate)).length,
+        tasks: assigned.map(({ id, title, status, dueDate, parentTaskId }) => ({ id, title, status, dueDate, parentTaskId })),
+      };
+    });
 }

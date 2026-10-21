@@ -4,12 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useId, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ArrowRight, Plus, RotateCcw, Trash2, X } from "lucide-react";
+import { ArrowRight, FileText, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormFeedback, useFeedback } from "@/components/ui/feedback";
 import {
-  addWorklogAction,
   createMilestoneAction,
   createTaskAction,
   createSubtaskAction,
@@ -40,6 +39,7 @@ import {
 import { StructuredTransitionFields } from "./delivery-fields";
 import { DiscardChangesDialog } from "./form-guards";
 import type { AcceptanceCriterion } from "./delivery-types";
+import { taskDependencyMessage } from "./organization-client";
 
 export { TaskDetailSummary, type TaskDetailSummaryProps } from "./detail-summary";
 export { TaskOrganization, TaskLabelFilter, TaskLabelPill } from "./organization-ui";
@@ -52,11 +52,13 @@ export function CreateTaskForm({
   projectId,
   onCreated,
   parentTaskId,
+  milestoneId,
   onPendingChange,
 }: {
   projectId: string;
   onCreated?: () => void;
   parentTaskId?: string;
+  milestoneId?: string;
   onPendingChange?: (pending: boolean) => void;
 }) {
   const id = useId();
@@ -65,12 +67,11 @@ export function CreateTaskForm({
   const [assigneeId, setAssigneeId] = useState("");
   const [assignees, setAssignees] = useState<AssigneeOption[]>([]);
   const [assigneeError, setAssigneeError] = useState("");
-  const [canAssign, setCanAssign] = useState(false);
   const [requestKey, setRequestKey] = useState("");
   useEffect(() => {
     let active = true;
     const initializeCriteria = () => { setCriteria((current) => current.length ? current : [{ id: crypto.randomUUID(), text: "" }]); setRequestKey((current) => current || crypto.randomUUID()); };
-    void loadProjectTaskAssigneesAction(projectId).then((result) => { if (active) { setAssignees(result.members); setCanAssign(result.canAssign); setAssigneeError(result.error); initializeCriteria(); } }).catch(() => { if (active) { setAssigneeError("负责人加载失败，仍可先发布为待认领任务"); initializeCriteria(); } });
+    void loadProjectTaskAssigneesAction(projectId).then((result) => { if (active) { setAssignees(result.members); setAssigneeError(result.error); initializeCriteria(); } }).catch(() => { if (active) { setAssigneeError("负责人加载失败，仍可先发布为待认领任务"); initializeCriteria(); } });
     return () => { active = false; };
   }, [projectId]);
   const [fields, setFields] = useState({
@@ -116,6 +117,7 @@ export function CreateTaskForm({
         <input type="hidden" name="parentTaskId" value={parentTaskId} />
       )}
       <input type="hidden" name="projectId" value={projectId} />
+      {milestoneId && <input type="hidden" name="milestoneId" value={milestoneId} />}
       <input type="hidden" name="acceptanceCriteria" value={JSON.stringify(criteria)} />
       <input type="hidden" name="requestKey" value={requestKey} />
       <label htmlFor={`${id}-title`} className="block text-xs font-medium">
@@ -150,8 +152,8 @@ export function CreateTaskForm({
         disabled={pending}
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
       />
-      <div className="space-y-2"><label htmlFor={`${id}-owner`} className="block text-xs font-medium">负责人 / 认领方式</label><select id={`${id}-owner`} name="assigneeId" value={assigneeId} disabled={pending} onChange={(event) => setAssigneeId(event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="">发布到任务池，等待成员认领</option>{assignees.map((member) => <option key={member.id} value={member.id}>{member.name} · {member.positions?.map((position) => POSITION_META[position].label).join("、")}</option>)}</select><p className="text-xs leading-5 text-muted-foreground">{canAssign ? "可以直接指派团队执行成员，任务和验收清单一并发布。" : "可创建待认领任务，或选择本人执行；指派他人需要管理或协调职务。"}</p><FormFeedback message={assigneeError} /></div>
-      <section className="space-y-3 rounded-xl border border-border bg-muted/20 p-3"><div><h3 className="text-xs font-semibold">发布时的验收要求 <span className="text-destructive">*</span></h3><p className="mt-1 text-xs leading-5 text-muted-foreground">至少写明一项可核对的成果或通过条件。执行人按同一清单自检，验收人逐项确认。</p></div>{criteria.map((criterion, index) => <div key={criterion.id} className="flex items-start gap-2"><Input aria-label={`任务发布的第 ${index + 1} 项验收要求`} required maxLength={1000} value={criterion.text} disabled={pending} placeholder="例如：研究报告包含结论、证据和材料来源" onChange={(event) => setCriteria((current) => current.map((item) => item.id === criterion.id ? { ...item, text: event.target.value } : item))} /><Button type="button" size="icon" variant="ghost" aria-label={`移除第 ${index + 1} 项发布要求`} disabled={pending || criteria.length <= 1} onClick={() => setCriteria((current) => current.filter((item) => item.id !== criterion.id))}><Trash2 className="h-4 w-4" /></Button></div>)}<Button type="button" size="sm" variant="outline" disabled={pending || criteria.length >= 30} onClick={() => setCriteria((current) => [...current, { id: crypto.randomUUID(), text: "" }])}><Plus className="h-3.5 w-3.5" />添加要求</Button></section>
+      <div className="space-y-2"><label htmlFor={`${id}-owner`} className="block text-xs font-medium">负责人 / 认领方式</label><select id={`${id}-owner`} name="assigneeId" value={assigneeId} disabled={pending} onChange={(event) => setAssigneeId(event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="">发布到任务池，等待成员认领</option>{assignees.map((member) => <option key={member.id} value={member.id}>{member.name} · {member.positions?.map((position) => POSITION_META[position].label).join("、")}</option>)}</select><FormFeedback message={assigneeError} /></div>
+      <section className="space-y-3 rounded-xl border border-border bg-muted/20 p-3"><div><h3 className="text-xs font-semibold">发布时的验收要求 <span className="text-destructive">*</span></h3></div>{criteria.map((criterion, index) => <div key={criterion.id} className="flex items-start gap-2"><Input aria-label={`任务发布的第 ${index + 1} 项验收要求`} required maxLength={1000} value={criterion.text} disabled={pending} placeholder="例如：研究报告包含结论、证据和材料来源" onChange={(event) => setCriteria((current) => current.map((item) => item.id === criterion.id ? { ...item, text: event.target.value } : item))} /><Button type="button" size="icon" variant="ghost" aria-label={`移除第 ${index + 1} 项发布要求`} disabled={pending || criteria.length <= 1} onClick={() => setCriteria((current) => current.filter((item) => item.id !== criterion.id))}><Trash2 className="h-4 w-4" /></Button></div>)}<Button type="button" size="sm" variant="outline" disabled={pending || criteria.length >= 30} onClick={() => setCriteria((current) => [...current, { id: crypto.randomUUID(), text: "" }])}><Plus className="h-3.5 w-3.5" />添加要求</Button></section>
       <details className="rounded-lg border border-border px-3 py-2">
         <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
           日期与优先级（可选）
@@ -187,8 +189,7 @@ export function CreateTaskForm({
         </div>
       </details>
       <ErrorLine state={state} />
-      <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
-        <p className="text-xs text-muted-foreground">目标、负责人和验收清单在同一次发布中保存。</p>
+      <div className="flex items-center justify-end gap-3 border-t border-border pt-3">
         <Button size="sm" disabled={pending || !criteria.length || !requestKey} loading={pending}>
           {pending ? "创建中…" : parentTaskId ? "创建子任务" : "创建任务"}
         </Button>
@@ -409,7 +410,7 @@ export function TransitionDialog({
                         {member.positions
                           ?.map((position) => POSITION_META[position].label)
                           .join("、") ??
-                          (member.role === "student" ? "组员" : "管理员")}
+                          (member.role === "student" ? "组员" : member.role === "teacher" ? "指导老师" : "管理员")}
                       </option>
                     ))}
                 </select>
@@ -615,7 +616,6 @@ export function TaskCard({
   showProjectBadge?: boolean;
   projectName?: string;
 }) {
-  const shortId = task.id ? `#${task.id.slice(0, 6)}` : "";
   const effectiveProjectName = projectName || task.projectName;
   const today = new Date().toISOString().slice(0, 10);
   const isOverdue =
@@ -627,10 +627,10 @@ export function TaskCard({
       {/* 顶部身份与状态条 (Linear/Harness Style) */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-2.5">
         <div className="flex items-center gap-2">
-          {shortId && (
-            <span className="font-mono text-[11px] font-medium text-muted-foreground">
-              {shortId}
-            </span>
+          {task.id && (
+            <Link href={`/p/${task.projectId}/tasks/${task.id}`} aria-label={`查看任务详情：${task.title}`} title="查看任务详情" className="inline-flex items-center gap-1.5 rounded font-mono text-[11px] font-medium text-muted-foreground hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <FileText aria-hidden="true" className="h-4 w-4" />查看详情
+            </Link>
           )}
           {showProjectBadge && effectiveProjectName && (
             <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
@@ -667,6 +667,8 @@ export function TaskCard({
           </p>
         )}
       </div>
+
+      {task.blocked && <p title={taskDependencyMessage(task) ?? undefined} className="text-xs font-medium text-amber-800 dark:text-amber-200">等待其他任务验收 · 打开详情查看原因</p>}
 
       {/* 状态语境看板 */}
       {task.status === "submitted" && (
@@ -719,7 +721,7 @@ export function TaskCard({
           href={`/p/${task.projectId}/tasks/${task.id}`}
           className="text-[11px] text-muted-foreground hover:text-foreground hover:underline"
         >
-          详情与工时 →
+          任务详情 →
         </Link>
       </div>
 
@@ -774,7 +776,7 @@ export function DeleteTaskButton({
             确认删除任务？
           </Dialog.Title>
           <Dialog.Description className="mt-3 text-sm leading-6 text-muted-foreground">
-            任务及其子任务、工时和活动记录将一并删除。此操作无法撤销。
+            任务及其子任务和相关历史记录将一并删除。此操作无法撤销。
           </Dialog.Description>
           <form action={formAction} className="mt-5 space-y-3">
             <input type="hidden" name="taskId" value={taskId} />
@@ -801,103 +803,6 @@ export function DeleteTaskButton({
 }
 
 export { canDeleteTask };
-
-export function WorklogForm({
-  taskId,
-  projectId,
-  defaultDate,
-}: {
-  taskId: string;
-  projectId: string;
-  defaultDate: string;
-}) {
-  const id = useId();
-  const [fields, setFields] = useState({
-    workDate: defaultDate,
-    minutes: "",
-    note: "",
-  });
-  const [state, formAction, pending] = useActionState<FormState, FormData>(
-    async (prev, data) => {
-      const result = await addWorklogAction(prev, data);
-      if (result?.ok)
-        setFields((current) => ({ ...current, minutes: "", note: "" }));
-      return result;
-    },
-    null,
-  );
-  return (
-    <form
-      action={formAction}
-      onReset={(event) => event.preventDefault()}
-      className="space-y-3 rounded-xl border border-border bg-card p-4"
-    >
-      <input type="hidden" name="taskId" value={taskId} />
-      <input type="hidden" name="projectId" value={projectId} />
-      <fieldset
-        disabled={pending}
-        className="grid items-end gap-3 sm:grid-cols-[170px_130px_1fr_auto]"
-      >
-        <div className="space-y-1.5">
-          <label htmlFor={`${id}-date`} className="text-xs font-medium">
-            投入日期
-          </label>
-          <Input
-            id={`${id}-date`}
-            type="date"
-            name="workDate"
-            required
-            value={fields.workDate}
-            onChange={(event) =>
-              setFields({ ...fields, workDate: event.target.value })
-            }
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label htmlFor={`${id}-minutes`} className="text-xs font-medium">
-            投入分钟
-          </label>
-          <Input
-            id={`${id}-minutes`}
-            type="number"
-            name="minutes"
-            required
-            min={1}
-            max={1440}
-            step={1}
-            value={fields.minutes}
-            onChange={(event) =>
-              setFields({ ...fields, minutes: event.target.value })
-            }
-            placeholder="例如 30"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label htmlFor={`${id}-note`} className="text-xs font-medium">
-            工作说明（选填）
-          </label>
-          <Input
-            id={`${id}-note`}
-            name="note"
-            value={fields.note}
-            onChange={(event) =>
-              setFields({ ...fields, note: event.target.value })
-            }
-            maxLength={2000}
-            placeholder="这次完成了什么…"
-          />
-        </div>
-        <Button type="submit" loading={pending}>{pending ? "记录中…" : "记工时"}</Button>
-      </fieldset>
-      <ErrorLine state={state} />
-      {state?.ok && (
-        <p role="status" className="text-xs text-brand">
-          {state.ok}
-        </p>
-      )}
-    </form>
-  );
-}
 
 export function DueDateForm({
   taskId,
@@ -930,29 +835,53 @@ export function DueDateForm({
   );
 }
 
-export function MilestoneForm({ projectId }: { projectId: string }) {
+export function MilestoneForm({ projectId, onCreated, onPendingChange }: { projectId: string; onCreated?: () => void; onPendingChange?: (pending: boolean) => void }) {
+  const id = useId();
+  const [requestKey, setRequestKey] = useState("");
+  const [fields, setFields] = useState({ title: "", description: "", kind: "custom", targetDate: "" });
+  useEffect(() => { let active = true; queueMicrotask(() => { if (active) setRequestKey(crypto.randomUUID()); }); return () => { active = false; }; }, []);
   const [state, formAction, pending] = useActionState<FormState, FormData>(
-    createMilestoneAction,
+    async (previous, data) => {
+      const result = await createMilestoneAction(previous, data);
+      if (result?.ok) {
+        setFields({ title: "", description: "", kind: "custom", targetDate: "" });
+        setRequestKey(crypto.randomUUID());
+        onCreated?.();
+      }
+      return result;
+    },
     null,
   );
+  useEffect(() => { onPendingChange?.(pending); return () => onPendingChange?.(false); }, [pending, onPendingChange]);
   return (
     <form
       action={formAction}
       className="space-y-2 rounded-xl border border-border bg-card p-4"
     >
-      <h2 className="font-display text-sm font-semibold">新建里程碑</h2>
       <input type="hidden" name="projectId" value={projectId} />
+      <input type="hidden" name="requestKey" value={requestKey} />
+      <label htmlFor={`${id}-title`} className="block text-xs font-medium">里程碑名称</label>
       <input
+        id={`${id}-title`}
         name="title"
         required
+        maxLength={200}
+        value={fields.title}
+        disabled={pending}
+        onChange={(event) => setFields({ ...fields, title: event.target.value })}
         placeholder="如：开题 / 中期 / 结题"
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
       />
-      <div className="flex flex-wrap gap-2">
+      <label htmlFor={`${id}-description`} className="block text-xs font-medium">阶段目标（可选）</label>
+      <textarea id={`${id}-description`} name="description" maxLength={10000} rows={3} value={fields.description} disabled={pending} onChange={(event) => setFields({ ...fields, description: event.target.value })} className="w-full rounded-md border border-input bg-background p-2 text-sm" />
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="space-y-1 text-xs font-medium">阶段类型
         <select
           name="kind"
-          defaultValue="custom"
-          className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+          value={fields.kind}
+          disabled={pending}
+          onChange={(event) => setFields({ ...fields, kind: event.target.value })}
+          className="block w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
         >
           <option value="open_topic">开题</option>
           <option value="midterm">中期</option>
@@ -960,13 +889,19 @@ export function MilestoneForm({ projectId }: { projectId: string }) {
           <option value="defense">答辩</option>
           <option value="custom">自定义</option>
         </select>
+        </label>
+        <label className="space-y-1 text-xs font-medium">目标日期（可选）
         <input
           type="date"
           name="targetDate"
-          className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+          value={fields.targetDate}
+          disabled={pending}
+          onChange={(event) => setFields({ ...fields, targetDate: event.target.value })}
+          className="block w-full min-w-0 rounded-md border border-input bg-background px-2 py-1.5 text-sm"
         />
-        <Button size="sm" disabled={pending} loading={pending}>
-          {pending ? "创建中…" : "创建"}
+        </label>
+        <Button size="sm" disabled={pending || !requestKey} loading={pending} className="sm:col-span-2 sm:justify-self-end">
+          {pending ? "创建中…" : "创建里程碑"}
         </Button>
       </div>
       <ErrorLine state={state} />

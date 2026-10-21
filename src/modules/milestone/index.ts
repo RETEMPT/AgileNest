@@ -1,8 +1,8 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import { milestones, type MilestoneKind, type MilestoneStatus } from "@/db/schema";
-import { AppError, NotFoundError } from "@/modules/core/errors";
-import { isValidISODate } from "@/modules/core/dates";
+import { AppError, ConflictError, NotFoundError } from "@/modules/core/errors";
 import { requireProjectForUser, requireTeamRole } from "@/modules/core/permissions";
 
 export type MilestoneDTO = {
@@ -59,6 +59,7 @@ export async function createMilestone(
     description?: string;
     kind?: MilestoneKind;
     targetDate?: string;
+    requestKey?: string;
   },
 ): Promise<MilestoneDTO> {
   const access = await requireProjectForUser(actorId, projectId);
@@ -67,19 +68,35 @@ export async function createMilestone(
   }
   const title = input.title?.trim();
   if (!title) throw new AppError("标题不能为空");
-  if (input.targetDate && !isValidISODate(input.targetDate)) {
+  if (title.length > 200) throw new AppError("标题最多 200 字");
+  if (input.requestKey && !z.uuid().safeParse(input.requestKey).success) throw new AppError("创建请求无效，请重新打开表单");
+  if ((input.description?.length ?? 0) > 10000) throw new AppError("说明最多 10000 字");
+  if (input.kind && !z.enum(["open_topic", "midterm", "final", "defense", "custom"]).safeParse(input.kind).success) throw new AppError("里程碑类型无效");
+  if (input.targetDate && !z.iso.date().safeParse(input.targetDate).success) {
     throw new AppError("日期需为 YYYY-MM-DD");
   }
-  const [row] = await db
-    .insert(milestones)
-    .values({
-      projectId,
-      title,
-      description: input.description ?? null,
-      kind: input.kind ?? "custom",
-      targetDate: input.targetDate ?? null,
-    })
-    .returning();
+  const row = await db.transaction(async (tx) => {
+    if (input.requestKey) {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${'milestone:create:' + input.requestKey}))`);
+      const [existing] = await tx.select().from(milestones).where(eq(milestones.id, input.requestKey));
+      if (existing) {
+        if (existing.projectId !== projectId || existing.title !== title || existing.description !== (input.description ?? null) || existing.kind !== (input.kind ?? "custom") || existing.targetDate !== (input.targetDate ?? null)) throw new ConflictError("此创建请求已使用，请重新打开表单");
+        return existing;
+      }
+    }
+    const [created] = await tx
+      .insert(milestones)
+      .values({
+        ...(input.requestKey ? { id: input.requestKey } : {}),
+        projectId,
+        title,
+        description: input.description ?? null,
+        kind: input.kind ?? "custom",
+        targetDate: input.targetDate ?? null,
+      })
+      .returning();
+    return created;
+  });
   return toDTO(row);
 }
 
@@ -99,7 +116,7 @@ export async function updateMilestone(
   if (access.role === "student") {
     await requireTeamRole(actorId, access.project.teamId, ["admin", "teacher"]);
   }
-  if (patch.targetDate && !isValidISODate(patch.targetDate)) {
+  if (patch.targetDate && !z.iso.date().safeParse(patch.targetDate).success) {
     throw new AppError("日期需为 YYYY-MM-DD");
   }
   const [updated] = await db

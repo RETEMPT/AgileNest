@@ -1,5 +1,6 @@
 "use client";
 
+import { accountFetch } from "@/components/account-request";
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -61,7 +62,7 @@ function DiscussionPanel({ taskId, projectId, actorId, onBusyChange, onDirtyChan
     async function load() {
       try {
         const focus = /^#discussion-([0-9a-f-]{36})$/i.exec(location.hash)?.[1];
-        const data = discussionListSchema.parse(await responseData(await fetch(`/api/v1/tasks/${taskId}/discussions${focus ? `?around=${focus}` : ""}`, { signal: controller.signal, cache: "no-store" })));
+        const data = discussionListSchema.parse(await responseData(await accountFetch(`/api/v1/tasks/${taskId}/discussions${focus ? `?around=${focus}` : ""}`, { signal: controller.signal, cache: "no-store" })));
         if (!controller.signal.aborted) { setList(data); setLoadError(""); }
       } catch (cause) { if (!controller.signal.aborted) setLoadError(cause instanceof Error ? cause.message : "讨论加载失败"); }
     }
@@ -70,7 +71,7 @@ function DiscussionPanel({ taskId, projectId, actorId, onBusyChange, onDirtyChan
   }, [taskId, reload]);
   useEffect(() => {
     const controller = new AbortController();
-    void fetch(`/api/v1/tasks/${taskId}/discussions?members`, { signal: controller.signal, cache: "no-store" }).then(responseData).then((value) => {
+    void accountFetch(`/api/v1/tasks/${taskId}/discussions?members`, { signal: controller.signal, cache: "no-store" }).then(responseData).then((value) => {
       const data = z.object({ members: z.array(z.object({ userId: z.uuid(), name: z.string() })) }).parse(value);
       if (!controller.signal.aborted) { setMembers(data.members); setMemberError(""); }
     }).catch((cause: unknown) => { if (!controller.signal.aborted) setMemberError(cause instanceof Error ? cause.message : "成员列表加载失败"); });
@@ -120,7 +121,7 @@ function DiscussionPanel({ taskId, projectId, actorId, onBusyChange, onDirtyChan
   async function mutate(post: DiscussionPostDTO | null, body: object) {
     setPending(true); setError("");
     try {
-      const data = z.object({ post: discussionPostSchema }).parse(await responseData(await fetch(`/api/v1/tasks/${taskId}/discussions${post ? `/${post.id}` : ""}`, { method: post ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })));
+      const data = z.object({ post: discussionPostSchema }).parse(await responseData(await accountFetch(`/api/v1/tasks/${taskId}/discussions${post ? `/${post.id}` : ""}`, { method: post ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })));
       setList((current) => current ? { ...current, posts: current.posts.some((row) => row.id === data.post.id) ? current.posts.map((row) => row.id === data.post.id ? data.post : row) : [...current.posts, data.post] } : { posts: [data.post], truncated: false, limit: 200 });
       setEditing(null); setWithdraw(null);
       if (!post) setDraft(emptyDraft);
@@ -133,7 +134,7 @@ function DiscussionPanel({ taskId, projectId, actorId, onBusyChange, onDirtyChan
     const request = ++historyRequest.current;
     setHistory({ post }); setHistoryBusy(true);
     try {
-      const data = discussionHistorySchema.parse(await responseData(await fetch(`/api/v1/tasks/${taskId}/discussions/${post.id}?history`)));
+      const data = discussionHistorySchema.parse(await responseData(await accountFetch(`/api/v1/tasks/${taskId}/discussions/${post.id}?history`)));
       if (request === historyRequest.current) setHistory({ post, revisions: data.revisions });
     } catch (cause) { if (request === historyRequest.current) setHistory({ post, error: cause instanceof Error ? cause.message : "历史加载失败" }); }
     finally { if (request === historyRequest.current) setHistoryBusy(false); }
@@ -142,7 +143,7 @@ function DiscussionPanel({ taskId, projectId, actorId, onBusyChange, onDirtyChan
     if (!list?.nextCursor || loadingEarlier) return;
     setLoadingEarlier(true); setLoadError("");
     try {
-      const data = discussionListSchema.parse(await responseData(await fetch(`/api/v1/tasks/${taskId}/discussions?before=${list.nextCursor}`, { cache: "no-store" })));
+      const data = discussionListSchema.parse(await responseData(await accountFetch(`/api/v1/tasks/${taskId}/discussions?before=${list.nextCursor}`, { cache: "no-store" })));
       setList((current) => current ? { ...data, posts: [...new Map([...data.posts, ...current.posts].map((post) => [post.id, post])).values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)) } : data);
     } catch (cause) { setLoadError(cause instanceof Error ? cause.message : "较早讨论加载失败"); }
     finally { setLoadingEarlier(false); }
@@ -151,7 +152,7 @@ function DiscussionPanel({ taskId, projectId, actorId, onBusyChange, onDirtyChan
     if (!editing) return;
     setPending(true);
     try {
-      const data = discussionListSchema.parse(await responseData(await fetch(`/api/v1/tasks/${taskId}/discussions?around=${editing.post.id}`, { cache: "no-store" })));
+      const data = discussionListSchema.parse(await responseData(await accountFetch(`/api/v1/tasks/${taskId}/discussions?around=${editing.post.id}`, { cache: "no-store" })));
       setList(data);
       const latest = data.posts.find((post) => post.id === editing.post.id);
       if (!latest) throw new Error("这条讨论不在最近列表中，请重新打开任务核对。");

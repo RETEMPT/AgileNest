@@ -39,15 +39,15 @@ export function AiSettings({ userId }: { userId: string }) {
   const { preferences, update, error, reset } = useUiPreferences(userId);
   return <section>
     <h2 className="text-xl font-semibold">AI 助手</h2>
-    <p className="mt-2 text-sm text-muted-foreground">设置快速入口，随时继续整理当前对话草稿。</p>
+    <p className="mt-2 text-sm text-muted-foreground">在此统一管理模型服务，并选择用于对话与任务规划的当前服务。</p>
     <div className="mt-8 rounded-xl border border-border">
       <label className="flex cursor-pointer items-center justify-between gap-5 p-5">
-        <span className="flex items-start gap-3"><MessageSquare size={20} className="mt-0.5 shrink-0 text-brand" /><span><span className="block text-sm font-medium">协作中心内的 AI 草稿</span><span className="mt-1.5 block text-xs leading-5 text-muted-foreground">在统一协作入口内继续本地草稿，与 AI 工作区共用内容；模型尚未接入。</span></span></span>
-        <input type="checkbox" role="switch" aria-label="启用协作中心内的 AI 草稿" checked={preferences.aiFloating} onChange={(event) => update({ aiFloating: event.target.checked })} className="h-5 w-5 shrink-0 accent-brand" />
+        <span className="flex items-start gap-3"><MessageSquare size={20} className="mt-0.5 shrink-0 text-brand" /><span><span className="block text-sm font-medium">协作中心内的 AI 助手</span><span className="mt-1.5 block text-xs leading-5 text-muted-foreground">在协作中心继续对话，与完整 AI 工作区共用当前浏览器的对话内容。使用前请先配置模型并测试连接。</span></span></span>
+        <input type="checkbox" role="switch" aria-label="启用协作中心内的 AI 助手" checked={preferences.aiFloating} onChange={(event) => update({ aiFloating: event.target.checked })} className="h-5 w-5 shrink-0 accent-brand" />
       </label>
-      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border bg-background/50 px-5 py-4"><p className="text-xs text-muted-foreground">消息与草稿共用右下角入口，也可前往完整工作区。</p><Button variant="outline" size="sm" disabled={!preferences.aiFloating} onClick={openAiFloating}><PanelRightOpen size={15} />打开协作中心草稿</Button></div>
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border bg-background/50 px-5 py-4"><p className="text-xs text-muted-foreground">消息与 AI 共用右下角入口，也可前往完整工作区。</p><Button variant="outline" size="sm" disabled={!preferences.aiFloating} onClick={openAiFloating}><PanelRightOpen size={15} />打开协作中心 AI</Button></div>
     </div>
     <div className="mt-8"><AiConfiguration userId={userId} /></div>
-    <PreferenceFeedback error={error} onReset={reset} />
+    {error ? <PreferenceFeedback error={error} onReset={reset} /> : <p role="status" className="mt-6 text-xs text-muted-foreground">API 服务商、密钥和插件开关按账号保存在服务器；页面显示偏好与会话保存在当前浏览器中。</p>}
   </section>;
 }

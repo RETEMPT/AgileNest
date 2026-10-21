@@ -20,8 +20,14 @@ export function createPreferencesStore(userId: string, storage: () => Pick<Stora
     try {
       const saved = storage().getItem(preferencesKey(userId));
       if (saved !== raw) {
-        raw = saved;
-        snapshot = { preferences: saved === null ? DEFAULT_PREFERENCES : preferencesSchema.parse(JSON.parse(saved)), error: null };
+        const value: unknown = saved === null ? null : JSON.parse(saved);
+        const preferences = value === null ? DEFAULT_PREFERENCES : preferencesSchema.parse(value);
+        snapshot = { preferences, error: null };
+        if (value && typeof value === "object" && "ai" in value && value.ai && typeof value.ai === "object" && "model" in value.ai) {
+          const cleaned = JSON.stringify(preferences);
+          storage().setItem(preferencesKey(userId), cleaned);
+          raw = cleaned;
+        } else raw = saved;
       }
     } catch {
       if (!snapshot.error) snapshot = { ...snapshot, error: "无法读取偏好设置，请检查浏览器存储。" };

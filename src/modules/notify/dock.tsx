@@ -1,11 +1,12 @@
 "use client";
 
+import { accountFetch } from "@/components/account-request";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Bell, CheckCheck, Clock3, RefreshCw, ArrowUpRight, Inbox, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormFeedback } from "@/components/ui/feedback";
-import { notificationCategoryFor, notificationLabel, notificationTarget, parseNotificationFeed, type NotificationCategory, type NotificationFeed } from "./client";
+import { isWorkNotification, notificationCategoryFor, notificationLabel, notificationTarget, parseNotificationFeed, type NotificationCategory, type NotificationFeed } from "./client";
 
 export const NOTIFICATIONS_CHANGED_EVENT = "agilenest:notifications-changed";
 
@@ -36,7 +37,7 @@ export function useNotificationFeed() {
     fetching.current = controller;
     setLoading(true);
     try {
-      const response = await fetch("/api/v1/notify?summary=1", { cache: "no-store", signal: controller.signal });
+      const response = await accountFetch("/api/v1/notify?summary=1", { cache: "no-store", signal: controller.signal });
       const next = parseNotificationFeed(await responseBody(response));
       if (!next) throw new Error("暂时无法读取消息，请刷新重试");
       if (controller.signal.aborted || !active.current) return;
@@ -57,7 +58,7 @@ export function useNotificationFeed() {
     let succeeded = false;
     try {
       const query = id === "all" ? "all=1" : `id=${encodeURIComponent(id)}`;
-      await responseBody(await fetch(`/api/v1/notify?${query}`, { method: "POST", signal: controller.signal }));
+      await responseBody(await accountFetch(`/api/v1/notify?${query}`, { method: "POST", signal: controller.signal }));
       succeeded = true;
     } catch (caught) {
       if (!controller.signal.aborted && active.current) setError(caught instanceof Error ? caught.message : "消息暂时无法更新，请重试");
@@ -94,9 +95,10 @@ export function NotificationDockPanel({ state, onNavigate }: {
   onNavigate: () => void;
 }) {
   const { feed, loading, error, updatedAt, pendingId, refresh, mark } = state;
-  const [unreadOnly, setUnreadOnly] = useState(false);
-  const [category, setCategory] = useState<NotificationCategory | "all">("all");
-  const categories: { value: NotificationCategory | "all"; label: string }[] = [
+  const [unreadOnly, setUnreadOnly] = useState(true);
+  const [category, setCategory] = useState<NotificationCategory | "all" | "work">("work");
+  const categories: { value: NotificationCategory | "all" | "work"; label: string }[] = [
+    { value: "work", label: "工作消息" },
     { value: "all", label: "全部类型" },
     { value: "taskUpdates", label: "任务与验收" },
     { value: "discussions", label: "讨论与评论" },
@@ -104,7 +106,7 @@ export function NotificationDockPanel({ state, onNavigate }: {
     { value: "resourceUpdates", label: "资料更新" },
     { value: "reminders", label: "到期提醒" },
   ];
-  const visible = feed?.notifications.filter((item) => (!unreadOnly || !item.readAt) && (category === "all" || notificationCategoryFor(item.type) === category)) ?? [];
+  const visible = feed?.notifications.filter((item) => (!unreadOnly || !item.readAt) && (category === "all" || (category === "work" ? isWorkNotification(item.type) : notificationCategoryFor(item.type) === category))) ?? [];
   const filtered = unreadOnly || category !== "all";
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -141,7 +143,7 @@ export function NotificationDockPanel({ state, onNavigate }: {
           })}
         </ul>}
       </div>
-      <div className="shrink-0 space-y-2 border-t border-border bg-muted/30 px-4 py-3"><div className="flex items-center gap-2"><Button asChild variant="outline" className="min-w-0 flex-1"><Link href={unreadOnly ? "/notifications?unread=1" : "/notifications"} onClick={onNavigate}>进入消息中心<ArrowUpRight aria-hidden="true" className="h-4 w-4" /></Link></Button><Button asChild variant="ghost" size="icon" aria-label="设置通知偏好"><Link href="/notifications#notification-preferences" onClick={onNavigate}><SlidersHorizontal aria-hidden="true" className="h-4 w-4" /></Link></Button></div><p className="text-center text-[10px] leading-4 text-muted-foreground">最近 20 条消息 · 未读数字包含全部历史消息 · 回到页面时更新</p></div>
+      <div className="shrink-0 space-y-2 border-t border-border bg-muted/30 px-4 py-3"><div className="flex items-center gap-2"><Button asChild variant="outline" className="min-w-0 flex-1"><Link href={unreadOnly ? "/notifications?unread=1" : "/notifications"} onClick={onNavigate}>进入消息中心<ArrowUpRight aria-hidden="true" className="h-4 w-4" /></Link></Button><Button asChild variant="ghost" size="icon" aria-label="设置通知偏好"><Link href="/settings?section=notifications" onClick={onNavigate}><SlidersHorizontal aria-hidden="true" className="h-4 w-4" /></Link></Button></div><p className="text-center text-[10px] leading-4 text-muted-foreground">最近 20 条消息 · 未读数字包含全部历史消息 · 回到页面时更新</p></div>
     </div>
   );
 }

@@ -2,28 +2,28 @@ import Link from "next/link";
 import { Bell, ArrowUpRight } from "lucide-react";
 import { requireUser } from "@/modules/core";
 import { listMyNotifications } from "./service";
-import { MarkReadButton, NotificationPreferencesPanel } from "./ui";
-import { notificationLabel, notificationTarget } from "./client";
+import { MarkReadButton } from "./ui";
+import { notificationLabel, notificationTarget, isWorkNotification, latestWorkNotifications } from "./client";
 
 export async function NotificationsView({
   searchParams,
 }: {
-  searchParams: Promise<{ unread?: string }>;
+  searchParams: Promise<{ unread?: string; category?: string }>;
 }) {
   const user = await requireUser();
-  const unreadOnly = (await searchParams).unread === "1";
-  const notifications = await listMyNotifications(user.id, { unreadOnly });
+  const query = await searchParams;
+  const unreadOnly = query.unread === "1";
+  const category = query.category === "all" || query.category === "activity" ? query.category : "work";
+  const recent = await listMyNotifications(user.id, { unreadOnly });
+  const notifications = category === "work" ? latestWorkNotifications(recent) : recent.filter((item) => category === "all" || !isWorkNotification(item.type));
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">消息中心</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            查看任务、讨论、资料更新与直接提及，按个人偏好接收提醒。
-          </p>
         </div>
         <Link
-          href="#notification-preferences"
+          href="/settings?section=notifications"
           className="text-sm text-brand hover:underline"
         >
           通知偏好 ↗
@@ -35,19 +35,21 @@ export async function NotificationsView({
           className="flex gap-6 border-b border-border px-5"
         >
           {[
-            ["", "全部消息"],
-            ["?unread=1", "未读消息"],
+            ["?category=work", "工作消息"],
+            ["?category=activity", "其他动态"],
+            ["?category=all", "全部消息"],
           ].map(([suffix, label]) => (
             <Link
               key={label}
-              href={`/notifications${suffix}`}
-              aria-current={unreadOnly === Boolean(suffix) ? "page" : undefined}
-              className={`border-b-2 py-4 text-sm ${unreadOnly === Boolean(suffix) ? "border-brand font-medium text-brand" : "border-transparent text-muted-foreground"}`}
+              href={`/notifications${suffix}${unreadOnly ? "&unread=1" : ""}`}
+              aria-current={suffix.includes(category) ? "page" : undefined}
+              className={`border-b-2 py-4 text-sm ${suffix.includes(category) ? "border-brand font-medium text-brand" : "border-transparent text-muted-foreground"}`}
             >
               {label}
             </Link>
           ))}
         </nav>
+        <div className="px-5 py-3 text-xs"><Link className="text-brand" href={`/notifications?category=${category}${unreadOnly ? "" : "&unread=1"}`}>{unreadOnly ? "显示已读和未读" : "仅看未读"}</Link></div>
         {!notifications.length ? (
           <div className="py-16 text-center">
             <Bell className="mx-auto mb-4 h-9 w-9 text-brand/40" />
@@ -110,10 +112,9 @@ export async function NotificationsView({
           </ul>
         )}
         <p className="border-t border-border px-5 py-3 text-xs text-muted-foreground">
-          显示最近 100 条{unreadOnly ? "未读" : ""}消息。
+          从最近 100 条{unreadOnly ? "未读" : ""}消息中筛选。{category === "work" ? "同一事项显示最近一条，完整历史在全部消息。" : ""}
         </p>
       </section>
-      <NotificationPreferencesPanel />
     </div>
   );
 }

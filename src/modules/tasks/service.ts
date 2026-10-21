@@ -686,6 +686,7 @@ export async function createSubtask(
     assigneeId?: string;
     acceptanceCriteria?: AcceptanceCriterion[];
     requestKey?: string;
+    milestoneId?: string;
   },
 ): Promise<TaskDTO> {
   const parent = await loadTaskRow(parentTaskId);
@@ -700,6 +701,7 @@ export async function createSubtask(
     assigneeId: input.assigneeId,
     acceptanceCriteria: input.acceptanceCriteria,
     requestKey: input.requestKey,
+    milestoneId: input.milestoneId,
   });
 }
 

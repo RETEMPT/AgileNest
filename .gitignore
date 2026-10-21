@@ -11,6 +11,7 @@ next-env.d.ts
 
 # test
 /coverage
+/.tmp/
 
 # env
 .env
@@ -19,6 +20,7 @@ next-env.d.ts
 !.env.test.example
 
 # misc
+/.data/
 .DS_Store
 *.pem
 *.tsbuildinfo

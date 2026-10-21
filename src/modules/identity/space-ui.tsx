@@ -1,5 +1,6 @@
 "use client";
 
+import { accountFetch } from "@/components/account-request";
 import { useId, useState } from "react";
 import Link from "next/link";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -39,14 +40,14 @@ export function ProjectDirectory({ teamId, initial, kind }: { teamId: string; in
   }
   async function refresh() {
     setPending(true); setRefreshError("");
-    try { setData(await responseData(await fetch(`/api/v1/teams/${teamId}/project-spaces`, { cache: "no-store" }))); }
+    try { setData(await responseData(await accountFetch(`/api/v1/teams/${teamId}/project-spaces`, { cache: "no-store" }))); }
     catch (cause) { setRefreshError(cause instanceof Error ? cause.message : "目录加载失败"); }
     finally { setPending(false); }
   }
   async function save(input: ProjectSpaceMutation) {
     setPending(true); setError("");
     try {
-      const updated = await responseData(await fetch(`/api/v1/teams/${teamId}/project-spaces`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }));
+      const updated = await responseData(await accountFetch(`/api/v1/teams/${teamId}/project-spaces`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }));
       setData(updated); setDraft(null); setRemoving(null); setMoving(null);
       if (selected && !updated.spaces.some((space) => space.id === selected)) setSelected(undefined);
       feedback(input.op === "place" ? "项目目录已更新" : input.op === "delete" ? "空目录已删除" : "目录已保存");

@@ -1,68 +1,27 @@
 # 贡献指南
 
-> 完整开发流程见 [docs/WORKFLOW.md](docs/WORKFLOW.md)。这里是速查版。
+先阅读 [AGENTS.md](AGENTS.md) 的硬约束与 [docs/TEAM.md](docs/TEAM.md) 的模块 Owner/公开契约。环境见 [docs/WINDOWS.md](docs/WINDOWS.md)，业务见 [docs/DESIGN.md](docs/DESIGN.md)；分支、迁移、PR、版本和发布统一见 [docs/WORKFLOW.md](docs/WORKFLOW.md)。
 
-## 新人 3 分钟
+按明确问题或功能拆分贡献：确认模块范围 → 从约定基线创建分支 → 实现并同步契约 → 检查 → PR。默认使用 `codex/<描述>`，PR 指向已确认的 main 或集成分支，不假定存在 develop。
 
-1. [docs/WINDOWS.md](docs/WINDOWS.md) → `start.bat`（首次自动初始化）
-2. [docs/DESIGN.md](docs/DESIGN.md) — 理解主循环与五态
-3. [docs/TEAM.md](docs/TEAM.md) — 找到你的模块、分支、契约
-4. 按下方命令创建自己的模块分支。
+## 必要规则
 
-## 日常开发
+- 只修改所属 Owner 目录；跨模块链路先登记范围，通过根 `index.ts` 或登记的浏览器安全 `client/ui/views` 协作。
+- 路由只做壳，service 先 ACL，任务状态只走 `transitionTask()`；按钮/拖动使用 `availableTransitions()`，负责人按姓名选择。
+- schema 仅授权追加，历史迁移和数据保留；登录、core、依赖与格式文件遵守 AGENTS 锁定规则。
+- TypeScript strict，边界用 Zod，日期 `YYYY-MM-DD`、工时整数分钟，错误可中文展示。
+- UI 复用共享组件与 StatusPill；取消/失败保留草稿，角色、键盘、窄屏与 URL 条件按 [docs/UX.md](docs/UX.md) 检查。
+- 公开签名变化同步 TEAM；每模块至少 6 条契约测试，覆盖正常、越权和非法状态转移。
+
+## 提交与检查
+
+Windows 提交前必须通过：
 
 ```powershell
-git checkout develop
-git pull
-git checkout -b feature/<分支名>
-# ... 开发 ...
 npm test
-npm run build              # 全绿后
-git add <文件>
-git commit -m "feat(<模块>): ..."
-git push origin feature/<分支名>
-# GitHub 上开 PR 到 develop
+npm run build
 ```
 
-详细步骤（含数据库变更、测试策略、发布流程）→ [docs/WORKFLOW.md](docs/WORKFLOW.md)
+集成测试只使用 `agilecampus_test`，由集成人串行运行，不重置开发库。无 DB 的有限检查不能代替完整验收，细节见 WORKFLOW。
 
-## 规则
-
-- **只改你 owner 的目录**（见 TEAM.md）。要动 core / 依赖 → `feature/core-patch/<slug>` 或开 issue
-- 路由只做壳；业务在 `src/modules/<m>/service.ts`
-- 每个 service 先 ACL；状态变更只走 `transitionTask`
-- 契约测试 ≥ 6 条（happy + 越权 + 非法状态转移）
-- Windows 上 `npm test` + `npm run build` 绿后再开 PR（用仓库模板）
-- 改了 `index.ts` 签名 → 同步 TEAM.md 契约节
-
-## 提交规范
-
-```
-<type>(<scope>): <说明>
-
-feat(tasks): add subtask completion ratio
-fix(board): prevent drag to illegal status column
-docs(worklog): update API contract
-test(review): add bypass permission tests
-```
-
-type: `feat` `fix` `chore` `docs` `test` `refactor` `perf`
-
-## 代码风格
-
-- TypeScript strict；Zod 校验边界输入
-- 日期 `YYYY-MM-DD` 字符串；工时 `minutes: int`
-- 错误抛 `AppError` 家族，message 可直接展示（中文）
-- UI 复用 `src/components/ui/*`；状态用 `<StatusPill>`
-
-## Reviewer 快速检查
-
-- [ ] 只改了 Owner 目录
-- [ ] `npm test` + `npm run build` 全绿
-- [ ] service 入口有 ACL
-- [ ] 状态变更走 `transitionTask`
-- [ ] 契约测试 ≥ 6 条
-- [ ] 无新依赖（或已声明理由）
-- [ ] `index.ts` 签名变更已同步 TEAM.md
-
-给编码 Agent 的硬约束见 [AGENTS.md](AGENTS.md)。
+Commit 使用 `<type>(<scope>): <说明>`，type 为 `feat/fix/chore/docs/test/refactor/perf`。PR 用仓库模板，说明最终行为、对应 Owner、契约/迁移/依赖变化、证据和限制；Review 核对范围、ACL、状态机、版本冲突、契约同步与 Windows 检查。版本统一由集成人维护，不在成员 PR 抢占版本号。

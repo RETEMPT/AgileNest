@@ -8,6 +8,10 @@ import {
   UsersRound,
   Search,
   SlidersHorizontal,
+  AlarmClock,
+  CalendarDays,
+  RotateCcw,
+  X,
 } from "lucide-react";
 import { requireUser, isOverdue, todayISO, getProjectForUser } from "@/modules/core";
 import { listMyProjects } from "@/modules/identity";
@@ -21,6 +25,7 @@ import { ReviewTaskDetails, ReviewSubmissionEvidence } from "./ui";
 import {
   parseWorkbenchQuery,
   selectWorkbenchItems,
+  paginateWorkbenchItems,
   workbenchUrl,
   type WorkbenchSearchParams,
 } from "./client";
@@ -50,9 +55,24 @@ export async function WorkbenchView({
     { key: "pool", title: "可以认领", count: work.pool.length, icon: Inbox },
   ] as const;
   const items = selectWorkbenchItems(work[view], query, today);
-  const filtered = Boolean(query.q || query.projectId || query.due !== "all");
-  const resetUrl = workbenchUrl(query, { q: "", projectId: "", due: "all" });
-  const overdue = work.mine.filter((task) => isOverdue(task.dueDate, today)).length;
+  const page = paginateWorkbenchItems(items, query.page);
+  const filtered = Boolean(query.q || query.projectId || query.due !== "all" || query.status !== "all");
+  const resetUrl = workbenchUrl(query, { q: "", projectId: "", due: "all", status: "all" });
+  const dueLabels = { all: "全部日期", overdue: "已逾期", today: "今天到期", soon: "7 天内到期（含今天）", undated: "未设截止日期" };
+  const statusLabels = { all: "全部状态", unclaimed: "待认领", in_progress: "进行中", rejected: "需修改", submitted: "待验收" };
+  const sortLabels = { smart: "逾期优先 · 优先级 · 截止日期", due: "截止日期从近到远 · 未设日期置后", updated: "最近更新优先" };
+  const quickViews = [
+    { label: "今天到期", description: "我负责的任务", icon: CalendarDays, query: parseWorkbenchQuery({ due: "today" }) },
+    { label: "已逾期", description: "我负责的任务", icon: AlarmClock, query: parseWorkbenchQuery({ due: "overdue" }) },
+    { label: "需修改", description: "查看打回意见并重交", icon: RotateCcw, query: parseWorkbenchQuery({ status: "rejected" }) },
+    { label: "待我验收", description: "核对成果与验收要求", icon: CheckCheck, query: parseWorkbenchQuery({ view: "review" }) },
+  ];
+  const activeFilters = [
+    ...(query.q ? [{ label: `关键词：${query.q}`, href: workbenchUrl(query, { q: "" }) }] : []),
+    ...(query.projectId ? [{ label: `项目：${projects.find((project) => project.id === query.projectId)?.name ?? "已归档或不可访问"}`, href: workbenchUrl(query, { projectId: "" }) }] : []),
+    ...(query.due !== "all" ? [{ label: dueLabels[query.due], href: workbenchUrl(query, { due: "all" }) }] : []),
+    ...(query.status !== "all" ? [{ label: statusLabels[query.status], href: workbenchUrl(query, { status: "all" }) }] : []),
+  ];
   return (
     <div className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -69,11 +89,27 @@ export async function WorkbenchView({
           </Link>
         </Button>
       </header>
+      <section aria-labelledby="workbench-focus-heading" className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="workbench-focus-heading" className="text-sm font-semibold">待办速览</h2>
+          <p className="text-xs text-muted-foreground">全部活跃项目 · <time dateTime={today}>{today}</time></p>
+        </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {quickViews.map(({ label, description, icon: Icon, query: shortcut }) => {
+            const count = selectWorkbenchItems(work[shortcut.view], shortcut, today).length;
+            return <Link key={label} href={workbenchUrl(shortcut)} aria-label={`${label}，${count} 项，${description}`} className="min-w-0 rounded-xl border border-border bg-card p-4 transition hover:border-brand/40 hover:bg-brand-soft/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground"><span>{label}</span><Icon aria-hidden="true" className="h-4 w-4 shrink-0" /></div>
+              <p className="mt-3 text-2xl font-semibold tabular-nums">{count}<span className="ml-1.5 text-xs font-normal text-muted-foreground">项</span></p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
+            </Link>;
+          })}
+        </div>
+      </section>
       <nav aria-label="工作台任务分类" className="flex flex-wrap gap-2">
         {tabs.map(({ key, title, count, icon: Icon }) => (
           <Link
             key={key}
-            href={workbenchUrl(query, { view: key })}
+            href={workbenchUrl(query, { view: key, status: "all" })}
             aria-current={view === key ? "page" : undefined}
             className={`inline-flex min-h-10 items-center gap-2 rounded-lg border px-3 py-2 text-sm transition ${view === key ? "border-brand/40 bg-brand-soft font-medium text-brand" : "border-border bg-card text-muted-foreground hover:border-brand/30"}`}
           >
@@ -89,15 +125,15 @@ export async function WorkbenchView({
             action="/home"
             method="get"
             aria-label="筛选工作台任务"
-            className="grid gap-3 border-b border-border bg-muted/20 p-4 sm:grid-cols-2 sm:p-5"
+            className="grid min-w-0 gap-3 border-b border-border bg-muted/20 p-4 sm:grid-cols-2 sm:p-5"
           >
             <input type="hidden" name="view" value={view} />
-            <div className="sm:col-span-2">
+            <div className="flex min-w-0 items-center gap-2 sm:col-span-2">
               <Label htmlFor="workbench-q" className="sr-only">
                 搜索任务
               </Label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <div className="relative min-w-0 flex-1">
+                <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground sm:top-2.5" />
                 <Input
                   key={query.q}
                   id="workbench-q"
@@ -105,54 +141,77 @@ export async function WorkbenchView({
                   defaultValue={query.q}
                   maxLength={200}
                   placeholder="搜索任务名称、描述或项目"
-                  className="pl-9"
+                  className="h-11 pl-9 sm:h-9"
                 />
               </div>
+              <Button type="submit" variant="outline" className="h-11 sm:h-9">搜索</Button>
             </div>
-            <div className="min-w-0 space-y-2">
-              <Label htmlFor="workbench-project">项目</Label>
-              <Select
-                key={query.projectId}
-                id="workbench-project"
-                name="projectId"
-                defaultValue={query.projectId}
-              >
-                <option value="">全部项目</option>
-                {query.projectId &&
-                  !projects.some((project) => project.id === query.projectId && project.status !== "archived") && (
-                    <option value={query.projectId}>所选项目已归档或不可访问</option>
+            <details key={`${query.projectId}-${query.due}-${query.status}-${query.sort}`} open={Boolean(query.projectId || query.due !== "all" || query.status !== "all" || query.sort !== "smart")} className="min-w-0 sm:col-span-2">
+              <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium text-muted-foreground hover:text-foreground sm:min-h-9 sm:py-2">项目、日期、状态与排序</summary>
+              <div className="grid min-w-0 gap-3 pt-3 sm:grid-cols-2">
+                <div className="min-w-0 space-y-2">
+                  <Label htmlFor="workbench-project">项目</Label>
+                  <Select
+                    key={query.projectId}
+                    id="workbench-project"
+                    name="projectId"
+                    defaultValue={query.projectId}
+                  >
+                    <option value="">全部项目</option>
+                    {query.projectId &&
+                      !projects.some((project) => project.id === query.projectId && project.status !== "archived") && (
+                        <option value={query.projectId}>所选项目已归档或不可访问</option>
+                      )}
+                    {projects.filter((project) => project.status !== "archived").map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name} · {project.teamName}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="workbench-due">截止日期</Label>
+                  <Select
+                    key={query.due}
+                    id="workbench-due"
+                    name="due"
+                    defaultValue={query.due}
+                  >
+                    {Object.entries(dueLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </Select>
+                </div>
+                <div className="min-w-0 space-y-2">
+                  <Label htmlFor="workbench-status">任务状态</Label>
+                  <Select key={`${view}-${query.status}`} id="workbench-status" name="status" defaultValue={query.status}>
+                    {Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </Select>
+                </div>
+                <div className="min-w-0 space-y-2">
+                  <Label htmlFor="workbench-sort">排序方式</Label>
+                  <Select key={query.sort} id="workbench-sort" name="sort" defaultValue={query.sort}>
+                    <option value="smart">智能排序（逾期与优先级）</option>
+                    <option value="due">截止日期从近到远</option>
+                    <option value="updated">最近更新优先</option>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-3 sm:col-span-2">
+                  <Button type="submit" variant="outline" className="min-h-11 sm:min-h-9">
+                    <SlidersHorizontal aria-hidden="true" className="h-3.5 w-3.5" />应用筛选
+                  </Button>
+                  {filtered && (
+                    <Link href={resetUrl} className="inline-flex min-h-11 items-center text-sm text-muted-foreground hover:text-brand sm:min-h-9">
+                      清除筛选
+                    </Link>
                   )}
-                {projects.filter((project) => project.status !== "archived").map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name} · {project.teamName}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="workbench-due">截止日期</Label>
-              <Select
-                key={query.due}
-                id="workbench-due"
-                name="due"
-                defaultValue={query.due}
-              >
-                <option value="all">全部日期</option>
-                <option value="overdue">已逾期</option>
-                <option value="soon">7 天内到期（含今天）</option>
-              </Select>
-            </div>
-            <div className="flex items-center gap-3 sm:col-span-2">
-              <Button type="submit" variant="outline" size="sm">
-                <SlidersHorizontal className="h-3.5 w-3.5" />筛选
-              </Button>
-              {filtered && (
-                <Link href={resetUrl} className="text-xs text-muted-foreground hover:text-brand">
-                  清除筛选
-                </Link>
-              )}
-            </div>
+                </div>
+              </div>
+            </details>
           </form>
+          {activeFilters.length > 0 && <nav aria-label="已选筛选条件" className="flex flex-wrap gap-2 border-b border-border px-4 py-3 sm:px-5">
+            {activeFilters.map(({ label, href }) => <Link key={href} href={href} aria-label={`清除${label}`} className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-lg bg-brand-soft px-3 py-1.5 text-xs text-brand hover:bg-accent">
+              <span className="min-w-0 break-all">{label}</span><X aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+            </Link>)}
+          </nav>}
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3 sm:px-5">
             <h2 className="text-sm font-semibold">
               {tabs.find((tab) => tab.key === view)?.title}
@@ -160,7 +219,7 @@ export async function WorkbenchView({
                 {items.length} 项{filtered ? ` / 共 ${work[view].length} 项` : ""}
               </span>
             </h2>
-            <p className="text-xs text-muted-foreground">逾期优先 · 优先级 · 截止日期</p>
+            <p className="text-xs text-muted-foreground">{sortLabels[query.sort]}</p>
           </div>
           {items.length === 0 ? (
             <div className="px-6 py-16 text-center">
@@ -173,7 +232,7 @@ export async function WorkbenchView({
                     : "暂无可认领任务"}
               </h2>
               <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
-                {filtered ? "调整关键词、项目或截止日期后重试。" : view === "mine"
+                {filtered ? "调整关键词、项目、状态或截止日期后重试。" : view === "mine"
                   ? "可到任务池认领，或由有指派权限的成员分配任务。"
                   : view === "review"
                     ? "仅显示当前职务允许验收的项目任务。"
@@ -187,7 +246,7 @@ export async function WorkbenchView({
             </div>
           ) : (
             <ul className="divide-y divide-border">
-              {items.map((task) => (
+              {page.items.map((task) => (
                 <li
                   key={task.id}
                   className="space-y-3 p-4 transition hover:bg-muted/25 sm:p-5"
@@ -232,7 +291,7 @@ export async function WorkbenchView({
                   {view === "review" && <ReviewSubmissionEvidence taskId={task.id} updatedAt={task.updatedAt.toISOString()} />}
                   {task.blocked && (
                     <p className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs leading-5 text-destructive">
-                      前置依赖尚未验收完成。可以准备资料或处理修改，完成依赖后再提交或验收；具体依赖可在任务详情中查看。
+                      还需等待其他任务验收通过。可以准备资料或处理修改，等相关任务通过后再提交、重交或验收；打开任务详情可查看原因。
                     </p>
                   )}
                   {view === "review" && task.acceptBlocked && (
@@ -241,7 +300,7 @@ export async function WorkbenchView({
                     </p>
                   )}
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <PriorityPill priority={task.priority} />
                       <span
                         className={`text-xs ${isOverdue(task.dueDate, today) ? "text-destructive" : "text-muted-foreground"}`}
@@ -259,17 +318,15 @@ export async function WorkbenchView({
               ))}
             </ul>
           )}
+          {items.length > 0 && <nav aria-label="工作台任务分页" className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 sm:px-5">
+            <p className="text-xs text-muted-foreground">第 {page.start}–{page.end} 项，共 {items.length} 项 · 第 {page.page}/{page.totalPages} 页</p>
+            {page.totalPages > 1 && <div className="flex items-center gap-2">
+              {page.page > 1 ? <Button asChild variant="outline"><Link href={workbenchUrl(query, { page: page.page - 1 })}>上一页</Link></Button> : <Button variant="outline" disabled>上一页</Button>}
+              {page.page < page.totalPages ? <Button asChild variant="outline"><Link href={workbenchUrl(query, { page: page.page + 1 })}>下一页</Link></Button> : <Button variant="outline" disabled>下一页</Button>}
+            </div>}
+          </nav>}
         </section>
-        <aside className="space-y-5">
-          {overdue > 0 && (
-            <Link
-              href={workbenchUrl(query, { view: "mine", due: "overdue", q: "", projectId: "" })}
-              className="block rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-sm"
-            >
-              <span className="font-medium text-destructive">我负责的任务中有 {overdue} 项已逾期</span>
-              <span className="mt-2 block text-xs text-muted-foreground">查看逾期任务 →</span>
-            </Link>
-          )}
+        <aside className="min-w-0 space-y-5">
           <section>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-semibold">我的项目</h2>
@@ -410,7 +467,7 @@ export async function ReviewView({
                   <ReviewSubmissionEvidence taskId={task.id} updatedAt={task.updatedAt.toISOString()} />
                   {(task.blocked || accepted < subtasks.length) && (
                     <p className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs leading-5 text-destructive">
-                      {task.blocked ? "前置依赖尚未验收完成。" : ""}{accepted < subtasks.length ? `直接子任务已验收 ${accepted}/${subtasks.length}。` : ""}完成这些事项后才能通过当前任务；仍可核对成果并填写修改意见。
+                      {task.blocked ? "还需等待其他任务验收通过。" : ""}{accepted < subtasks.length ? `直接子任务已验收 ${accepted}/${subtasks.length}。` : ""}完成这些事项后才能通过当前任务；仍可核对成果并填写修改意见。
                     </p>
                   )}
                   {task.rejectReason && (

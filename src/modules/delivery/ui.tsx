@@ -1,5 +1,6 @@
 "use client";
 
+import { accountFetch } from "@/components/account-request";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
@@ -17,7 +18,7 @@ const examples = ["研究报告", "课程作业", "竞赛方案", "软件发布"
 const formattedTime = (time: string) => new Date(time).toLocaleString("zh-CN", { hour12: false });
 
 async function requestJSON<T>(path: string, method: "GET" | "POST" | "PATCH", body?: unknown): Promise<T> {
-  const response = await fetch(path, { method, cache: "no-store", headers: { "Content-Type": "application/json" }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
+  const response = await accountFetch(path, { method, cache: "no-store", headers: { "Content-Type": "application/json" }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
   const value: unknown = await response.json();
   if (!response.ok) throw new Error(typeof value === "object" && value !== null && "error" in value && typeof value.error === "string" ? value.error : "操作失败，请稍后重试");
   return value as T;

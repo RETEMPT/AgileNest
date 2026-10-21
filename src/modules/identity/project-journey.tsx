@@ -57,7 +57,7 @@ export function ProjectJourney({
       title: "讨论与执行",
       icon: MessagesSquare,
       owner: "任务负责人及协作者",
-      description: "围绕任务讨论、补充附件与答复，负责人执行并记录实际工时。",
+      description: "围绕任务讨论、补充附件与答复，负责人执行任务并提交成果。",
       output: "执行进度与任务讨论",
       href: `${base}/board`,
       action: "进入执行看板",

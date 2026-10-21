@@ -185,4 +185,15 @@ describe("统一工作台", () => {
     await expect(listTaskEvents(fx.student.id, task.id)).rejects.toBeInstanceOf(ForbiddenError);
     await expect(listTaskEvents(fx.outsider.id, task.id)).rejects.toBeInstanceOf(ForbiddenError);
   });
+  it("旧任务先后活动只转换展示，不改历史记录或成员成果说明", async () => {
+    const task = await createTask(fx.admin.id, fx.project.id, { title: "历史任务先后", assigneeId: fx.student.id });
+    const note = "新增前置依赖：调研记录";
+    const [legacy] = await db.insert(taskAcceptanceEvents).values({ taskId: task.id, actorId: fx.admin.id, action: "update", note }).returning();
+    await submitEvidence(fx.student.id, task.id, note);
+    const events = await listTaskEvents(fx.student.id, task.id);
+    expect(events.find((event) => event.id === legacy.id)?.note).toBe("设置需要先完成的任务：调研记录");
+    expect(events.find((event) => event.action === "submit")?.note).toBe(note);
+    const [stored] = await db.select().from(taskAcceptanceEvents).where(eq(taskAcceptanceEvents.id, legacy.id));
+    expect(stored.note).toBe(note);
+  });
 });

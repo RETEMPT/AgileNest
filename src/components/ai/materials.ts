@@ -1,24 +1,28 @@
+import { accountFetch } from "@/components/account-request";
 import { z } from "zod";
 
 export const MAX_MATERIAL_BYTES = 10 * 1024 * 1024;
 export const MAX_SESSION_BYTES = 50 * 1024 * 1024;
 export const MAX_MATERIALS = 10;
-export const MATERIAL_ACCEPT = ".txt,.md,.markdown,.csv,.tsv,.json,.log,.yaml,.yml,.xml,.html,.css,.js,.ts,.tsx,.jsx,.py,.sql,.pdf,.png,.jpg,.jpeg,.webp,.gif";
+export const MATERIAL_ACCEPT = ".txt,.md,.markdown,.csv,.tsv,.json,.log,.yaml,.yml,.xml,.html,.css,.js,.ts,.tsx,.jsx,.py,.sql,.pptx,.docx,.pdf,.png,.jpg,.jpeg,.webp,.gif";
 export const materialRefSchema = z.object({
   id: z.uuid(), name: z.string().min(1).max(200),
   kind: z.enum(["text", "image", "pdf"]),
   size: z.number().int().min(1).max(MAX_MATERIAL_BYTES),
   createdAt: z.iso.datetime(),
+  extraction: z.object({ format: z.enum(["pptx", "docx"]), truncated: z.boolean(), warnings: z.array(z.string().max(1000)).max(20) }).optional(),
 });
 export type MaterialRef = z.infer<typeof materialRefSchema>;
 export type LocalMaterial = { ref: MaterialRef; blob: Blob; text?: string };
+export function needsServerExtraction(name: string) { return /\.(pptx|docx)$/i.test(name); }
 
 export function materialKind(name: string): MaterialRef["kind"] {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
   if (["png", "jpg", "jpeg", "webp", "gif"].includes(ext)) return "image";
   if (ext === "pdf") return "pdf";
   if (MATERIAL_ACCEPT.split(",").includes(`.${ext}`)) return "text";
-  throw new Error("暂不支持此格式。可导入文本、Markdown、CSV、JSON、PDF 或图片；Word 请先另存为文本或 PDF。");
+  if (ext === "ppt" || ext === "doc") throw new Error("旧版 PPT / DOC 无法提取正文，请另存为 PPTX / DOCX 后添加");
+  throw new Error("暂不支持此格式。可导入文本、Markdown、CSV、JSON、PPTX、DOCX、PDF 或图片。");
 }
 export function validateMaterialBatch(existing: MaterialRef[], files: Pick<File, "name" | "size">[]) {
   if (existing.length + files.length > MAX_MATERIALS) throw new Error("每份会话最多添加 10 份资料（含已记录的附件）");
@@ -41,13 +45,24 @@ export function decodeMaterialText(bytes: Uint8Array) {
   if (/\u0000/.test(text)) throw new Error("文件包含二进制内容，无法作为文本读取");
   return text.replace(/\r\n?/g, "\n");
 }
-export async function readMaterial(file: File): Promise<LocalMaterial> {
+export async function readMaterial(file: File, signal?: AbortSignal): Promise<LocalMaterial> {
   validateMaterialBatch([], [file]);
   const kind = materialKind(file.name);
+  let extraction: MaterialRef["extraction"];
+  let extractedText: string | undefined;
+  if (needsServerExtraction(file.name)) {
+    const form = new FormData(); form.append("file", file);
+    const response = await accountFetch("/api/v1/ai/extract-file", { method: "POST", body: form, signal, cache: "no-store" });
+    const value: unknown = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(value && typeof value === "object" && "error" in value && typeof value.error === "string" ? value.error : "文件文字提取失败，请重试");
+    const parsed = z.object({ format: z.enum(["pptx", "docx"]), text: z.string().min(1).max(200000), truncated: z.boolean(), warnings: z.array(z.string().max(1000)).max(20) }).parse(value);
+    extractedText = parsed.text; extraction = { format: parsed.format, truncated: parsed.truncated, warnings: parsed.warnings };
+  }
+  signal?.throwIfAborted();
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const text = kind === "text" ? decodeMaterialText(bytes) : undefined;
-  const mime = kind === "pdf" ? "application/pdf" : kind === "image" ? ({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",gif:"image/gif"}[file.name.split(".").pop()!.toLowerCase()]!) : "text/plain";
-  return {ref:{id:crypto.randomUUID(),name:file.name,kind,size:file.size,createdAt:new Date().toISOString()}, blob:new Blob([bytes],{type:mime}), text};
+  const text = extractedText ?? (kind === "text" ? decodeMaterialText(bytes) : undefined);
+  const mime = extraction ? extraction.format === "pptx" ? "application/vnd.openxmlformats-officedocument.presentationml.presentation" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : kind === "pdf" ? "application/pdf" : kind === "image" ? ({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",gif:"image/gif"}[file.name.split(".").pop()!.toLowerCase()]!) : "text/plain";
+  return {ref:{id:crypto.randomUUID(),name:file.name,kind,size:file.size,createdAt:new Date().toISOString(),...(extraction ? { extraction } : {})}, blob:new Blob([bytes],{type:mime}), text};
 }
 export function formatBytes(bytes: number) {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : bytes >= 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${bytes} B`;

@@ -1,5 +1,6 @@
 "use client";
 
+import { accountFetch } from "@/components/account-request";
 import { useEffect, useId, useState } from "react";
 import { ArrowUpRight, CheckCircle2, Clock3, FileText, History, RotateCcw, XCircle } from "lucide-react";
 import type { TeamRole } from "@/db/schema";
@@ -54,7 +55,7 @@ export function SubmissionTimeline({ taskId, updatedAt, compact = false }: {
     const controller = new AbortController();
     async function load() {
       try {
-        const response = await fetch(`/api/v1/tasks/${encodeURIComponent(taskId)}/delivery`, { signal: controller.signal, cache: "no-store" });
+        const response = await accountFetch(`/api/v1/tasks/${encodeURIComponent(taskId)}/delivery`, { signal: controller.signal, cache: "no-store" });
         if (!response.ok) throw new Error(response.status === 403 || response.status === 404 ? "此任务的提交记录暂不可用，请返回当前可访问的任务。" : "提交记录暂时无法加载，请重试。");
         const input: unknown = await response.json();
         const data = parseTaskDeliveryPayload(input, taskId);

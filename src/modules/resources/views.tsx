@@ -16,3 +16,5 @@ export async function ProjectResourcesView({ params }: { params: Promise<{ proje
   if (!access) notFound();
   return <ResourcesWorkspace actorId={user.id} teamId={access.project.teamId} projectId={projectId} scopeName={access.project.name} initialResources={await listResources(user.id, { projectId })} />;
 }
+
+export { ResourceFavoritesView } from "./favorites-views";

@@ -174,6 +174,13 @@ export function SettingsIcon(props: IconProps) {
   );
 }
 
+export function GuideIcon(props: IconProps) {
+  return <BaseSvg {...props}>
+    <path d="M12 5.5C9.5 3.5 5.5 3 2.5 4.5v14c3-1.5 7-1 9.5 1 2.5-2 6.5-2.5 9.5-1v-14c-3-1.5-7-1-9.5 1Z" />
+    <path d="M12 5.5v14M6 8h2M6 11h2M16 8h2M16 11h2" />
+  </BaseSvg>;
+}
+
 /** 12. 项目项目文件夹 */
 export function ProjectFolderIcon(props: IconProps) {
   return (

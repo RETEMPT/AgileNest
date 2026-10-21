@@ -29,7 +29,7 @@ export default async function AppLayout({
   };
 
   return (
-    <AppShell user={profile} projects={projects} onSignOut={handleSignOut}>
+    <AppShell key={user.id} user={profile} projects={projects} onSignOut={handleSignOut}>
       {children}
     </AppShell>
   );
