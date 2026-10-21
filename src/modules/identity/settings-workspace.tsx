@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Bell, Bot, FolderKanban, GraduationCap, Link2, Palette, UserRound } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { canLeaveModelSettings } from "@/components/ai/model-connection";
 import { settingsSection, type SettingsSection } from "./settings-sections";
 
 const SECTIONS = [
@@ -32,6 +33,7 @@ export function SettingsWorkspace({ profile, joinedAt, initialSection, panels }:
   }, []);
   return (
     <Tabs.Root orientation="vertical" value={section} onValueChange={(value) => {
+      if (!canLeaveModelSettings()) return;
       setSection(settingsSection(value));
       const url = new URL(window.location.href);
       url.searchParams.set("section", value);

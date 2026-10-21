@@ -66,6 +66,12 @@ export function selectResources(rows: readonly ResourceDTO[], query: ResourceQue
   ).sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned));
 }
 
+export function selectResourceFiles(rows: readonly ResourceDTO[], query: ResourceQuery, folders: readonly ResourceFolderDTO[] = []) {
+  const matches = selectResources(rows, query, folders);
+  return matches.filter((row) => query.q.trim() || (row.folderId ?? null) === (query.folder && query.folder !== "root" ? query.folder : null))
+    .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || a.title.localeCompare(b.title, "zh-CN", { numeric: true }));
+}
+
 export type ResourceFolderDTO = { id: string; teamId: string; projectId: string | null; projectName?: string | null; parentId: string | null; name: string; category?: ResourceCategory; legacy?: boolean; version: number; canManage: boolean };
 export type ResourceTrashDTO = ResourceDTO & { trashedAt: string; trashedByName: string | null };
 export type ResourceLinkDTO = { id: string; kind: "resource" | "task"; targetId: string; title: string; href: string; direction: "outgoing" | "incoming"; canRemove: boolean };

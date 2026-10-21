@@ -6,5 +6,5 @@ export default defineConfig([
   ...nextVitals,
   ...nextTs,
   // .tools holds the local PostgreSQL/Node release runtimes; linting them exhausts the heap.
-  globalIgnores([".next/**", "out/**", "build/**", "coverage/**", ".tools/**", "next-env.d.ts"]),
+  globalIgnores([".next/**", "out/**", "build/**", "coverage/**", ".tools/**", ".tmp/**", "next-env.d.ts"]),
 ]);

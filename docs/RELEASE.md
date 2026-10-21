@@ -41,3 +41,7 @@
 4. 在独立解压目录验证首次初始化、登录、重复启动、停止、重启后资料保留及端口冲突，再上传 ZIP 与 SHA256 附件。
 
 打包排除开发 .env 和运行数据，附带 Node/PostgreSQL 及 EDB 包内运行库版权说明；依赖许可证随独立构建保留。standalone 静态文件按 [Next.js 官方说明](https://nextjs.org/docs/app/api-reference/config/next-config-js/output) 复制。本发布包面向本机试用；在线部署请按仓库部署文档另行配置。
+
+0.6.0 起，运行包的模型提供商、插件凭据和个人收藏分别存入本安装的 `data/private/ai-providers`、`data/private/ai-plugins`、`data/private/resource-favorites`，不继承开发环境的目录。API 与插件凭据按账号加密，解密依赖原 `data/config.json` 的登录密钥；升级须保留完整 data。源码开发的对应目录仍为 `.data/*`，迁移源码安装时须另行保留它们及原 AUTH_SECRET。浏览器对话/规划/附件仍是本机副本，不能随服务器 data 自动迁移。
+
+打包只复制运行必需的 standalone 文件，再复制静态资源和已登记启动/迁移文件；不复制整个 standalone 根目录。构建中间目录可能包含本机环境，不能直接分享。打包前自动运行 `scripts/release/audit-private.mjs`，拒绝环境文件、运行数据、加密配置或命中本机实际 API 密钥/私有端点的文件。源码与可推送历史另运行 `node scripts/release/audit-private.mjs --history`；输出仅类别和文件位置。演示账号和公开示例保留，详见[安全记录](SECURITY-060.md)。

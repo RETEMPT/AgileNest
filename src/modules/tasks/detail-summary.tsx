@@ -1,13 +1,11 @@
 import Link from "next/link";
 import { StatusPill, PriorityPill } from "@/components/ui/badge";
 import type { TaskDTO } from "./service";
-import { STATUS_DESCRIPTIONS } from "./states";
 
 export type TaskDetailSummaryProps = {
   task: TaskDTO;
   subtasks?: readonly TaskDTO[];
   milestoneName?: string | null;
-  loggedMinutes?: number;
   headingLevel?: "h1" | "h2";
 };
 
@@ -15,7 +13,6 @@ export function TaskDetailSummary({
   task,
   subtasks,
   milestoneName,
-  loggedMinutes,
   headingLevel = "h2",
 }: TaskDetailSummaryProps) {
   const Heading = headingLevel;
@@ -48,9 +45,6 @@ export function TaskDetailSummary({
           <StatusPill status={task.status} />
           <PriorityPill priority={task.priority} />
         </div>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          {STATUS_DESCRIPTIONS[task.status]}
-        </p>
       </div>
 
       {task.actionItemOrigin && <section aria-label="行动项来源" className="rounded-xl border border-brand/20 bg-brand-soft/40 p-4"><SectionHeading className="text-xs font-semibold text-brand">文档行动项</SectionHeading>{task.actionItemOrigin.accessible ? <Link href={`/p/${task.projectId}/resources?resource=${task.actionItemOrigin.resourceId}&revision=${task.actionItemOrigin.sourceVersion}`} className="mt-1 block break-words text-sm font-medium hover:text-brand hover:underline">{task.actionItemOrigin.resourceTitle} · 创建时版本 v{task.actionItemOrigin.sourceVersion}</Link> : <p className="mt-1 text-xs text-muted-foreground">来源版本 v{task.actionItemOrigin.sourceVersion} · 当前无法访问来源文档</p>}{task.actionItemOrigin.accessible && task.actionItemOrigin.quote && <blockquote className="mt-2 border-l-2 border-brand/25 pl-3 text-xs leading-6 text-muted-foreground"><p className="whitespace-pre-wrap break-words">{task.actionItemOrigin.quote}</p></blockquote>}<p className="mt-2 text-[11px] text-muted-foreground">资料链接遵循当前访问权限；文档更新不会改写此来源快照。</p></section>}
@@ -102,12 +96,6 @@ export function TaskDetailSummary({
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-muted-foreground">预计工时</dt>
-            <dd className="mt-1 tabular-nums">
-              {task.estimatedMinutes === null ? "未估算" : `${task.estimatedMinutes} 分钟`}
-            </dd>
-          </div>
-          <div>
             <dt className="text-xs text-muted-foreground">开始日期</dt>
             <dd className="mt-1 tabular-nums">{task.startDate ?? "未设置"}</dd>
           </div>
@@ -121,12 +109,6 @@ export function TaskDetailSummary({
               {milestoneName || (task.milestoneId ? "已关联，可在独立详情页查看" : "暂未关联")}
             </dd>
           </div>
-          {loggedMinutes !== undefined && (
-            <div>
-              <dt className="text-xs text-muted-foreground">已登记工时</dt>
-              <dd className="mt-1 tabular-nums">{loggedMinutes} 分钟</dd>
-            </div>
-          )}
         </dl>
       </section>
 

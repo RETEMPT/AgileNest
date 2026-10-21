@@ -1,152 +1,77 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { requireUser, getProjectForUser } from "@/modules/core";
-import { listProjectTasks } from "@/modules/tasks";
-import {
-  memberContribution,
-  projectCompletion,
-  taskHours,
-} from "@/modules/worklog";
+import { requireUser, getProjectForUser, isOverdue } from "@/modules/core";
+import { listProjectTasks, TASK_STATUSES, STATUS_LABELS } from "@/modules/tasks";
+import { memberContribution, projectCompletion } from "@/modules/worklog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/badge";
 
-function fmtMinutes(m: number) {
-  const h = Math.floor(m / 60);
-  const min = m % 60;
-  return h ? `${h} 小时${min ? ` ${min} 分钟` : ""}` : `${min} 分钟`;
-}
-
-export async function StatsView({
-  params,
-}: {
-  params: Promise<{ projectId: string }>;
-}) {
+export async function StatsView({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
   const user = await requireUser();
   const access = await getProjectForUser(user.id, projectId);
   if (!access) notFound();
-
-  const [completion, hours, contrib, topLevelTasks] = await Promise.all([
+  const [completion, contribution, topLevelTasks] = await Promise.all([
     projectCompletion(user.id, projectId),
-    taskHours(user.id, projectId),
     memberContribution(user.id, projectId),
     listProjectTasks(user.id, projectId, { parentTaskId: null }),
   ]);
-
-  const totalMinutes = hours.reduce((s, h) => s + h.minutes, 0);
-  const pct = Math.round(completion.ratio * 100);
-
+  const total = contribution.reduce((sum, member) => sum + member.tasksTotal, 0);
+  const overdue = contribution.reduce((sum, member) => sum + member.overdue, 0);
   return (
     <main className="space-y-6">
-      <header>
-        <h1 className="font-display text-2xl font-semibold">工时与贡献</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {access.project.name} · 以验收结果统计完成度，以实际记录统计投入。
-        </p>
-      </header>
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>项目完成度</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="font-display text-3xl font-semibold">{completion.total ? `${pct}%` : "—"}</p>
-            <p className="text-xs text-muted-foreground">
-              {completion.total ? `已验收 ${completion.done} / 共 ${completion.total} 项顶层任务` : "暂无顶层任务，尚无完成度"}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>总工时</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="font-display text-3xl font-semibold">
-              {fmtMinutes(totalMinutes)}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {totalMinutes} 分钟 · {hours.length} 位成员有记录
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>团队成员</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="font-display text-3xl font-semibold">
-              {contrib.length}
-            </p>
-            <p className="text-xs text-muted-foreground">当前项目所属团队的成员范围</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>成员工时</CardTitle>
-            <p className="text-xs leading-5 text-muted-foreground">项目全部任务的实际记录，包含子任务；条形表示已登记工时占比。</p>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {hours.length === 0 && (
-              <p className="text-muted-foreground">暂无工时记录</p>
-            )}
-            {hours.map((h) => (
-              <div key={h.userId} className="space-y-2 py-2">
-                <div className="flex flex-wrap justify-between gap-3">
-                  <span className="break-words">{h.userName ?? "已离开的成员"}</span>
-                  <span className="tabular-nums">{fmtMinutes(h.minutes)} · {h.minutes} 分钟</span>
-                </div>
-                <div aria-hidden="true" className="h-2 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-brand"
-                    style={{
-                      width: `${totalMinutes ? (h.minutes / totalMinutes) * 100 : 0}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>成员交付记录</CardTitle>
-            <p className="text-xs leading-5 text-muted-foreground">按当前负责人统计全部任务，包含子任务；曾提交指有提交日期的任务数，重交不重复累计。</p>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {contrib.length === 0 && (
-              <p className="text-muted-foreground">暂无团队成员</p>
-            )}
-            {contrib.map((c) => (
-              <div
-                key={c.userId}
-                className="flex flex-wrap justify-between gap-2"
-              >
-                <span className="break-words">{c.userName ?? "已离开的成员"}</span>
-                <span className="tabular-nums text-muted-foreground">
-                  已验收 {c.tasksAccepted} · 曾提交 {c.tasksSubmitted} ·{" "}
-                  {fmtMinutes(c.minutes)}
-                </span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-      <section className="overflow-hidden rounded-xl border border-border bg-card" aria-labelledby="stats-delivery-heading">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3">
-          <div>
-            <h2 id="stats-delivery-heading" className="text-sm font-semibold">完成度对应的顶层任务</h2>
-            <p className="mt-1 text-xs text-muted-foreground">子任务不重复计入分母；打开任务可查看子任务、完成说明及工时记录。</p>
-          </div>
-          <Link href={`/p/${projectId}/table`} className="text-sm text-brand hover:underline">查看全部任务 →</Link>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-semibold">任务贡献</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{access.project.name} · {access.capabilities.review ? "全体成员" : "我的任务"}</p>
         </div>
-        {topLevelTasks.length === 0 ? (
-          <p className="px-4 py-8 text-sm text-muted-foreground">暂无顶层任务，可进入项目任务开始分工。</p>
-        ) : (
+        <Link href={`/p/${projectId}/table`} className="text-sm text-brand hover:underline">查看项目任务 →</Link>
+      </header>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card><CardHeader><CardTitle>项目完成度</CardTitle></CardHeader><CardContent>
+          <p className="font-display text-3xl font-semibold">{completion.total ? `${Math.round(completion.ratio * 100)}%` : "—"}</p>
+          <p className="mt-1 text-xs text-muted-foreground">已验收 {completion.done} / {completion.total} 项顶层任务</p>
+        </CardContent></Card>
+        <Card><CardHeader><CardTitle>{access.capabilities.review ? "成员负责任务" : "我负责任务"}</CardTitle></CardHeader><CardContent>
+          <p className="font-display text-3xl font-semibold">{total}</p>
+          <p className="mt-1 text-xs text-muted-foreground">包含子任务 · 当前负责人</p>
+        </CardContent></Card>
+        <Card><CardHeader><CardTitle>逾期未完成</CardTitle></CardHeader><CardContent>
+          <p className="font-display text-3xl font-semibold">{overdue}</p>
+          <p className="mt-1 text-xs text-muted-foreground">截止日期已过且尚未验收通过</p>
+        </CardContent></Card>
+      </div>
+      <section className="space-y-3" aria-labelledby="contribution-heading">
+        <h2 id="contribution-heading" className="text-base font-semibold">{access.capabilities.review ? "成员完成情况" : "我的完成情况"}</h2>
+        {contribution.length === 0 && <p className="py-6 text-sm text-muted-foreground">暂无成员任务数据</p>}
+        {contribution.map((member) => (
+          <details key={member.userId} className="group overflow-hidden rounded-xl border border-border bg-card">
+            <summary className="cursor-pointer px-4 py-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand">
+              <span className="ml-2 font-medium">{member.userName || "未命名成员"}</span>
+              <span className="ml-3 text-sm text-muted-foreground">负责 {member.tasksTotal} · 已完成 {member.tasksAccepted} · 完成率 {member.tasksTotal ? `${Math.round(member.completionRatio * 100)}%` : "—"}{member.overdue > 0 ? ` · 逾期 ${member.overdue}` : ""}</span>
+              <span className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
+                {TASK_STATUSES.map((status) => <span key={status}>{STATUS_LABELS[status]} {member.statusCounts[status]}</span>)}
+              </span>
+            </summary>
+            {member.tasks.length === 0 ? <p className="border-t border-border px-4 py-6 text-sm text-muted-foreground">尚未负责任务</p> : (
+              <ul className="divide-y divide-border border-t border-border">
+                {member.tasks.map((task) => (
+                  <li key={task.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                    <div className="min-w-0 flex-1 basis-48">
+                      <Link href={`/p/${projectId}/tasks/${task.id}`} className="break-words text-sm font-medium hover:text-brand">{task.title}</Link>
+                      <p className="mt-1 text-xs text-muted-foreground">{task.parentTaskId ? "子任务 · " : ""}{task.dueDate ? `截止 ${task.dueDate}` : "未设截止日期"}{task.status !== "accepted" && isOverdue(task.dueDate) ? " · 已逾期" : ""}</p>
+                    </div>
+                    <StatusPill status={task.status} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </details>
+        ))}
+      </section>
+      <section className="overflow-hidden rounded-xl border border-border bg-card" aria-labelledby="stats-delivery-heading">
+        <h2 id="stats-delivery-heading" className="border-b border-border px-4 py-3 text-sm font-semibold">项目顶层任务</h2>
+        {topLevelTasks.length === 0 ? <p className="px-4 py-8 text-sm text-muted-foreground">暂无顶层任务</p> : (
           <ul className="divide-y divide-border">
             {topLevelTasks.map((task) => (
               <li key={task.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">

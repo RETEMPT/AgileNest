@@ -34,7 +34,7 @@ export const taskLabelPatchSchema = taskLabelCreateSchema.extend({ version: z.nu
 export const taskOrganizationMutationSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("labels"), version: z.number().int().positive(), labelIds: z.array(z.uuid("请选择当前项目的标签")).max(20, "一个任务最多选择 20 个标签").refine((ids) => new Set(ids).size === ids.length, "标签不能重复") }).strict(),
   z.object({ op: z.literal("addDependency"), version: z.number().int().positive(), otherTaskId: z.uuid("请选择当前项目的任务"), direction: z.enum(["blockedBy", "blocking"]) }).strict(),
-  z.object({ op: z.literal("removeDependency"), version: z.number().int().positive(), dependencyId: z.uuid("依赖关系无效") }).strict(),
+  z.object({ op: z.literal("removeDependency"), version: z.number().int().positive(), dependencyId: z.uuid("任务先后关系无效") }).strict(),
 ]);
 export type TaskOrganizationMutation = z.infer<typeof taskOrganizationMutationSchema>;
 export const taskActionItemCreateSchema = z.object({
@@ -76,4 +76,22 @@ export function matchesTaskOrganization(task: Partial<TaskOrganizationSummary>, 
   if (filters.labelId && !task.labels?.some((label) => label.id === filters.labelId)) return false;
   if (filters.blocked !== undefined && Boolean(task.blocked) !== filters.blocked) return false;
   return true;
+}
+
+export function taskDependencyMessage(
+  task: Pick<Partial<TaskOrganizationSummary>, "blocked" | "blockedByIds">,
+  projectTasks: readonly { id: string; title: string; status: TaskStatus }[] = [],
+): string | null {
+  if (!task.blocked) return null;
+  const ids = new Set(task.blockedByIds ?? []);
+  const waiting = projectTasks.filter((item) => ids.has(item.id) && item.status !== "accepted");
+  const names = waiting.map((item) => `「${item.title}」`).join("、");
+  return `等待${names || "其他任务"}验收通过；可以继续执行，提交、重交和验收需等这些任务全部通过。`;
+}
+
+export function taskEventNote(action: string, note: string | null): string | null {
+  if (action !== "update" || !note) return note;
+  const legacy = /^(新增|解除)(前置|后续)依赖：([\s\S]+)$/.exec(note);
+  if (!legacy) return note;
+  return `${legacy[1] === "新增" ? "设置" : "取消"}${legacy[2] === "前置" ? "需要先完成的任务" : "接下来进行的任务"}：${legacy[3]}`;
 }

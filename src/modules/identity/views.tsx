@@ -28,6 +28,7 @@ import {
 import { TeamEntryActions, CreateProjectButton, InviteCode } from "./ui";
 export { ProjectOverviewView, ProjectSettingsView } from "./project-view";
 export { SettingsView } from "./settings-view";
+export { GuideView } from "./guide-view";
 export { TeamSettingsView } from "./team-settings-view";
 import { TeamMemberRemovalButton, TeamSectionLinks } from "./team-settings";
 import { TeamProjectGuide } from "./project-journey";
@@ -305,7 +306,7 @@ export async function TeamMembersView({ teamId }: { teamId: string }) {
         </Link>
         <h1 id="team-members-heading" tabIndex={-1} className="mt-3 text-3xl font-semibold">成员与分工</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          设置管理员、副管理员和组员等协作职务；一位成员可以承担多项职务，权限按职务叠加。
+          查看成员的协作职务；管理员可以调整职务，一位成员可以承担多项职务。
         </p>
       </header>
       <TeamSectionLinks teamId={teamId} current="members" />

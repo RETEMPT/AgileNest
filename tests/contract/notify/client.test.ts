@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_NOTIFICATION_PREFERENCES, followTargetSchema, notificationCategoryFor, notificationLabel, notificationTarget, parseFollowState, parseNotificationFeed, parseNotificationPreferences } from "@/modules/notify/client";
+import { DEFAULT_NOTIFICATION_PREFERENCES, followTargetSchema, notificationCategoryFor, notificationDisplayCopy, notificationLabel, notificationTarget, parseFollowState, parseNotificationFeed, parseNotificationPreferences } from "@/modules/notify/client";
 
 const item = {
   id: "38b626fa-e050-48cd-9848-9f6ea252ea48",
@@ -65,5 +65,33 @@ describe("关注与通知偏好浏览器契约", () => {
   it("资料和提及使用明确标签", () => {
     expect(notificationLabel("resource_comment")).toBe("资料评论");
     expect(notificationLabel("collaboration_mention")).toBe("提及了你");
+  });
+});
+
+describe("历史通知的展示副本", () => {
+  it("已知旧任务先后通知同时更新标题与说明", () => {
+    expect(notificationDisplayCopy({ type: "task_update", title: "报告的依赖已更新", body: "新增前置依赖：调研" })).toEqual({ title: "报告的任务先后已更新", body: "设置需要先完成的任务：调研" });
+  });
+  it("旧取消顺序通知保留任务名称", () => {
+    expect(notificationDisplayCopy({ type: "task_update", title: "调研的依赖已更新", body: "解除后续依赖：依赖分析报告" })).toEqual({ title: "调研的任务先后已更新", body: "取消接下来进行的任务：依赖分析报告" });
+  });
+  it("仅旧系统默认说明随固定标题更新", () => {
+    expect(notificationDisplayCopy({ type: "task_update", title: "报告的依赖已更新", body: "任务依赖已更新" })).toEqual({ title: "报告的任务先后已更新", body: "任务先后已更新" });
+  });
+  it("不改成员成果说明、修改意见或评论", () => {
+    for (const type of ["task_submitted", "task_rejected", "task_discussion", "resource_comment"]) {
+      const original = { type, title: "报告的依赖已更新", body: "新增前置依赖：调研" };
+      expect(notificationDisplayCopy(original)).toEqual({ title: original.title, body: original.body });
+    }
+  });
+  it("标题或正文不同时匹配系统格式时保持原文", () => {
+    expect(notificationDisplayCopy({ type: "task_update", title: "成员说明", body: "新增前置依赖：调研" })).toEqual({ title: "成员说明", body: "新增前置依赖：调研" });
+    expect(notificationDisplayCopy({ type: "task_update", title: "报告的依赖已更新", body: "成员写的说明" })).toEqual({ title: "报告的依赖已更新", body: "成员写的说明" });
+  });
+  it("不修改输入对象，空正文保持为空", () => {
+    const original = Object.freeze({ type: "task_update", title: "报告的依赖已更新", body: "新增前置依赖：调研" });
+    notificationDisplayCopy(original);
+    expect(original.body).toBe("新增前置依赖：调研");
+    expect(notificationDisplayCopy({ type: "task_update", title: "普通任务更新", body: null })).toEqual({ title: "普通任务更新", body: null });
   });
 });

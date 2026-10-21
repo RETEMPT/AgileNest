@@ -45,7 +45,7 @@ export const POSITION_META: Record<
   },
   leader: {
     label: "队长",
-    description: "创建实验室和竞赛项目，协调任务指派；验收需指导老师或管理员",
+    description: "创建实验室和竞赛项目，协调这些项目的任务指派；验收由管理员、副管理员或指导老师处理",
   },
   member: { label: "组员", description: "认领任务、提交自己的成果和修改重交" },
 };

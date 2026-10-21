@@ -30,9 +30,12 @@ $postgresVersion = (& (Join-Path $PostgresRoot 'bin/postgres.exe') --version).Tr
 if ($nodeVersion -ne 'v22.23.3' -or $postgresVersion -ne 'postgres (PostgreSQL) 17.11') { throw 'Runtime versions differ from release requirements.' }
 $appRoot = Join-Path $bundleRoot 'app'
 New-Item -ItemType Directory -Path $appRoot -Force | Out-Null
-# standalone may contain local .env files; exclude and audit them before packaging.
-& robocopy.exe (Join-Path $workspaceRoot '.next/standalone') $appRoot /E /NFL /NDL /NJH /NJS /NP /XF '.env' '.env.*' '*.log' /XD 'cache' | Out-Null
-if ($LASTEXITCODE -gt 7) { throw 'Standalone copy failed.' }
+# Copy only the standalone runtime; tracing may also include source and local .env files.
+foreach ($file in @('server.js', 'package.json')) { Copy-Item -LiteralPath (Join-Path $workspaceRoot ".next/standalone/$file") -Destination $appRoot }
+foreach ($directory in @('.next', 'node_modules')) {
+    & robocopy.exe (Join-Path $workspaceRoot ".next/standalone/$directory") (Join-Path $appRoot $directory) /E /NFL /NDL /NJH /NJS /NP /XF '.env' '.env.*' '*.log' '*.tsbuildinfo' /XD 'cache' 'dev' '.data' '.tmp' '.tools' | Out-Null
+    if ($LASTEXITCODE -gt 7) { throw "Standalone runtime copy failed: $directory" }
+}
 Copy-Item -LiteralPath '.next/static' -Destination (Join-Path $appRoot '.next/static') -Recurse
 if (Test-Path -LiteralPath 'public') { Copy-Item -LiteralPath 'public' -Destination (Join-Path $appRoot 'public') -Recurse }
 foreach ($module in @('postgres', 'bcryptjs')) { Copy-Item -LiteralPath (Join-Path $workspaceRoot "node_modules/$module") -Destination (Join-Path $appRoot "node_modules/$module") -Recurse -Force }
@@ -70,6 +73,8 @@ if ($excluded) { throw 'Local configuration or runtime data found in bundle.' }
 if ($LASTEXITCODE -ne 0) { throw 'Database bootstrap dependencies are missing.' }
 & (Join-Path $NodeRoot 'node.exe') (Join-Path $PSScriptRoot 'release/copy-licenses.mjs') $workspaceRoot $bundleRoot
 if ($LASTEXITCODE -ne 0) { throw 'License collection failed.' }
+& (Join-Path $NodeRoot 'node.exe') (Join-Path $PSScriptRoot 'release/audit-private.mjs') --bundle $bundleRoot
+if ($LASTEXITCODE -ne 0) { throw 'Private configuration audit failed. The package was not archived.' }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [IO.Compression.ZipFile]::CreateFromDirectory($bundleRoot, $zipPath, 'Optimal', $true)
 $hash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()

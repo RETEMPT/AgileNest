@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { taskEventNote } from "@/modules/tasks/client";
 
 const notificationSchema = z.object({
   id: z.uuid(),
@@ -16,6 +17,20 @@ const feedSchema = z.object({
 });
 export type NotificationItem = z.infer<typeof notificationSchema>;
 export type NotificationFeed = z.infer<typeof feedSchema>;
+
+export function notificationDisplayCopy(item: { type: string; title: string; body: string | null }): { title: string; body: string | null } {
+  let { title, body } = item;
+  if (item.type === "task_assigned" && body === "你被指派/认领了任务，尽快开工") body = "任务已分配给你。";
+  if (item.type === "task_accepted" && body === "验收通过，干得漂亮") body = "任务已验收通过。";
+  if (item.type === "task_update" && title.endsWith("的依赖已更新")) {
+    const updated = taskEventNote("update", body);
+    if (updated !== body || body === "任务依赖已更新") {
+      title = title.replace(/的依赖已更新$/, "的任务先后已更新");
+      body = body === "任务依赖已更新" ? "任务先后已更新" : updated;
+    }
+  }
+  return { title, body };
+}
 
 export function parseNotificationFeed(value: unknown): NotificationFeed | null {
   const result = feedSchema.safeParse(value);
@@ -49,6 +64,21 @@ export function notificationLabel(type: string): string {
     personal_reminder: "本人日程提醒",
   };
   return labels[type] ?? "协作消息";
+}
+
+export function isWorkNotification(type: string): boolean {
+  return ["task_assigned", "task_submitted", "task_rejected", "task_accepted", "task_due_soon", "task_overdue", "collaboration_mention", "personal_reminder"].includes(type);
+}
+
+export function latestWorkNotifications<T extends { type: string; link: string | null }>(rows: readonly T[]): T[] {
+  const seen = new Set<string>();
+  return rows.filter((item) => {
+    if (!isWorkNotification(item.type)) return false;
+    if (!item.link) return true;
+    if (seen.has(item.link)) return false;
+    seen.add(item.link);
+    return true;
+  });
 }
 
 export const followTargetSchema = z.object({ kind: z.enum(["project", "task", "resource"]), id: z.uuid("关注目标无效") }).strict();

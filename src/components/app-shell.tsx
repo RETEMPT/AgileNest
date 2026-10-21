@@ -7,6 +7,8 @@ import { FeedbackProvider } from "./ui/feedback";
 import { AppearanceProvider, useUiPreferences } from "./preferences";
 import { CollaborationDock } from "./ai/floating";
 import { isSidebarToggleShortcut, sidebarPreferenceStore } from "./sidebar-preference";
+import { AccountBoundary } from "./account-boundary";
+import { ACCOUNT_STORAGE_KEY, ACCOUNT_CHANGED_EVENT } from "./account-context";
 
 type AppShellProps = {
   user: {
@@ -27,7 +29,7 @@ export function AppShell({
   children,
 }: AppShellProps) {
   const pathname = usePathname();
-  const workspacePage = pathname === "/ai" || pathname === "/settings";
+  const workspacePage = pathname === "/ai" || pathname === "/settings" || /^\/(?:p|t)\/[^/]+\/resources$/.test(pathname);
   const { preferences } = useUiPreferences(user.id);
   const collapsed = useSyncExternalStore(
     sidebarPreferenceStore.subscribe,
@@ -50,6 +52,7 @@ export function AppShell({
   }, []);
 
   return (
+    <AccountBoundary key={user.id} userId={user.id}>
     <FeedbackProvider>
     <AppearanceProvider userId={user.id} />
     <div className="min-h-screen bg-background">
@@ -58,7 +61,11 @@ export function AppShell({
         key={`sidebar:${user.id}`}
         user={user}
         projects={projects}
-        onSignOut={onSignOut}
+        onSignOut={async () => {
+          try { localStorage.setItem(ACCOUNT_STORAGE_KEY, ""); } catch {}
+          window.dispatchEvent(new Event(ACCOUNT_CHANGED_EVENT));
+          await onSignOut();
+        }}
         isCollapsed={collapsed}
         onToggleCollapse={sidebarPreferenceStore.toggle}
       />
@@ -73,8 +80,9 @@ export function AppShell({
           {children}
         </main>
       </div>
-      <CollaborationDock key={user.id} userId={user.id} projects={projects} aiEnabled={preferences.aiFloating && pathname !== "/ai"} />
+      <CollaborationDock key={user.id} userId={user.id} projects={projects} aiEnabled={preferences.aiFloating && pathname !== "/ai"} showLauncher={pathname !== "/ai"} />
     </div>
     </FeedbackProvider>
+    </AccountBoundary>
   );
 }

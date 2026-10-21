@@ -175,7 +175,7 @@ export async function ProjectOverviewView({
             成员与分工 ↗
           </Link>
           <Link href={"/p/" + projectId + "/stats"} className="text-brand">
-            工时与贡献 ↗
+            成员贡献 ↗
           </Link>
         </nav>
       </section>
@@ -338,7 +338,7 @@ export async function ProjectSettingsView({
             {project.status === "active" ? "进行中" : "已归档"}
           </p>
           <p className="mt-3 text-xs text-muted-foreground">
-            项目设置由管理员维护，实验室与竞赛项目也可由队长维护。
+            项目设置由管理员或副管理员维护，实验室与竞赛项目也可由队长维护。
           </p>
         </section>
       )}

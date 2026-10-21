@@ -68,7 +68,7 @@ export async function loginAction(
       if (e.type === "CredentialsSignin") return { error: "邮箱或密码不正确" };
 
       const chain = causeChain(e);
-      console.error("[login]", e.type, chain, e);
+      console.error("[login]", e.type);
 
       if (isDbDown(chain)) {
         return {

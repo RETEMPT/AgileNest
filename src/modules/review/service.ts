@@ -19,6 +19,7 @@ import {
 } from "@/db/schema";
 import { NotFoundError } from "@/modules/core/errors";
 import { isOverdue, todayISO } from "@/modules/core/dates";
+import { taskEventNote } from "@/modules/tasks/client";
 import {
   requireProjectForUser,
   requireReviewer,
@@ -239,7 +240,7 @@ export async function listTaskEvents(
     action: r.action,
     note: r.action === "assign" && r.note && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(r.note)
       ? `指派给 ${memberNames.get(r.note.toLowerCase()) ?? "原团队成员"}`
-      : r.note,
+      : taskEventNote(r.action, r.note),
     createdAt: r.createdAt,
   }));
 }

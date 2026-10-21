@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { materialRefSchema, MAX_MATERIALS, MAX_SESSION_BYTES } from "./materials";
+import { chatSourceSchema, chatWorkSourceSchema, chatToolSourceSchema, chatRetrievalSchema, chatOutputUiSchema } from "@/modules/ai/client";
 
 export const MAX_DRAFTS = 40;
 export const MAX_DRAFT_LENGTH = 6000;
 export const MAX_TITLE_LENGTH = 40;
 export const MAX_LOCAL_MESSAGES = 20;
+export const MAX_REPLY_LENGTH = 24000;
 
 const draftId = z.union([z.literal("initial"), z.uuid()]);
 const materialsSchema = z.array(materialRefSchema).max(MAX_MATERIALS).refine((items) => new Set(items.map((item) => item.id)).size === items.length, "资料索引重复");
@@ -16,7 +18,7 @@ const draftSchema = z.object({
   updatedAt: z.iso.datetime(),
   projectId: z.uuid().nullable().optional(),
   materials: materialsSchema.optional(),
-  messages: z.array(z.object({ id: z.uuid(), text: z.string().max(MAX_DRAFT_LENGTH), createdAt: z.iso.datetime(), materials: materialsSchema.optional() }).refine((message) => Boolean(message.text.trim() || message.materials?.length), "记录不能为空")).max(MAX_LOCAL_MESSAGES).optional(),
+  messages: z.array(z.object({ id: z.uuid(), role: z.enum(["user", "assistant"]).optional(), model: z.string().max(120).optional(), text: z.string().max(MAX_REPLY_LENGTH), reasoning: z.string().max(MAX_REPLY_LENGTH).optional(), sources: z.array(chatSourceSchema).max(12).optional(), workSources: z.array(chatWorkSourceSchema).max(12).optional(), toolSources: z.array(chatToolSourceSchema).max(2).optional(), ui: chatOutputUiSchema.optional(), retrieval: chatRetrievalSchema.optional(), createdAt: z.iso.datetime(), materials: materialsSchema.optional() }).refine((message) => Boolean(message.text.trim() || message.materials?.length), "记录不能为空")).max(MAX_LOCAL_MESSAGES).optional(),
 }).superRefine((draft,ctx) => {
   const materials = draftMaterials(draft);
   if (materials.length > MAX_MATERIALS || materials.reduce((total,item) => total + item.size,0) > MAX_SESSION_BYTES)

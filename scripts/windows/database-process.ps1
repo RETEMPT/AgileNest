@@ -23,3 +23,34 @@ function Start-BundledPostgres {
         }
     } finally { $process.Dispose() }
 }
+
+function Stop-BundledPostgres {
+    param(
+        [Parameter(Mandatory = $true)][string]$PgCtl,
+        [Parameter(Mandatory = $true)][string]$DataDirectory,
+        [ValidateRange(1, 300)][int]$TimeoutSeconds = 15
+    )
+    $pidFile = Join-Path $DataDirectory "postmaster.pid"
+    if (!(Test-Path -LiteralPath $pidFile)) {
+        return
+    }
+    try {
+        $firstLine = (Get-Content -LiteralPath $pidFile -TotalCount 1).Trim()
+        $pgPid = [int]$firstLine
+        $proc = Get-Process -Id $pgPid -ErrorAction SilentlyContinue
+        if (!$proc) {
+            # Stale postmaster.pid from an earlier terminated instance
+            Remove-Item -LiteralPath $pidFile -Force -ErrorAction SilentlyContinue
+            return
+        }
+    } catch {}
+    $arguments = 'stop -D "' + $DataDirectory + '" -m fast -w -t ' + $TimeoutSeconds
+    $process = Start-Process -FilePath $PgCtl -ArgumentList $arguments -WindowStyle Hidden -PassThru
+    try {
+        $null = $process.Handle
+        if (!$process.WaitForExit(($TimeoutSeconds + 5) * 1000)) {
+            $process.Kill()
+            throw "Postgres stop timed out."
+        }
+    } finally { $process.Dispose() }
+}

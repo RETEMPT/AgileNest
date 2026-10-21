@@ -16,7 +16,6 @@ import {
 import { transitionBodySchema, requirementsSchema } from "./delivery-validation";
 import type { TaskDeliveryDTO } from "./delivery-types";
 import { listTeamMembers } from "@/modules/identity";
-import { addWorklog } from "@/modules/worklog";
 import { createMilestone } from "@/modules/milestone";
 
 export type FormState = { error: string; ok?: string } | null;
@@ -39,9 +38,6 @@ export async function editTaskAction(
       startDate: String(data.get("startDate") ?? "") || null,
       dueDate: String(data.get("dueDate") ?? "") || null,
       milestoneId: String(data.get("milestoneId") ?? "") || null,
-      estimatedMinutes: data.get("estimatedMinutes")
-        ? Number(data.get("estimatedMinutes"))
-        : null,
       priority: priority.data,
     }, z.iso.datetime("编辑版本无效，请重新打开任务").parse(data.get("expectedUpdatedAt")));
     revalidatePath(`/p/${updated.projectId}`, "layout");
@@ -66,6 +62,7 @@ function fail(e: unknown): FormState {
 
 const createSchema = z.object({
   projectId: z.string().min(1),
+  milestoneId: z.uuid("里程碑无效").optional(),
   title: z.string().trim().min(1, "请填写标题").max(200, "标题最多 200 字"),
   description: z.string().optional(),
   dueDate: z.string().optional(),
@@ -97,6 +94,7 @@ export async function createTaskAction(
       assigneeId: parsed.data.assigneeId || undefined,
       acceptanceCriteria: publicationCriteria(parsed.data.acceptanceCriteria),
       requestKey: parsed.data.requestKey,
+      milestoneId: parsed.data.milestoneId,
     };
     await createTask(user.id, parsed.data.projectId, input);
   } catch (e) {
@@ -128,6 +126,7 @@ export async function createSubtaskAction(
       assigneeId: parsed.data.assigneeId || undefined,
       acceptanceCriteria: publicationCriteria(parsed.data.acceptanceCriteria),
       requestKey: parsed.data.requestKey,
+      milestoneId: parsed.data.milestoneId,
     });
     revalidatePath(`/p/${sub.projectId}`, "layout");
     revalidatePath("/home", "layout");
@@ -278,38 +277,11 @@ export async function deleteTaskAction(
   return { error: "", ok: "已删除" };
 }
 
-const worklogSchema = z.object({
-  taskId: z.string().min(1),
-  projectId: z.string().min(1),
-  workDate: z.string().min(1),
-  minutes: z.coerce.number().int().positive("工时需为正整数分钟"),
-  note: z.string().optional(),
-});
-
-export async function addWorklogAction(
-  _prev: FormState,
-  formData: FormData,
-): Promise<FormState> {
-  const user = await requireUser();
-  const parsed = worklogSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return { error: parsed.error.issues[0].message };
-  try {
-    await addWorklog(user.id, parsed.data.taskId, {
-      workDate: parsed.data.workDate,
-      minutes: parsed.data.minutes,
-      note: parsed.data.note || undefined,
-    });
-  } catch (e) {
-    return fail(e);
-  }
-  revalidatePath(`/p/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
-  revalidatePath(`/p/${parsed.data.projectId}/stats`);
-  return { error: "", ok: "已记工时" };
-}
-
 const milestoneSchema = z.object({
   projectId: z.string().min(1),
-  title: z.string().min(1, "请填写标题"),
+  title: z.string().trim().min(1, "请填写标题").max(200, "标题最多 200 字"),
+  description: z.string().max(10000, "说明最多 10000 字").optional(),
+  requestKey: z.uuid("创建请求无效，请重新打开表单").optional(),
   kind: z
     .enum(["open_topic", "midterm", "final", "defense", "custom"])
     .optional(),
@@ -328,6 +300,8 @@ export async function createMilestoneAction(
       title: parsed.data.title,
       kind: parsed.data.kind,
       targetDate: parsed.data.targetDate || undefined,
+      description: parsed.data.description || undefined,
+      requestKey: parsed.data.requestKey,
     });
   } catch (e) {
     return fail(e);

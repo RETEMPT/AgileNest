@@ -143,7 +143,7 @@ export async function getTaskOrganization(actorId: string, taskId: string, query
 
 export async function changeTaskOrganization(actorId: string, taskId: string, input: TaskOrganizationMutation): Promise<TaskOrganizationDTO> {
   const { task, access } = await taskAndAccess(actorId, taskId);
-  if (!canEditTask(actorId, task, access.capabilities.task)) throw new ForbiddenError("只有有指派权限的成员或当前执行负责人可以设置标签与依赖");
+  if (!canEditTask(actorId, task, access.capabilities.task)) throw new ForbiddenError("只有有指派权限的成员或当前执行负责人可以设置标签与任务先后");
   const parsed = taskOrganizationMutationSchema.safeParse(input);
   if (!parsed.success) throw new AppError(parsed.error.issues[0].message);
   const change = parsed.data;
@@ -152,7 +152,7 @@ export async function changeTaskOrganization(actorId: string, taskId: string, in
     let dependency: typeof taskDependencies.$inferSelect | undefined;
     if (change.op === "removeDependency") {
       [dependency] = await tx.select().from(taskDependencies).where(and(eq(taskDependencies.id, change.dependencyId), eq(taskDependencies.projectId, task.projectId), or(eq(taskDependencies.blockerTaskId, taskId), eq(taskDependencies.blockedTaskId, taskId))));
-      if (!dependency) throw new ConflictError("该依赖已变化，请重新加载");
+      if (!dependency) throw new ConflictError("该任务先后关系已变化，请重新加载");
     }
     const taskIds = change.op === "addDependency" ? [taskId, change.otherTaskId] : dependency ? [dependency.blockerTaskId, dependency.blockedTaskId] : [taskId];
     const currentTasks = await tx.select().from(tasks).where(and(inArray(tasks.id, [...new Set(taskIds)].sort()), eq(tasks.projectId, task.projectId))).orderBy(asc(tasks.id)).for("update");
@@ -160,7 +160,7 @@ export async function changeTaskOrganization(actorId: string, taskId: string, in
     if (!current) throw new NotFoundError("任务不存在");
     if (!canEditTask(actorId, current, currentAccess.capabilities.task)) throw new ForbiddenError("任务负责人或权限已变化，请重新加载");
     const [state] = await tx.select().from(taskOrganizationStates).where(eq(taskOrganizationStates.taskId, taskId));
-    if ((state?.version ?? 1) !== change.version) throw new ConflictError("标签或依赖已变化，请重新加载后确认；你的选择已保留");
+    if ((state?.version ?? 1) !== change.version) throw new ConflictError("标签或任务先后已变化，请重新加载后确认；你的选择已保留");
     if (change.op === "labels") {
       const labels = change.labelIds.length ? await tx.select().from(projectTaskLabels).where(and(eq(projectTaskLabels.projectId, task.projectId), inArray(projectTaskLabels.id, change.labelIds))) : [];
       if (labels.length !== change.labelIds.length) throw new AppError("请选择当前项目仍存在的标签");
@@ -176,24 +176,24 @@ export async function changeTaskOrganization(actorId: string, taskId: string, in
     const blockedId = dependency?.blockedTaskId ?? (change.op === "addDependency" && change.direction === "blocking" ? change.otherTaskId : taskId);
     const blockerTask = currentTasks.find((item) => item.id === blockerId);
     const blockedTask = currentTasks.find((item) => item.id === blockedId);
-    if (!blockerTask || !blockedTask) throw new AppError("依赖任务必须属于当前项目");
-    if (!canEditTask(actorId, blockedTask, currentAccess.capabilities.task)) throw new ForbiddenError("只有有指派权限的成员或被阻塞任务的负责人可以调整该依赖");
+    if (!blockerTask || !blockedTask) throw new AppError("设置先后顺序的任务必须属于当前项目");
+    if (!canEditTask(actorId, blockedTask, currentAccess.capabilities.task)) throw new ForbiddenError("只有有指派权限的成员或后做任务的负责人可以调整该先后关系");
     if (change.op === "addDependency") {
       const edges = await tx.select().from(taskDependencies).where(eq(taskDependencies.projectId, task.projectId));
-      if (wouldCreateTaskDependencyCycle(edges, blockerId, blockedId)) throw new ConflictError("该依赖会形成循环，请选择其他任务");
-      if (edges.some((edge) => edge.blockerTaskId === blockerId && edge.blockedTaskId === blockedId)) throw new ConflictError("这两个任务已有该依赖，请重新加载");
-      if (["submitted", "accepted"].includes(blockedTask.status) && blockerTask.status !== "accepted") throw new ConflictError("待验收或已完成任务不能新增未完成依赖，请先打回或重新打开被阻塞任务");
-      if (edges.filter((edge) => edge.blockedTaskId === blockedId).length >= 50) throw new AppError("单个任务最多依赖 50 个任务，请整理依赖关系");
+      if (wouldCreateTaskDependencyCycle(edges, blockerId, blockedId)) throw new ConflictError("任务不能排成互相等待的顺序，请选择其他任务");
+      if (edges.some((edge) => edge.blockerTaskId === blockerId && edge.blockedTaskId === blockedId)) throw new ConflictError("这两个任务已有相同的先后顺序，请重新加载");
+      if (["submitted", "accepted"].includes(blockedTask.status) && blockerTask.status !== "accepted") throw new ConflictError("待验收或已完成的任务不能再要求等待其他未完成任务，请先打回或重新打开后做的任务");
+      if (edges.filter((edge) => edge.blockedTaskId === blockedId).length >= 50) throw new AppError("单个任务最多要求先完成 50 个任务，请整理任务先后关系");
       await tx.insert(taskDependencies).values({ projectId: task.projectId, blockerTaskId: blockerId, blockedTaskId: blockedId, createdById: actorId });
     } else await tx.delete(taskDependencies).where(eq(taskDependencies.id, dependency!.id));
     await bumpOrganizationVersions(tx, [blockerId, blockedId]);
     const events = await tx.insert(taskAcceptanceEvents).values([
-      { taskId: blockedId, actorId, action: "update", note: `${change.op === "addDependency" ? "新增" : "解除"}前置依赖：${blockerTask.title}` },
-      { taskId: blockerId, actorId, action: "update", note: `${change.op === "addDependency" ? "新增" : "解除"}后续依赖：${blockedTask.title}` },
+      { taskId: blockedId, actorId, action: "update", note: `${change.op === "addDependency" ? "设置需要先完成的任务" : "取消需要先完成的任务"}：${blockerTask.title}` },
+      { taskId: blockerId, actorId, action: "update", note: `${change.op === "addDependency" ? "设置接下来进行的任务" : "取消接下来进行的任务"}：${blockedTask.title}` },
     ]).returning({ id: taskAcceptanceEvents.id, taskId: taskAcceptanceEvents.taskId, note: taskAcceptanceEvents.note });
     for (const event of events) {
       const affected = event.taskId === blockerId ? blockerTask : blockedTask;
-      await enqueueCollaborationNotice(actorId, { target: { kind: "task", id: event.taskId }, event: "task_update", eventKey: `organization:${event.id}`, title: `${affected.title}的依赖已更新`.slice(0, 200), body: event.note ?? "任务依赖已更新", link: `/p/${task.projectId}/tasks/${event.taskId}`, participantUserIds: affected.assigneeId ? [affected.assigneeId] : [] }, tx);
+      await enqueueCollaborationNotice(actorId, { target: { kind: "task", id: event.taskId }, event: "task_update", eventKey: `organization:${event.id}`, title: `${affected.title}的任务先后已更新`.slice(0, 200), body: event.note ?? "任务先后已更新", link: `/p/${task.projectId}/tasks/${event.taskId}`, participantUserIds: affected.assigneeId ? [affected.assigneeId] : [] }, tx);
     }
   });
   return getTaskOrganization(actorId, taskId);
@@ -203,12 +203,12 @@ export async function assertTaskDependencyTransition(tx: DbTx, taskId: string, a
   if (["submit", "resubmit", "accept"].includes(action)) {
     const blockers = await tx.select({ title: tasks.title }).from(taskDependencies).innerJoin(tasks, eq(tasks.id, taskDependencies.blockerTaskId))
       .where(and(eq(taskDependencies.blockedTaskId, taskId), ne(tasks.status, "accepted")));
-    if (blockers.length) throw new ConflictError(`前置任务尚未验收：${blockers.slice(0, 3).map((item) => item.title).join("、")}${blockers.length > 3 ? "等" : ""}。请先完成验收或确认后解除依赖`);
+    if (blockers.length) throw new ConflictError(`还需等待这些任务验收通过：${blockers.slice(0, 3).map((item) => item.title).join("、")}${blockers.length > 3 ? "等" : ""}。可以继续执行，提交、重交和验收需等它们通过；也可确认后取消先后关系`);
   }
   if (action === "reopen") {
     const dependents = await tx.select({ title: tasks.title }).from(taskDependencies).innerJoin(tasks, eq(tasks.id, taskDependencies.blockedTaskId))
       .where(and(eq(taskDependencies.blockerTaskId, taskId), inArray(tasks.status, ["submitted", "accepted"])));
-    if (dependents.length) throw new ConflictError(`已有后续任务待验收或已完成：${dependents.slice(0, 3).map((item) => item.title).join("、")}。请先解除这些依赖，或打回/重新打开后续任务`);
+    if (dependents.length) throw new ConflictError(`排在后面的任务已待验收或已完成：${dependents.slice(0, 3).map((item) => item.title).join("、")}。请先取消这些先后关系，或打回/重新打开排在后面的任务`);
   }
 }
 
@@ -216,5 +216,5 @@ export async function assertTaskDependencyDeletion(tx: DbTx, taskId: string) {
   const descendants = await tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.parentTaskId, taskId));
   const ids = [taskId, ...descendants.map((item) => item.id)];
   const [dependency] = await tx.select({ id: taskDependencies.id }).from(taskDependencies).where(or(inArray(taskDependencies.blockerTaskId, ids), inArray(taskDependencies.blockedTaskId, ids))).limit(1);
-  if (dependency) throw new ConflictError("该任务或子任务仍有依赖关系，请先解除依赖再删除");
+  if (dependency) throw new ConflictError("该任务或子任务仍与其他任务设有先后顺序，请先取消这些关系再删除");
 }

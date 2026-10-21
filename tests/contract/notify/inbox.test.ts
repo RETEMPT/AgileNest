@@ -89,6 +89,15 @@ describe("协作消息中心", () => {
     await submitEvidence(fx.student.id, task.id, "验收通过，干得漂亮");
     expect((await listMyNotifications(fx.teacher.id)).find((item) => item.type === "task_submitted")?.body).toBe("验收通过，干得漂亮");
   });
+  it("旧任务先后通知仅改展示，历史与成员原文保持不变", async () => {
+    const [legacy] = await db.insert(notifications).values({ userId: fx.student.id, type: "task_update", title: "报告的依赖已更新", body: "新增前置依赖：调研记录" }).returning();
+    const [member] = await db.insert(notifications).values({ userId: fx.student.id, type: "task_submitted", title: "报告的依赖已更新", body: "新增前置依赖：调研记录" }).returning();
+    const rows = await listMyNotifications(fx.student.id);
+    expect(rows.find((item) => item.id === legacy.id)).toMatchObject({ title: "报告的任务先后已更新", body: "设置需要先完成的任务：调研记录" });
+    expect(rows.find((item) => item.id === member.id)).toMatchObject({ title: member.title, body: member.body });
+    const [stored] = await db.select().from(notifications).where(eq(notifications.id, legacy.id));
+    expect(stored).toMatchObject({ title: legacy.title, body: legacy.body });
+  });
   it("浮窗只取最近 20 条，但完整未读数不会截断或跨账号", async () => {
     await db.insert(notifications).values([
       ...Array.from({ length: 105 }, (_, index) => ({ userId: fx.student.id, type: "task_assigned", title: `消息 ${index}` })),

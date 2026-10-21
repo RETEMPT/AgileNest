@@ -291,7 +291,7 @@ export async function WorkbenchView({
                   {view === "review" && <ReviewSubmissionEvidence taskId={task.id} updatedAt={task.updatedAt.toISOString()} />}
                   {task.blocked && (
                     <p className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs leading-5 text-destructive">
-                      前置依赖尚未验收完成。可以准备资料或处理修改，完成依赖后再提交或验收；具体依赖可在任务详情中查看。
+                      还需等待其他任务验收通过。可以准备资料或处理修改，等相关任务通过后再提交、重交或验收；打开任务详情可查看原因。
                     </p>
                   )}
                   {view === "review" && task.acceptBlocked && (
@@ -467,7 +467,7 @@ export async function ReviewView({
                   <ReviewSubmissionEvidence taskId={task.id} updatedAt={task.updatedAt.toISOString()} />
                   {(task.blocked || accepted < subtasks.length) && (
                     <p className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs leading-5 text-destructive">
-                      {task.blocked ? "前置依赖尚未验收完成。" : ""}{accepted < subtasks.length ? `直接子任务已验收 ${accepted}/${subtasks.length}。` : ""}完成这些事项后才能通过当前任务；仍可核对成果并填写修改意见。
+                      {task.blocked ? "还需等待其他任务验收通过。" : ""}{accepted < subtasks.length ? `直接子任务已验收 ${accepted}/${subtasks.length}。` : ""}完成这些事项后才能通过当前任务；仍可核对成果并填写修改意见。
                     </p>
                   )}
                   {task.rejectReason && (

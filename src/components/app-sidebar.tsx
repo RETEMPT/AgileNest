@@ -5,17 +5,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { version } from "../../package.json";
+import packageMetadata from "../../package.json";
 import { UserAvatar } from "./ui/user-avatar";
 import { Button } from "./ui/button";
 import { browserSidebarProjectStore, resolveSidebarProject } from "./sidebar-project";
 import {
   LogoIcon, WorkbenchIcon, AiChatIcon, TeamIcon, TasksIcon, CalendarIcon,
-  MilestoneIcon, ReviewIcon, StatsIcon, NotifyIcon, SettingsIcon,
+  MilestoneIcon, ReviewIcon, StatsIcon, NotifyIcon, SettingsIcon, GuideIcon,
   ProjectFolderIcon, LogoutIcon, ChevronDownIcon, MenuIcon,
   SidebarCollapseIcon, SidebarExpandIcon,
 } from "@/components/icons";
-import { Check, Files, PackageCheck } from "lucide-react";
+import { Check, Files, PackageCheck, Bookmark } from "lucide-react";
 
 export type ProjectSummary = {
   id: string;
@@ -68,11 +68,13 @@ function SidebarContent({ user, projects, onSignOut, onToggleCollapse, pathname,
     { href: `/p/${project.id}/review`, label: "验收", icon: ReviewIcon, active: pathname === `/p/${project.id}/review` },
     { href: `/p/${project.id}/resources`, label: "项目资料", icon: (props: Parameters<typeof ProjectFolderIcon>[0]) => <Files {...props} />, active: pathname === `/p/${project.id}/resources` },
     { href: `/p/${project.id}/delivery`, label: "阶段交付", icon: (props: Parameters<typeof ProjectFolderIcon>[0]) => <PackageCheck {...props} />, active: pathname === `/p/${project.id}/delivery` },
-    { href: `/p/${project.id}/stats`, label: "工时与贡献", icon: StatsIcon, active: pathname === `/p/${project.id}/stats` },
+    { href: `/p/${project.id}/stats`, label: "成员贡献", icon: StatsIcon, active: pathname === `/p/${project.id}/stats` },
   ] : [];
   const accountItems = [
+    { href: "/favorites", label: "我的收藏", icon: (props: Parameters<typeof ProjectFolderIcon>[0]) => <Bookmark {...props} />, active: pathname === "/favorites" },
     { href: "/notifications", label: "消息中心", icon: NotifyIcon, active: pathname === "/notifications" },
     { href: "/settings", label: "个人中心", icon: SettingsIcon, active: pathname === "/settings" },
+    { href: "/guide", label: "使用指引", icon: GuideIcon, active: pathname === "/guide" },
   ];
 
   function links(items: typeof workspaceItems, label: string) {
@@ -134,7 +136,7 @@ function SidebarContent({ user, projects, onSignOut, onToggleCollapse, pathname,
     <div className="shrink-0 border-t border-border p-3">
       <div className={`flex items-center gap-2 ${collapsed ? "flex-col" : ""}`}>
         <Link href="/settings" onClick={closeMobile} aria-label={`编辑 ${name} 的个人资料`}><UserAvatar name={name} src={user.avatarUrl} className="h-8 w-8 text-xs" /></Link>
-        {!collapsed && <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{name}</p><p className="truncate text-xs text-muted-foreground">v{version}</p></div>}
+        {!collapsed && <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{name}</p><p className="truncate text-xs text-muted-foreground">v{packageMetadata.version}</p></div>}
         <form action={onSignOut}><Button type="submit" variant="ghost" size="icon" aria-label="退出登录"><LogoutIcon size={18} /></Button></form>
       </div>
     </div>

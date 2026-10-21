@@ -6,11 +6,14 @@ import { csvPreview, decodeMaterialText, findTextLines, MAX_MATERIAL_BYTES, MAX_
 const ref: MaterialRef = {id:"ce44eaa6-d4aa-4d80-b879-06ba8c8d534e",name:"课题材料.md",kind:"text",size:2048,createdAt:"2026-10-07T00:00:00.000Z"};
 const draft: AiDraft = {id:"initial",title:"课题计划",customTitle:false,text:"未完成输入",updatedAt:ref.createdAt};
 describe("foundation 本地资料", () => {
-  it("格式边界明确，拒绝执行文件、压缩包和 Word", () => {
+  it("格式边界明确，支持现代 Office 文字提取，拒绝可执行与旧格式", () => {
     expect(materialKind("调研.MD")).toBe("text");
     expect(materialKind("资料.pdf")).toBe("pdf");
+    expect(materialKind("文档.docx")).toBe("text");
+    expect(materialKind("课件.pptx")).toBe("text");
+    expect(() => materialKind("旧课件.ppt")).toThrow("另存为 PPTX");
     expect(materialKind("截图.PNG")).toBe("image");
-    for (const name of ["run.exe","pack.zip","文档.docx","vector.svg"]) expect(() => materialKind(name)).toThrow("暂不支持");
+    for (const name of ["run.exe","pack.zip","vector.svg"]) expect(() => materialKind(name)).toThrow("暂不支持");
   });
   it("校验整批文件的数量、单文件大小和总大小，不接受空文件", () => {
     expect(() => validateMaterialBatch([], [{name:"空.txt",size:0}])).toThrow("空文件");

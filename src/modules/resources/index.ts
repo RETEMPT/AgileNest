@@ -7,3 +7,7 @@ export type { ResourceTrashDTO } from "./client";
 export { listResourceFolders, createResourceFolder, updateResourceFolder, placeResource, getResourceCollaboration, setResourceCollaboration, linkResource, unlinkResource, listResourceLinks, listTaskResourceLinks, getResourceWorkspace, listResourceComments, createResourceComment, updateResourceComment, listResourceCommentHistory } from "./workspace-service";
 export { resourceWorkspaceGET, resourceWorkspacePOST } from "./workspace-api";
 export type { ResourceFolderDTO, ResourceLinkDTO, ResourceCommentDTO, ResourceCollaborationDTO } from "./client";
+export { readResourceContent, extractFileContent } from "./content-reader";
+export type { ExtractedFileContent, ResourceContent } from "./content-reader";
+export { listResourceFavorites, setResourceFavorite } from "./favorites-service";
+export { resourceFavoritesGET, resourceFavoritesPUT } from "./favorites-api";

@@ -25,7 +25,26 @@ export const modelConfigurationSchema = z.object({
 export type ModelConfiguration = z.infer<typeof modelConfigurationSchema>;
 export const DEFAULT_MODEL: ModelConfiguration = { provider: "deepseek", baseUrl:MODEL_PRESETS.deepseek.baseUrl, model:"", apiKeyEnv:MODEL_PRESETS.deepseek.apiKeyEnv, showReasoning: true };
 export const aiConfigurationSchema = z.object({
-  model: modelConfigurationSchema.default(DEFAULT_MODEL),
   plugins: z.array(pluginId).max(4).refine((items) => new Set(items).size === items.length).default(BUILTIN_PLUGINS.map((item) => item.id)),
 });
 export const DEFAULT_AI = aiConfigurationSchema.parse({});
+
+export function modelConfigurationReadiness(value: unknown): string[] {
+  const parsed = modelConfigurationSchema.safeParse(value);
+  if (!parsed.success) return parsed.error.issues.map((issue) => issue.message);
+  return [!parsed.data.baseUrl ? "请填写 API 基础地址" : "", !parsed.data.model ? "请填写模型标识" : ""].filter(Boolean);
+}
+
+export function importModelConfiguration(text: string): ModelConfiguration {
+  let value: unknown;
+  try { value = JSON.parse(text); } catch { throw new Error("配置需要是有效 JSON"); }
+  const parsed = modelConfigurationSchema.strict().safeParse(value);
+  if (!parsed.success) throw new Error(parsed.error.issues[0].message);
+  return parsed.data;
+}
+
+export function exportModelConfiguration(model: ModelConfiguration): string {
+  const errors = modelConfigurationReadiness(model);
+  if (errors.length) throw new Error(errors.join("；"));
+  return JSON.stringify(modelConfigurationSchema.parse(model), null, 2);
+}

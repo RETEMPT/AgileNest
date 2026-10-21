@@ -5,6 +5,7 @@ import { capabilitiesFor, positionsFromRole } from "@/modules/identity/client";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/modules/core/errors";
 import { isDueSoon, isOverdue, todayISO } from "@/modules/core/dates";
 import { deliverCollaborationNotice, eligibleNotificationRecipients, getNotificationPreferences } from "./subscriptions";
+import { notificationDisplayCopy } from "./client";
 
 export type NotificationDTO = {
   id: string;
@@ -18,19 +19,12 @@ export type NotificationDTO = {
 };
 
 function toDTO(row: typeof notifications.$inferSelect): NotificationDTO {
-  let body = row.body;
-  // 兼容旧版自动通知的固定文案，保留成员填写的成果说明与修改意见。
-  if (row.type === "task_assigned" && body === "你被指派/认领了任务，尽快开工") {
-    body = "任务已分配给你。";
-  }
-  if (row.type === "task_accepted" && body === "验收通过，干得漂亮") {
-    body = "任务已验收通过。";
-  }
+  const { title, body } = notificationDisplayCopy(row);
   return {
     id: row.id,
     userId: row.userId,
     type: row.type,
-    title: row.title,
+    title,
     body,
     link: row.link,
     readAt: row.readAt,

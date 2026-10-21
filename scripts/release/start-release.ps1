@@ -155,6 +155,9 @@ try {
     # These variables apply only to child processes, never to machine settings.
     $env:DATABASE_URL = "postgres://agilenest:$($config.dbPassword)@127.0.0.1:$($config.dbPort)/agilenest"
     $env:AUTH_SECRET = $config.authSecret
+    $env:AI_PROVIDER_STORE_DIR = Join-Path $dataPath 'private/ai-providers'
+    $env:AI_PLUGIN_STORE_DIR = Join-Path $dataPath 'private/ai-plugins'
+    $env:RESOURCE_FAVORITES_DIR = Join-Path $dataPath 'private/resource-favorites'
     $env:AUTH_TRUST_HOST = 'true'
     $env:HOSTNAME = '127.0.0.1'
     $env:PORT = $WebPort.ToString()

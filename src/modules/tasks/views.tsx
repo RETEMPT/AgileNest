@@ -1,17 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireUser, getProjectForUser, todayISO } from "@/modules/core";
+import { requireUser, getProjectForUser } from "@/modules/core";
 import { getTaskDetail, getTaskDelivery, listProjectTasks } from "./service";
 import { listTeamMembers } from "@/modules/identity";
 import { listTaskEvents } from "@/modules/review";
-import { listWorklogs } from "@/modules/worklog";
 import { listMilestones } from "@/modules/milestone";
 import { EditTaskButton } from "./edit-ui";
+import { TaskAssistanceButton } from "./ai-assistance-ui";
 import {
   DeleteTaskButton,
   TaskActions,
-  WorklogForm,
-  TaskWorkflow,
   TaskCard,
   CreateTaskForm,
   TaskDetailSummary,
@@ -40,9 +38,8 @@ export async function TaskDetailView({
   const task = await getTaskDetail(user.id, taskId).catch(() => null);
   if (!task || task.projectId !== projectId) notFound();
 
-  const [events, logs, members, milestones, delivery] = await Promise.all([
+  const [events, members, milestones, delivery] = await Promise.all([
     listTaskEvents(user.id, taskId),
-    listWorklogs(user.id, taskId),
     listTeamMembers(user.id, access.project.teamId),
     listMilestones(user.id, projectId),
     getTaskDelivery(user.id, taskId),
@@ -67,7 +64,7 @@ export async function TaskDetailView({
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm" variant="outline"><Link href={`/p/${projectId}/delivery`}>阶段交付中心</Link></Button>
           {task.permissions?.actions.includes("update") && (
-            <EditTaskButton task={task} milestones={milestones} />
+            <><TaskAssistanceButton task={task} /><EditTaskButton task={task} milestones={milestones} /></>
           )}
           {task.permissions?.actions.includes("delete") && (
             <DeleteTaskButton taskId={task.id} projectId={projectId} />
@@ -80,7 +77,6 @@ export async function TaskDetailView({
           task={task}
           subtasks={task.subtasks}
           milestoneName={milestones.find((milestone) => milestone.id === task.milestoneId)?.title}
-          loggedMinutes={logs.reduce((total, log) => total + log.minutes, 0)}
           headingLevel="h1"
         />
       </section>
@@ -110,39 +106,6 @@ export async function TaskDetailView({
           ) : null}
         </section>
       )}
-
-      <section className="space-y-3 rounded-xl border border-border bg-card p-4 sm:p-5">
-        <h2 className="font-display text-sm font-semibold">工时</h2>
-        {access.capabilities.execute && task.assigneeId === user.id ? (
-          <WorklogForm
-            taskId={task.id}
-            projectId={projectId}
-            defaultDate={todayISO()}
-          />
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            由任务负责人记录实际投入工时。
-          </p>
-        )}
-        {logs.length > 0 && (
-          <ul className="divide-y divide-border rounded-xl border border-border bg-card text-sm">
-            {logs.map((l) => (
-              <li key={l.id} className="flex flex-wrap justify-between gap-2 px-3 py-2">
-                <span className="min-w-0 break-words [overflow-wrap:anywhere]">
-                  {l.workDate} · {l.minutes} 分钟{l.note ? ` · ${l.note}` : ""}
-                </span>
-                <span className="text-muted-foreground">{l.userName}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-        {logs.length === 0 && <p className="text-sm text-muted-foreground">暂无工时记录。</p>}
-      </section>
-
-      <details className="rounded-xl border border-border bg-card p-4">
-        <summary className="cursor-pointer text-sm font-medium text-muted-foreground">查看任务流程</summary>
-        <div className="mt-4"><TaskWorkflow status={task.status} /></div>
-      </details>
 
       <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
         <div className="flex items-center justify-between border-b border-border/50 pb-3">
@@ -197,10 +160,6 @@ export async function TaskPoolView({ projectId, query = {} }: { projectId: strin
       </nav>
       <TaskPoolFilters projectId={projectId} filters={filters} members={members} milestones={milestones} groupBy={groupBy} />
       <SavedTaskViews projectId={projectId} layout="tasks" groupBy={groupBy} filters={filters} />
-      <details className="rounded-xl border border-border bg-card p-4" open={tasks.length === 0}>
-        <summary className="cursor-pointer text-sm font-medium text-muted-foreground">任务流程与权限</summary>
-        <div className="mt-4"><TaskWorkflow /></div>
-      </details>
       <div className="grid items-start gap-5 xl:grid-cols-[1fr_320px]">
         <div className="grid gap-3 lg:grid-cols-2">
           {visible.map((task) => (

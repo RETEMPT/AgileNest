@@ -99,13 +99,14 @@ describe("tasks 五态状态机（集成）", () => {
     expect(detail.subtasks).toHaveLength(2);
   });
 
-  it("工时与贡献", async () => {
+  it("工时登记停用，贡献按真实任务状态统计", async () => {
     const t = await createTask(fx.admin.id, fx.project.id, { title: "x" });
     await transitionTask(fx.student.id, t.id, "claim");
-    await addWorklog(fx.student.id, t.id, { workDate: "2026-09-24", minutes: 90 });
-    const hours = await memberContribution(fx.admin.id, fx.project.id);
-    const me = hours.find((h) => h.userId === fx.student.id);
-    expect(me?.minutes).toBe(90);
+    await expect(addWorklog(fx.student.id, t.id, { workDate: "2026-09-24", minutes: 90 })).rejects.toMatchObject({ status: 410 });
+    const contributions = await memberContribution(fx.admin.id, fx.project.id);
+    const me = contributions.find((item) => item.userId === fx.student.id);
+    expect(me).toMatchObject({ tasksTotal: 1, tasksAccepted: 0, statusCounts: { in_progress: 1 } });
+    expect(me).not.toHaveProperty("minutes");
   });
 
   it("里程碑 + 教师待验收队列 + 通知", async () => {

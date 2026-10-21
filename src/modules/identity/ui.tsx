@@ -189,7 +189,7 @@ export function JoinTeamForm() {
           onChange={(event) => setInviteCode(event.target.value)}
           required
           maxLength={30}
-          placeholder="粘贴管理员分享的邀请码"
+          placeholder="粘贴团队成员分享的邀请码"
           autoComplete="off"
         />
         <p className="text-xs text-muted-foreground">
@@ -438,7 +438,7 @@ export function InviteCode({ code, expiresOn }: { code: string; expiresOn?: stri
     }
   }
   if (expiresOn && expiresOn < todayISO()) {
-    return <p className="text-sm text-destructive">邀请码已过期，请联系管理员在团队信息页刷新。</p>;
+    return <p className="text-sm text-destructive">邀请码已过期，请联系管理员或副管理员在团队信息页刷新。</p>;
   }
   return (
     <div className="space-y-1">

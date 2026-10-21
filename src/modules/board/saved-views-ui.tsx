@@ -1,5 +1,6 @@
 "use client";
 
+import { accountFetch } from "@/components/account-request";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -56,7 +57,7 @@ function SavedTaskViewsEditor({ projectId, layout, groupBy, filters, onPendingCh
     const controller = new AbortController(); fetching.current = controller;
     setLoading(true);
     try {
-      const response = await fetch(endpoint, { cache: "no-store", signal: controller.signal });
+      const response = await accountFetch(endpoint, { cache: "no-store", signal: controller.signal });
       const body: unknown = await response.json().catch(() => null);
       if (!response.ok) throw new Error(responseError(body, "保存视图暂时无法读取，请重试"));
       const parsed = savedTaskViewListSchema.safeParse(body);
@@ -106,7 +107,7 @@ function SavedTaskViewsEditor({ projectId, layout, groupBy, filters, onPendingCh
     const isCreate = mode.kind === "create";
     try {
       const requestBody = isDelete ? { version: mode.view.version } : { ...parsed.data, ...(!isCreate && { version: mode.view.version }) };
-      const response = await fetch(isCreate ? endpoint : `${endpoint}/${mode.view.id}`, { method: isDelete ? "DELETE" : isCreate ? "POST" : "PATCH", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify(requestBody) });
+      const response = await accountFetch(isCreate ? endpoint : `${endpoint}/${mode.view.id}`, { method: isDelete ? "DELETE" : isCreate ? "POST" : "PATCH", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify(requestBody) });
       const body: unknown = await response.json().catch(() => null);
       if (!response.ok) { if (response.status === 409) setConflict(true); throw new Error(responseError(body, "保存视图暂时无法更新，请重试")); }
       if (!active.current || controller.signal.aborted) return;
@@ -135,7 +136,7 @@ function SavedTaskViewsEditor({ projectId, layout, groupBy, filters, onPendingCh
     <FormFeedback message={error} /><FormFeedback message={success} tone="success" />
     {mode && editingDefinition && <form className="space-y-3 rounded-xl border border-border bg-muted/20 p-4" onSubmit={(event) => { event.preventDefault(); void save(); }}>
       <p className="text-sm font-medium">{mode.kind === "create" ? "保存新视图" : mode.kind === "rename" ? "重命名视图" : mode.kind === "update" ? "更新保存内容" : "删除保存视图"}</p>
-      {mode.kind === "delete" ? <p className="break-words text-sm leading-6 text-muted-foreground">确认删除「{mode.view.name}」？之后可以重新保存当前筛选。</p> : <div className="space-y-2"><Label htmlFor={`${fieldId}-name`}>视图名称</Label><Input id={`${fieldId}-name`} autoFocus value={name} maxLength={80} disabled={loading || pending} onChange={(event) => { setName(event.target.value); setSuccess(""); }} placeholder="例如：我负责的阻塞任务" /><p className="text-xs text-muted-foreground">{savedTaskViewSummary(editingDefinition)}{mode.kind === "rename" ? "；只修改名称。" : "；未应用的筛选修改不会保存。"}</p></div>}
+      {mode.kind === "delete" ? <p className="break-words text-sm leading-6 text-muted-foreground">确认删除「{mode.view.name}」？之后可以重新保存当前筛选。</p> : <div className="space-y-2"><Label htmlFor={`${fieldId}-name`}>视图名称</Label><Input id={`${fieldId}-name`} autoFocus value={name} maxLength={80} disabled={loading || pending} onChange={(event) => { setName(event.target.value); setSuccess(""); }} placeholder="例如：我负责且等待其他任务验收" /><p className="text-xs text-muted-foreground">{savedTaskViewSummary(editingDefinition)}{mode.kind === "rename" ? "；只修改名称。" : "；未应用的筛选修改不会保存。"}</p></div>}
       {mode.kind === "update" && <p className="text-xs leading-5 text-muted-foreground">原视图：{savedTaskViewSummary(mode.view)}。确认后替换为上方当前视图。</p>}
       {mode.kind !== "create" && <p className="text-xs text-muted-foreground">正在处理：{mode.view.name} · 版本 {mode.view.version}{conflict ? "，请先读取最新版本并核对。" : ""}</p>}
       <div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => { setMode(null); setName(""); setError(""); setConflict(false); }}>取消</Button><Button type="submit" size="sm" variant={mode.kind === "delete" ? "destructive" : "default"} disabled={loading || pending || conflict} loading={pending}>{mode.kind === "delete" ? <Trash2 aria-hidden="true" className="h-3.5 w-3.5" /> : <Save aria-hidden="true" className="h-3.5 w-3.5" />}{mode.kind === "delete" ? "确认删除" : "保存"}</Button></div>

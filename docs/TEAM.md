@@ -4,6 +4,8 @@
 
 ## 1. 模块与 Owner
 
+0.6.0 共享请求边界：已登录客户端统一使用 `components/account-request.accountFetch`，服务端 `lib/api.requireApiUser` 比较可选 `X-AgileNest-Account` 与当前会话；不同账号返回409及 `X-AgileNest-Account-Changed: 1`。该字段仅用于拒绝旧页面请求，不能选择或授予身份，业务 ACL 仍由当前会话和公开模块契约执行。`GET /api/v1/account` 只返回登录状态并禁止缓存；共享 AccountBoundary 处理跨标签变更与恢复焦点核对，原认证契约不变。
+
 | 模块 / 路径 | Owner | 职责 / 主要入口 |
 |---|---|---|
 | core、identity、components/ui、lib | foundation | ACL/session/日期、团队成员与项目、共享 UI；/t/*、/settings |
@@ -11,7 +13,7 @@
 | tasks、delivery | A | 五态任务、提交验收、阶段交付；/p/:id/tasks、/p/:id/delivery |
 | board | B | 看板、表格、统一筛选与本人保存视图 |
 | review、discussions | C（root 集成） | 工作台、验收台、活动流、任务讨论 |
-| worklog（含 stats） | D | 工时、完成度、贡献；/p/:id/stats |
+| worklog（含 stats） | D | 任务完成度、成员贡献与历史记录；/p/:id/stats |
 | calendar、milestone、notify | E | 项目排期、本人日程、里程碑、站内消息与提醒 |
 | components/ai、共享偏好、Windows 发布工具 | foundation | 本地 AI 草稿、统一浮窗、主题与发布生命周期 |
 
@@ -140,7 +142,7 @@ STATUS_DESCRIPTIONS / canDeleteTask(role)
 - API：`/tasks/:taskId/organization` GET/PATCH；`/projects/:projectId/task-labels` GET/POST；`/:labelId` PATCH/DELETE。API薄壳均从tasks根入口导出。
 
 - `createTask(actorId,projectId,input)` 的输入结构（服务内部名 `TaskCreateInput`，不是命名导出）追加 `acceptanceCriteria?: AcceptanceCriterion[]`、`requestKey?: string`。`AcceptanceCriterion={id:string,text:string}`；服务保留旧调用缺省兼容，GUI 发布必须有 1–30 项不重复的验收要求，并将任务、负责人、要求 v1 和创建事件原子保存。`criteria` 字段用于 `saveTaskRequirements(actorId,taskId,{version,criteria})`，不能替代创建输入的 `acceptanceCriteria`。
-- `createSubtask(actorId,parentTaskId,{title,description?,dueDate?,priority?,assigneeId?,acceptanceCriteria?,requestKey?})` 复用同一创建校验、事务与权限；不能继续嵌套，也不能向 submitted/accepted 的父任务增加子任务。负责人从当前团队可执行成员按姓名选择；有指派能力可指定他人，否则仅本人或任务池。
+- `createSubtask(actorId,parentTaskId,{title,description?,dueDate?,priority?,assigneeId?,acceptanceCriteria?,requestKey?,milestoneId?})` 复用同一创建校验、事务与权限；不能继续嵌套，也不能向 submitted/accepted 的父任务增加子任务。负责人从当前团队可执行成员按姓名选择；有指派能力可指定他人，否则仅本人或任务池。
 - 创建任务和子任务使用稳定 UUID `requestKey` 防重复提交；响应丢失后以原键重试只复用本人同项目、同父任务的原任务，不覆盖内容、不增加创建事件或重复指派通知。跨账号、项目或父任务复用同键返回 409。成功后 GUI 才生成下一次请求键，失败保留输入。
 - `updateTask(actorId,taskId,patch,expectedUpdatedAt?:string)` 的可选第四参兼容旧服务调用；GUI 编辑 action 必须传原 `TaskDTO.updatedAt.toISOString()`。锁定后检查版本，不匹配返回 409 并保留草稿。submitted/accepted 冻结 title、description 和验收要求，需先打回/重开才可更改；排期、优先级等仍可调整。保存验收要求至少保留一项，旧版提交/评审快照不可覆盖。
 - `TaskDTO` 和 `TransitionContext` 追加 `acceptBlocked?:boolean`，表示仍有未验收通过的子任务；`getTaskDetail/listProjectTasks` 查询真实子任务，不能因列表筛选而丢失该守卫。`availableTransitions` 为 true 时不提供 accept，reject 仍按原权限可用；服务端事务再次检查。review 工作台/验收台按项目通过公开 `listProjectTasks` 补齐并保留 blocked/reopenBlocked/acceptBlocked，不复制状态机或只用裸 `toDTO` 判断可操作入口。
@@ -211,7 +213,11 @@ taskHours(actorId, projectId, range?)
 memberContribution(actorId, projectId)
 ```
 
-`projectCompletion` 的 `{ done, total, ratio }` 为已验收顶层任务数/顶层总数，单次聚合查询；`completionRatio` 在有子任务时为已验收子任务数/直接子任务总数，两者在 UI 明确标识。工时仅执行职务且当前负责人可记；`tasks/ui.WorklogForm` 接收 `{ taskId, projectId, defaultDate }`，默认日期由服务端的 `todayISO` 提供。公开 `worklog/views` 提供 `StatsView`。
+`projectCompletion` 的 `{ done, total, ratio }` 为已验收顶层任务数/顶层总数；`completionRatio` 在有子任务时为已验收子任务数/直接子任务总数。公开 `worklog/views.StatsView` 为成员贡献页。工时填写与删除已停用，addWorklog/deleteWorklog 先查 ACL 后返回 410，旧导出和历史只读契约保留；WorklogForm/addWorklogAction 已移除，历史表未删除。
+
+`memberContribution` 当前管理员/副管理员/指导老师返回全员，普通成员仅本人；Contribution 移除 minutes，新增 tasksTotal/statusCounts/completionRatio/overdue/tasks，tasksSubmitted 为当前待验收数、tasksAccepted 为当前通过数。按当前负责人统计，任务详情列明是否子任务，顶层总完成度单独显示；不以历史投入或任务数量自动评价个人。
+
+tasks/client 新增 `taskDependencyMessage(task, projectTasks?)`，用于当前等待前置验收的说明与可见任务名称；不复制状态机。TaskDetailSummary 不再接收 loggedMinutes。resources/client 新增 `selectResourceFiles(rows,query,folders)`，正常浏览当前目录文件，搜索可跨子目录，保留旧 selectResources 契约。
 
 ### `@/modules/calendar`（E）
 
@@ -245,6 +251,10 @@ createMilestone(actorId, projectId, input)
 updateMilestone(actorId, milestoneId, patch)
 deleteMilestone(actorId, milestoneId)
 ```
+
+公开 `milestone/client` 为浏览器安全的任务图纯函数与类型：MilestoneTask/MilestoneSummary/MilestoneTaskNode/MilestoneTaskGroup/TaskDependencyEdge、种类/状态标签、buildMilestoneTaskGraph、filterMilestoneTree、dependencyLayers（返回 layers/unresolved）和 milestonePlanningUrl。父子关系仅在同里程碑组嵌套，跨组保留父链接；依赖独立计算，状态不由图修改。
+
+公开 `milestone/ui.MilestoneWorkspace({projectId,milestones,tasks})` 和 `milestone/views.MilestonesView({params})`。views 通过当前 session/project ACL 及公开 tasks.listProjectTasks 读取真实数据，页面仅调用 views；保留原新建里程碑权限。无新 service/index 导出或业务写入。
 
 ### `@/modules/notify`（E）
 
@@ -358,22 +368,121 @@ AppSidebar 的项目上下文按账号存于浏览器 `agilenest:sidebar-project
 
 折叠偏好沿用浏览器键 `agilenest_sidebar_collapsed`，由共享 `sidebar-preference` store 维护；写入失败保留本次操作，跨标签更新/清除可同步，清除恢复默认展开。Ctrl+B/Cmd+B 仅在桌面非编辑区域响应，忽略组合输入、重复按键、其他修饰键和已处理事件。已有可访问项目但未选择时可直接打开项目菜单，无项目时保留创建/加入团队入口；菜单当前项目使用勾选与可访问名称标识，不冒充全局页面的当前位置。项目菜单在路径变化或跨越桌面/手机断点时关闭，返回原路径不重开；原入口已隐藏时，焦点返回当前可见的手机导航按钮或桌面项目选择按钮。
 
-公开 identity/ui.ProjectContextHeader({projectId,name,positions}) 提供项目上下文；共享 TaskDrawer 保留 task/role/actorId/isOpen/onClose，支持 members?:AssigneeOption[]、milestoneName?:string|null。工时/子任务未加载时不伪造零值；任务活动请求按账号、任务、更新时间和重试标识隔离。
+公开 identity/ui.ProjectContextHeader({projectId,name,positions}) 提供项目上下文；共享 TaskDrawer 保留 task/role/actorId/isOpen/onClose，支持 members?:AssigneeOption[]、milestoneName?:string|null。子任务未加载时不伪造零值；任务活动请求按账号、任务、更新时间和重试标识隔离。
 
 共享 Button 支持 loading；FeedbackProvider/useFeedback/FormFeedback 提供等待、成功、失败反馈。TaskActions/TransitionDialog/CreateTaskForm 的 onPendingChange? 让外层共享写入/上传状态，提交期间禁止关闭；失败或取消保留输入与原任务列。键盘、角色与窄屏标准见 [UX.md](UX.md)。
 
-- `components/ai/floating.openCollaborationDock(panel?: "notifications"|"ai")`；原 `openAiFloating()`/旧事件兼容。右下角只一个图标，真实未读、消息类别/仅未读和本地草稿标签共用。通知偏好 `showBubble` 控制整个浮动入口，消息仍可从完整消息页读取。
-- 草稿存储键与按账号隔离保持，切换/关闭先保存，导入等待或失败保留输入；模型不接入。站内消息只读预览不自动标已读。
-- `components/ai/workspace.AiWorkspace({userId,projects,compact?,saveGuardRef?,busyRef?})`：projects 为 `{id,name,teamName}[]` 摘要；`saveGuardRef?:React.RefObject<(()=>boolean)|null>` 由工作区提供保存守卫；`busyRef?:React.RefObject<boolean>` 在资料读取/保存期间为 true，结束（含失败）归 false。浮窗据此阻止导入中关闭、切换或放弃；重复导入由同步锁拒绝，失败保留原输入。
+- `components/ai/floating.openCollaborationDock(panel?: "notifications"|"ai")`；原 `openAiFloating()`/旧事件兼容。右下角只一个入口，真实未读、消息类别/仅未读和 AI 对话共用。通知偏好 `showBubble` 控制整个浮动入口，消息仍可从完整消息页读取；预览不自动标已读。
+- 会话存储键与按账号隔离保持，切换/关闭先保存，导入等待或失败保留输入；真实模型调用见下方 ai 契约。
+- `components/ai/workspace.AiWorkspace({userId,projects,compact?,saveGuardRef?,busyRef?,planningContext?,planningError?})`：projects 为 `{id,name,teamName}[]` 摘要；`saveGuardRef?:React.RefObject<(()=>boolean)|null>` 提供保存守卫；`busyRef?:React.RefObject<boolean>` 覆盖资料读取/保存和模型请求。浮窗据此阻止等待中关闭、切换或放弃；失败保留原输入。planningContext 为 `{projectId,milestoneId?,taskId?,title,sourceText?}`，planningError 为可选 boolean。
 - `components/ai/materials-ui.MaterialsDialog` 公开组件 props 为 `mode/onClose/items/userId/importError/importing/onImport/onAttachText/onPick`，追加可选 `onReturnFocus?:()=>void`；onImport 接收 File[] 返回 Promise<boolean>，onAttachText 返回错误串或 null。传入 onReturnFocus 时覆盖关闭自动聚焦，资料面板关闭后回到草稿输入框；其本地文件仍按账号存储，不等同于项目资料库。
 
-公开 components/ai/view.AiWorkspaceView 为服务端组合，通过 core.requireUser 取得本人，不允许 URL 指定账号。drafts/draft-store 仅管理按账号命名的浏览器草稿，既有 v1 数据兼容 projectId/messages/materials；本地存储不是服务端 ACL。每份最多 20 条本地记录、10 份资料、合计 50 MB，单文件 10 MB。IndexedDB 正文/Blob 使用 [userId,id]；取消/失败、损坏或拒绝存储均反馈并保护输入，不自动读取项目任务或文件系统。图片/PDF 仅预览，不宣称 OCR、AI 总结或模型调用。
+公开 components/ai/view.AiWorkspaceView 为服务端组合，通过 core.requireUser 取得本人，不允许 URL 指定账号。drafts/draft-store 管理按账号命名的浏览器会话，既有 v1 数据兼容 projectId/messages/materials；消息追加可选 role 与 model，旧记录按本人输入显示。本地存储不是服务端 ACL。每份最多20条消息、10份资料、合计50MB，单文件10MB。IndexedDB 正文/Blob 使用 [userId,id]；取消/失败、损坏或拒绝存储均反馈并保护输入，不自动读取项目任务或文件系统。图片/PDF 仅预览，不能作为可读文本发送，不宣称 OCR 或图像理解。
 
-编辑器仅在自身未编辑时接纳 store 新正文，防止多标签覆盖。MaterialsDialog 关闭返回草稿输入，删除草稿清理未引用文件。偏好键 agilenest:preferences:v1:<userId> 按账号隔离并校验，reset() 清除本人偏好；只存模型密钥的环境变量名，不执行模型或插件，不跨设备同步。SettingsWorkspace 软导航/后退同步分区，联系方式缺省保留，个人资料成功返回新还原基线。细节见 [AI.md](AI.md)、[IDENTITY.md](IDENTITY.md)。
+编辑器仅在自身未编辑时接纳 store 新正文，防止多标签覆盖。MaterialsDialog 关闭返回输入框，删除会话清理未引用文件。`chat-client.chatMessages` 读取明确选择的文字附件；`appendModelReply` 将问答一起保存，拒绝会话已修改/删除或容量不足的迟到回复。收到但保存失败的回复保留可复制，不自动重发。偏好键 agilenest:preferences:v1:<userId> 按账号隔离并校验，reset() 只清除本人偏好；旧模型配置镜像会在偏好读取时清理，不作为调用凭据。SettingsWorkspace 软导航/后退同步分区，联系方式缺省保留，个人资料成功返回新还原基线。细节见 [AI.md](AI.md)、[IDENTITY.md](IDENTITY.md)。
+
+### AI 共享资料工具接续 · 2026-10-14
+
+foundation/root 在 components/ai 增加共享资料面板；通过已公开的 resources/client 查询纯函数与 resources/ui.resourceDTOSchema 校验 API 返回，不深链业务内部文件。已有 resources API/index 签名不变。
+
+主动打开面板时 GET `/api/v1/resources?projectId=...`，读取/引用前 GET `/api/v1/resources/:id`；修改名称和标签预览后 PATCH 同一路径，携带原 version/category，链接还保留 url，不提交 body。服务端重新校验当前账号、ACL 与版本；前端 canEdit 只控制入口，不授权写入。冲突或未知写入结果先重新读取并核对，不静默重试。
+
+内部 DraftEditor 只向资料面板传入当前可访问的 projectId。读取/保存期间沿用 busyRef 与保存守卫，阻止浮窗关闭/切换；引用成功才写入本人输入。不自动发送给模型，模型执行与任务创建分别通过下方 ai 契约。
+
+identity/views 新增 GuideView，供 /guide 薄路由使用；指引独立于个人中心，侧栏采用共享 GuideIcon 并按路径高亮。旧 /settings?section=guide 在会话验证后跳转 /guide（飞书回调分区优先）。章节图例使用 tasks/client 公开转移与共享 StatusPill，静态示例不调用业务 API。AI 配置表单支持非密钥 JSON 导入/导出，导入只填表，保存与测试调用真实接口。通知偏好面板只在个人设置呈现；消息页以 work/activity/all 筛选最近100条结果，工作气泡仅展示 isWorkNotification 白名单类型，历史消息与偏好服务契约不变。
+
+### 里程碑与任务规划接续 · 2026-10-15
+
+AiWorkspaceView 接收可选 searchParams 的 planning/projectId/milestoneId/taskId，校验标识与本人项目范围后，通过公开 listMilestones 或任务读取契约准备来源；既有浮窗调用兼容，打开入口后才进入规划。
+
+`TaskPlanDialog({userId,projectId,context?,initialGoal?,onClose,onReturnFocus,onAttach,onConfigure?,saveGuardRef?})` 的 context 为 `{milestoneId?,taskId?,sourceId?,title}`；onAttach 返回错误串或 null，保存失败保护输入。onConfigure 打开模型配置；等待中或未保存时受守卫保护。规划 schema 统一从 ai/client 导出，最多40节点/一层子任务，任务先后和子任务验收共同检查循环。目标与规划按账号、项目、里程碑存于浏览器；真实生成/调整、确认创建调用下方 ai API。批次开始后固定完整输入，部分成功保留进度，用同一 runId 重试；损坏记录提供原始备份，不静默覆盖。
+
+`milestone/client` 提供真实任务分组、树形和先后边、查询与链接纯函数；`milestone/ui.MilestoneWorkspace({projectId,milestones,tasks})`、`MilestoneTaskGroup({projectId,group,query,taskById,selected?})` 与 `milestone/views.MilestonesView` 为公共展示入口。分组和子层级默认关闭，搜索或明确筛选才打开相关路径，手工关闭在同一查询内保持。`resources/ui.ResourcesWorkspace` 整体目录侧栏默认隐藏；`resources/workspace-ui.ResourceFolders` 增加可选 `searchMatches?:ResourceDTO[]`，默认只显示关闭的分类，选择目录/搜索时展开路径。成员贡献详情与 AI 会话列表默认关闭。
+
+里程碑当前默认“阶段进程”视图：`buildMilestoneTaskGraph` 按目标日期排列阶段（未设日期最后），不生成执行顺序。`milestone/client.summarizeTaskBranch(node)` 返回 `{total,accepted,submitted,percent}`，统计本阶段主任务及其子树，搜索不改变真实进度。新增展示入口 `milestone/ui.MilestoneProcess({projectId,groups,fullGroups?,query,taskById,selectedId,onSelect})`、`MilestoneModuleCard({node,fullNode?,query,taskById})`。选择阶段才展开模块，子任务默认关闭；有子项的主任务标为模块，独立任务、跨阶段子项分别标注。详情与任务管理通过现有路由操作，不直接修改业务；任务树和先后图继续可选。
+
+公开 `tasks/client.taskEventNote(action,note)` 与 `notify/client.notificationDisplayCopy({type,title,body})` 将已知历史系统文案中的术语转为易懂说明，仅影响展示，不修改历史数据或用户自由文本。
+
+### `@/modules/ai`（foundation/root）· 2026-10-15
+
+新增模块提供真实模型执行，沿用登录会话、Zod、原生 HTTP/HTTPS 与现有权限；无 SDK、依赖或数据库迁移。`ai/client` 为浏览器安全纯类型/校验入口：ModelConfiguration、ModelConfigurationInput、ModelConfigurationStatus、ChatRequest、PlanRequest、TaskPlan、TaskPlanNode 及对应 schemas。TaskPlan 为 `{version:1,nodes:{id,title,criteria,parentId,dependsOn}[]}`，不包含服务端状态或授权字段。
+
+根服务契约：`getModelConfiguration(actorId,cookie)`、`saveModelConfiguration(actorId,input,cookie)`、`testModelConnection(actorId,cookie,signal?)`、`chatWithModel(actorId,cookie,input,signal?)`、`planWithModel(actorId,cookie,input,signal?)`、`listModelNames(actorId,cookie,input?,signal?)`、`applyTaskPlan(actorId,input)`；具体可选性和返回类型以导出的 TypeScript 签名为准。薄路由只调用根导出的 modelConfigGET/PUT/DELETE、modelTestPOST、modelChatPOST、modelPlanPOST、modelNamesPOST、modelApplyPlanPOST、modelExtractFilePOST。
+
+| API | 输入与结果 |
+|---|---|
+| GET /api/v1/ai/config | `{configured,configuration?}`，无明文密钥 |
+| PUT / DELETE /api/v1/ai/config | 旧写入入口返回410，指引到唯一服务商管理页 |
+| GET /api/v1/ai/providers | 返回 `{revision,activeId,providers}`，迁移有效旧Cookie并清除 |
+| PUT /api/v1/ai/providers | `{expectedRevision,id?,configuration:ModelConfigurationInput}`，保存后返回新列表，不自动切换 |
+| PATCH /api/v1/ai/providers | `{expectedRevision,op:"activate" 或 "delete",id}`，版本冲突409 |
+| POST /api/v1/ai/test | `{providerId?}`，指定或当前服务真实短请求返回 `{text,model,latencyMs}` |
+| POST /api/v1/ai/chat | `{projectId?,knowledgeScope?:"project"或"accessible"或"none",messages:[{role,content}]}` → `ChatResult`；`?stream=1` 或 Accept `application/x-ndjson` 返回阶段事件及最终结果 |
+| POST /api/v1/ai/extract-file | 登录同源 multipart 单文件（≤10MB），返回实际提取文字/分段，不保存上传文件，不调用模型 |
+| POST /api/v1/ai/plan | `{projectId,milestoneId?,goal,plan?}` → `{plan,model}`，生成最多20项 |
+| POST /api/v1/ai/assist | `{projectId,milestoneId?,goal,plan?,mode:"clarify"|"review"}` → 下述结构化建议及 `model` |
+| POST /api/v1/ai/models | `{providerId,configuration?}`，或完整临时表单，或空体使用当前选中项 → `{models:string[]}`；不保存表单 |
+| POST /api/v1/ai/apply-plan | `{projectId,milestoneId?,runId,plan}` → `{tasks:[{nodeId,taskId,title}],complete,error?}`；最多20项，可能部分成功 |
+
+所有响应 no-store，错误 `{error:string}`；写入/执行请求同源检查，actorId 只来自服务器会话。项目/里程碑先鉴权；创建和组织任务只调用 tasks 根契约，不修改五态真相。稳定键绑定账号、项目、runId 和完整规划，重复采纳核对已创建内容；已修改/认领任务返回冲突，不覆盖。更改规划必须另开批次。
+
+根新增 `assistTaskPlan(actorId,cookie,input:PlanAssistRequest,signal?)` 与薄壳 `modelAssistPOST`；`ai/client` 新增 PlanAssistRequest/PlanAssistResult、planAssistRequestSchema/planAssistResultSchema。clarify 结果为 `{mode,questions:[{question,reason}]}`（最多4项），review 为 `{mode,suggestions:[{nodeId,criterionIndex,evidence,reason,replacement:string|null}]}`（最多12项）。review 必须已有规划，返回引用严格核对任务、原句位置及内容。结果只供本人选择采用，不评分或修改真实任务。
+
+`components/ai/planning-coach` 为浏览器安全的建议采纳纯函数；`planning-coach-ui` 为默认关闭的辅助面板。TaskPlanDialog 统一管理请求锁、取消与关闭守卫，目标/规划快照变动后旧建议不能采用，已开始创建的批次隐藏修改入口。答复须主动加入目标，改写须选择后采用；直接生成入口保留。
+
+服务端以现有登录 secret 加密、账号AAD绑定的独立文件保存最多12个服务商，默认 `.data/ai-providers`，可 AI_PROVIDER_STORE_DIR 指定；配置摘要/导出无密钥。文件锁等待最多约2秒，revision检查、临时文件同步与原子替换避免覆盖；损坏不覆盖，异常退出的遗留锁需管理员确认无写入进程后处理。首次读取服务商列表迁移本账号有效旧Cookie并清除，不重新导入已有配置。默认仅公网 HTTPS，校内 HTTP 或代理虚拟DNS例外需服务器 AI_ALLOWED_LOCAL_ORIGINS 精确允许完整origin；拒绝重定向，固定已验证DNS地址，双栈连接不重复解析，响应中断及时报错。配置与备份范围见 [AI](AI.md)。
+
+模型只在 `/settings?section=ai` 配置；`components/ai/provider-settings.ConnectionSettings` 组合 `ProviderCards` 与内部 `connection-settings.ConnectionForm`。工作区/浮窗/规划只跳转，不嵌入配置表单。`modelRequest(path,body?,signal?,method?:"PUT"|"PATCH")` 支持新服务商接口；`canLeaveModelSettings()` 事件守卫保护设置分区、Tab和路由切换，浮窗在守卫通过后收起。保存不隐式切换，删除使用中项后停用；测试指定服务不影响当前选中项。
+
+新增根契约 `listModelProviders(actorId,cookie?)`、`saveModelProvider(actorId,input,cookie?)`、`changeModelProvider(actorId,input,cookie?)`，均异步；`ai/client` 公开 ModelProviderList 及 modelProviderListSchema/modelProviderSaveSchema/modelProviderActionSchema。列表 `{revision:number,activeId:string|null,providers:[{id,configuration,updatedAt}]}`。testModelConnection 与 listModelNames 最后追加可选 providerId；运行接口读取当前选中服务，getModelConfiguration/saveModelConfiguration 仅保留旧契约兼容，不作为新配置写入入口。
+
+### 主动查阅与文件读取 · 2026-10-16
+
+`chatWithModel(actorId,cookie,input,signal?,progress?)` 追加可选进度回调，返回 `ChatResult={text,model,sources,workSources,retrieval}`。`ai/client` 导出 ChatSource、ChatResult、ChatProgress 及 chatResultSchema/chatProgressSchema/chatStreamEventSchema。资料来源包含 `{resourceId,title,version,href,excerpt,location?}`；工作来源包含 `{kind:"task"|"milestone",id,title,href,excerpt}`。retrieval 包含 scope、searchedScopes、matchedResources、readResources、truncated。NDJSON 事件为 progress（searching/reading/answering）、result 或 error；属于实际处理阶段反馈，不是模型逐字输出。
+
+project 查询当前项目及团队共享资料，accessible 查询本人可访问空间，none 只使用会话与选定附件；个人会话默认 none。明确查阅请求先准备一次授权目录，明确阅读而模型跳过时补一次受控读取，均计入原有边界。只通过 identity/resources/tasks/milestone 根契约查询；最多4轮工具决策及最终回答、2次资料搜索、20个范围、2000个目录候选、6份正文及24000字、最多6项任务/4个里程碑，截断明确反馈。read 可指定 sectionIndex（真实幻灯片序号）、startLine/limitLines，返回 totalLines/nextLine/limited 便于继续读取。每轮及返回前后复核当前权限/版本，资料内容不能扩大工具权限。整体180秒并传递取消信号；不执行SQL、任意网址或业务写入。
+
+resources 新增根导出 `extractFileContent({name,bytes:Uint8Array},{signal?}?)` 与 `readResourceContent(actorId,id,{expectedVersion?,signal?}?)`。`ExtractedFileContent={format:"text"|"pptx"|"docx",text,sections:{index,label,text}[],truncated,warnings}`；`ResourceContent` 追加当前 resource 及 version。读取先后校验ACL/版本/回收状态。限制10MB原件、60000字、500幻灯片及ZIP解压边界；外部超链接/图片不取回，宏不执行，旧PPT/扫描件不伪装可读。
+
+`components/ai/chat-stream` 处理阶段流和最终结果；`chat-response-ui` 复用 resources/ui 的 ResourceMarkdown，引用与处理记录默认收起。停止/失败保护原输入与会话，旧记录兼容但新回复不保存内部推理。PPTX/DOCX导入先经鉴权提取接口，原件和文字仍归本人本地附件库，明确选用后随对话发送。`CollaborationDock` 新增可选 `showLauncher?:boolean`（默认true），完整/ai页面设false，避免固定入口遮挡发送，侧栏仍可打开消息。
+
+模型配置不再写入 `preferences.ai.model`；偏好schema只保留AI模板等界面偏好，首次读取会清除本人旧model镜像，保留主题、其他账号、会话及服务器配置。服务商列表、密钥、参数及当前选中项只由服务器按账号保存；本地会话/附件不是云端同步。
+
+里程碑创建接续：`tasks/ui.CreateTaskForm` 新增 `milestoneId?:string`；公开 `tasks.createSubtask` 输入追加 `milestoneId?:string`，由原创建事务校验归属；`tasks/ui.MilestoneForm` 追加 `onCreated?`、`onPendingChange?`。`milestone.createMilestone` 输入追加 `requestKey?:string`，同项目同输入重试返回原ID，不同输入409，服务端校验真实日期。`milestone/ui.MilestoneWorkspace` 追加 `canCreateTasks?`/`canCreateMilestones?`；由views根据现有公开权限结果传入。Process追加 `onCreateMilestone?`/`onCreateTask?`，ModuleCard追加 `onCreateTask?`；末尾新增卡片打开真实创建弹窗，携带阶段/父任务。创建期间禁关闭，失败保留输入，取消脏内容需确认，成功关闭刷新。子任务自身或待验收/已完成主任务不提供继续拆分入口，不改状态机或权限。
+
+### AI 插件库与任务建议接续 · 2026-10-16
+
+`ai/client` 新增浏览器安全的 `builtinCatalog`、BuiltinId、PluginLibrary、builtinIdSchema/pluginLibrarySchema/pluginSaveSchema/pluginActionSchema；内置id为 resource-search、resource-read、project-work、office-reader、task-planner 和四项快捷提问 project-plan/task-breakdown/review-notes/research。只有前五项为执行工具，开关同时在服务端检查。旧浏览器模板偏好不授予工具权限。
+
+根新增 `getPluginLibrary(actorId)`、`savePluginLibrary(actorId,input)`、`changePluginLibrary(actorId,input)`、`discoverMcpTools(actorId,input,signal?)` 及薄壳 modelPluginsGET/PUT/PATCH/modelPluginsDiscoverPOST。`GET /api/v1/ai/plugins` 返回 `{revision,builtins:[{id,enabled}],mcpServers:[{id,name,url,hasToken,enabled,tools:[{name,description,inputSchema,enabled,readOnly}]}]}`。PUT输入 `{expectedRevision,builtins?,server?:{id?,name,url,token?,enabled?}}`；PATCH输入 `{expectedRevision,op:"delete-server"|"toggle-server"|"toggle-tool",serverId,toolName?,enabled?}`；POST `/plugins/discover` 输入 `{serverId,expectedRevision?}`，发现后返回新列表。写请求校验同源及会话，响应private/no-store，冲突409，错误不回显凭据。
+
+插件配置独立按账号AES-GCM加密存于 `.data/ai-plugins`，可用AI_PLUGIN_STORE_DIR指定；沿用原登录secret、账号AAD、文件锁/版本/原子替换，不覆盖模型提供商。最多8个MCP服务、每个100个工具。远程HTTP初始化与工具发现/调用支持明确版本的JSON/SSE、会话头和有限分页，令牌仅发给本人配置的地址；地址改变不继承旧凭据/工具授权。逐服务/逐工具启用，工具定义指纹变化重新核对，未声明只读/已标破坏性的工具不纳入自动调用；注解本身不构成可信证明。最多2次外部调用、单次文字8000字，不执行远程界面代码或自动访问返回链接。
+
+`components/ai/plugin-library` 提供 usePluginLibrary/builtinEnabled；`plugin-library-ui` 提供 `PluginLibraryPanel({userId,saveGuardRef?})` 和 `PluginLibraryDialog({userId,onClose,onReturnFocus?,saveGuardRef?})`，设置与聊天复用。表单仅内存编辑，保存才写服务器；未保存/等待守卫、取消/错误/版本冲突保留，工具目录默认折叠。
+
+新增明确浏览器入口例外 `@/modules/ai/task-assistance-client`，仅Zod/纯类型/纯函数：taskAssistanceRequestSchema、taskAssistanceSuggestionSchema、taskAssistanceResultSchema、applyTaskAssistanceSchema、selectedTaskAssistancePatch 及对应类型。根服务 `assistExistingTask(actorId,cookie,input,signal?)` 只读当前任务/验收要求并生成建议，生成前后复核权限/版本；`applyTaskAssistance(actorId,input)` 只经tasks.updateTask写入已确认的标题/背景。根薄壳 taskAssistancePOST/applyTaskAssistancePOST 对应 `/api/v1/ai/task-assist` 和 `/task-assist/apply`，成功更新重验相关页面。
+
+建议输入 `{taskId,expectedUpdatedAt,brief?}`，结果 `{task:{id,projectId,title,description,status,updatedAt},requirements:{version,criteria},suggestion:{title,description,rationale,extensions:[{title,reason,addition}],questions,roadmap:[{title,outcome,orderNote}]},model}`；无要求的旧任务version为0。应用输入 `{taskId,expectedUpdatedAt,title?,description?,confirmed:true}`，至少一项，成功返回 `{task}`；原验收要求、状态和其他字段不变。界面默认不采纳，先比较最终内容再确认，冻结/旧版本/无权限拒绝保存，补充说明或源版本改变后须重新生成。
+
+### 交互式回复与规划来源 · 2026-10-16
+
+`ai/client` 追加 `ChatOutputUi`、`chatOutputUiSchema`、`parseChatOutput`、`interactiveOutputInstruction`。`ChatResult.ui?` 为 `{version:1,summary,questions,roadmap:[{title,outcome,orderNote}],changeRequests:[{title,problem,proposal,acceptanceCriteria,impact,risks}]}`，严格拒绝额外字段和执行动作；不合规时保留实际文本，不补造卡片。NDJSON最终结果与普通响应同构。`toolSources?` 保存 `{serverId,serverName,toolName,excerpt,truncated}`，只展示工具文字来源，不暴露连接凭据。会话中以上字段均可选，兼容旧消息。
+
+`TaskPlanContext` 为 `{milestoneId?,taskId?,sourceId?,title}`；任务和消息选择使用独立存储批次，旧项目/里程碑键保持兼容。`AiPlanningContext` 为 `{projectId,milestoneId?,taskId?,title,sourceText?}`，薄AI页面接收可选taskId；任务来源通过tasks公开契约读取标题、背景和验收要求并核对所属项目及ACL。
+
+`TaskPlanDialog` 追加 `initialGoal?:string`，只展示待加入来源，须点击明确追加，不覆盖当前目标/任务树，已开始创建的批次不能追加。对话建议默认不选中，`changeRequestSource` 只将本人选项加入新规划，既有任务变更仍到任务详情比较并确认；没有通用动作或自动保存入口。
+
+`planWithModel` 对不合规输出最多做一轮基于校验问题的模型修正，整轮最长180秒；不放宽schema、不补造字段，权限/插件关闭或取消后不得返回规划。生成结果始终为预览，创建仍通过原apply-plan契约。
 
 ## 4. 契约变更与检查
 
 - 只修改登记 Owner 的模块，跨模块通过公开入口，登录、core 和依赖遵守 [AGENTS.md](../AGENTS.md)。
 - 每模块至少 6 条契约测试，覆盖正常路径、越权、非法状态转移；新行为同时检查并发、版本冲突与真实引用。
-- 提交前 npm test 与 Windows npm run build 全绿；UI 按 [UX.md](UX.md) 检查姓名指派、空状态、失败/取消、键盘、窄屏和 URL 保留。
+- 按用户最新要求，日常只做改动相关的针对性检查，完整 npm test 与 Windows npm run build 留到发布前；UI 按实际影响面检查 [UX.md](UX.md) 中的权限、失败/取消、键盘、窄屏和 URL 保留，不将未检查项记为通过。
 - 版本、迁移、PR 与 Release 的唯一流程见 [WORKFLOW.md](WORKFLOW.md#8-迭代版本与发布)，不在模块文档重复记录发布历史。
+
+### 个人资料收藏（2026-10-19）
+
+resources 新增 `listResourceFavorites(actorId)` 与 `setResourceFavorite(actorId, resourceId, favorite)`；收藏仅属于会话本人，服务端 `.data/resource-favorites` 按账号哈希文件保存资料 ID，上限 1000 条，原子替换与文件锁避免并发覆盖。读取通过 `getResource` 逐条执行现行 ACL（有界并发），跳过失权/删除资料，仅返回标题、标签和归属等导航元数据；取消收藏不改变原资料。`RESOURCE_FAVORITES_DIR` 可指定持久卷，部署备份需包含此目录；异常退出遗留锁由管理员确认后处理。
+
+薄接口 `GET/PUT /api/v1/resources/favorites` 使用当前会话，无账号参数，禁止缓存。`/favorites` 页面通过 `resources/views.ResourceFavoritesView`，资料操作区通过 `resources/ui.ResourceFavoriteButton({resourceId})` 接入；收藏不写浏览器持久缓存。
