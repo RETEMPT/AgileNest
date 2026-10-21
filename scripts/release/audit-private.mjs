@@ -65,7 +65,7 @@ async function walk(directory) {
   return files;
 }
 const files = bundleIndex < 0 ? execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], { encoding: "utf8" }).split("\0").filter(Boolean) : await walk(root);
-const tokenPattern = /(?:sk-(?:proj-|ant-)?[A-Za-z0-9_-]{24,}|gh[pousr]_[A-Za-z0-9_]{30,}|github_pat_[A-Za-z0-9_]{40,}|AKIA[A-Z0-9]{16}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)/g;
+const tokenPattern = /(?<![A-Za-z0-9_])(?:sk-(?:proj-|ant-)?[A-Za-z0-9_-]{24,}|gh[pousr]_[A-Za-z0-9_]{30,}|github_pat_[A-Za-z0-9_]{40,}|AKIA[A-Z0-9]{16}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\\n]*[A-Za-z0-9+/=\\\r\n]{80,}[\s\\n]*-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)(?![A-Za-z0-9_])/g;
 for (const file of files) {
   const normalized = file.replaceAll("\\", "/");
   const template = bundleIndex < 0 && [".env.example", ".env.test.example"].includes(normalized);
@@ -76,7 +76,8 @@ for (const file of files) {
   const bytes = await readFile(target);
   const text = bytes.toString("utf8");
   for (const [value, kind] of known) if (text.includes(value)) findings.push({ kind, file: normalized, line: text.slice(0, text.indexOf(value)).split("\n").length });
-  if (tokenPattern.test(text)) findings.push({ kind: "credential-pattern", file: normalized });
+  // Token heuristics apply to text; exact local private-value checks also cover binaries.
+  if (!bytes.includes(0) && tokenPattern.test(text)) findings.push({ kind: "credential-pattern", file: normalized });
   tokenPattern.lastIndex = 0;
 }
 console.log(JSON.stringify({ scope: bundleIndex < 0 ? "publishable-source" : "release-bundle", files: files.length, localPrivateValuesChecked: known.size, findings }, null, 2));

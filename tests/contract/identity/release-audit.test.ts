@@ -32,4 +32,21 @@ describe("发布包敏感信息审计门禁", () => {
     const token = "ghp_" + "a".repeat(36); await file("app/server.js", `const token = '${token}'`);
     const result = audit(); expect(result.status).toBe(1); expect(result.stdout).toContain("credential-pattern"); expect(result.stdout).not.toContain(token);
   });
+  it("PEM 格式常量不是私钥，完整密钥块会被拒绝", async () => {
+    const header = "-----BEGIN " + "PRIVATE KEY-----";
+    await file("app/server.js", `const marker = '${header}'`);
+    expect(audit().status).toBe(0);
+    await file("app/server.js", `${header}\n${"A".repeat(120)}\n-----END PRIVATE KEY-----`);
+    expect(audit().status).toBe(1);
+  });
+  it("构建文件名和二进制格式常量不误报，二进制中的已知私有值仍被拒绝", async () => {
+    await file("app/route.js", "require('./task-assist_route_actions_0hk-8t1.js')");
+    await file("runtime/node.exe", "");
+    await writeFile(path.join(directory, "bundle/runtime/node.exe"), Buffer.from("\0AKIA" + "A".repeat(16)));
+    expect(audit().status).toBe(0);
+    const secret = "synthetic-binary-secret-for-audit-12345";
+    await writeFile(path.join(directory, ".env"), `AUTH_SECRET=${secret}`);
+    await writeFile(path.join(directory, "bundle/runtime/node.exe"), Buffer.from(`\0${secret}\0`));
+    expect(audit().status).toBe(1);
+  });
 });
