@@ -4,6 +4,8 @@ import path from "path";
 export default defineConfig({
   test: {
     environment: "node",
+    // Local install checks may contain repository copies under .tools.
+    include: ["tests/**/*.test.ts"],
     setupFiles: ["./tests/setup.ts"],
     // 共享测试库，串行执行避免数据互踩
     fileParallelism: false,

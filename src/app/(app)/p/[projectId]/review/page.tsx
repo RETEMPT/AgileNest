@@ -1,12 +1,7 @@
-import { ModulePlaceholder } from "@/components/ui/placeholder";
+import { ReviewView } from "@/modules/review/views";
 
-export default function ReviewPage() {
-  return (
-    <ModulePlaceholder
-      title="验收台（Owner C）"
-      owner="C"
-      branch="feature/review-portal"
-      doc="src/modules/review/index.ts → listPendingReview"
-    />
-  );
+export default async function ReviewPage({ params }: {
+  params: Promise<{ projectId: string }>;
+}) {
+  return <ReviewView params={params} />;
 }

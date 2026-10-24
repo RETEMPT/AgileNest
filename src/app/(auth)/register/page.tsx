@@ -12,7 +12,7 @@ export default function RegisterPage() {
 
   return (
     <main className="mx-auto mt-24 w-full max-w-sm space-y-4 rounded-xl border border-border bg-card p-6 shadow-sm">
-      <h1 className="font-display text-2xl font-semibold">注册 AgileCampus</h1>
+      <h1 className="font-display text-2xl font-semibold">注册 AgileNest</h1>
       <form action={formAction} className="space-y-3">
         <input
           name="name"

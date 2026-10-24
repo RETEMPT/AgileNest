@@ -1,12 +1,5 @@
-import { ModulePlaceholder } from "@/components/ui/placeholder";
+import { MilestonesView } from "@/modules/milestone/views";
 
-export default function MilestonesPage() {
-  return (
-    <ModulePlaceholder
-      title="里程碑（Owner E）"
-      owner="E"
-      branch="feature/calendar-notify"
-      doc="src/modules/milestone/index.ts → listMilestones / createMilestone"
-    />
-  );
+export default function MilestonesPage({ params }: { params: Promise<{ projectId: string }> }) {
+  return <MilestonesView params={params} />;
 }

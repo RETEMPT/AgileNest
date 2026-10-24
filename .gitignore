@@ -11,14 +11,16 @@ next-env.d.ts
 
 # test
 /coverage
+/.tmp/
 
 # env
 .env
 .env.*
 !.env.example
-!.env.test
+!.env.test.example
 
 # misc
+/.data/
 .DS_Store
 *.pem
 *.tsbuildinfo
@@ -30,3 +32,4 @@ yarn-error.log*
 .vscode/
 .idea/
 .playwright-mcp/
+.tools/

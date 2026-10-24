@@ -3,10 +3,14 @@ import { Geist, Fraunces } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-sans", subsets: ["latin"] });
-const fraunces = Fraunces({ variable: "--font-display", subsets: ["latin"], axes: ["opsz"] });
+const fraunces = Fraunces({
+  variable: "--font-display",
+  subsets: ["latin"],
+  axes: ["opsz"],
+});
 
 export const metadata: Metadata = {
-  title: "AgileCampus · 敏捷校园",
+  title: "AgileNest · 团队协作",
   description: "面向高校团队的轻量敏捷项目管理平台",
 };
 

@@ -9,6 +9,8 @@ import * as worklog from "@/modules/worklog";
 import * as calendar from "@/modules/calendar";
 import * as milestone from "@/modules/milestone";
 import * as notify from "@/modules/notify";
+import * as resources from "@/modules/resources";
+import * as discussions from "@/modules/discussions";
 import {
   TASK_STATUSES,
   STATUS_LABELS,
@@ -49,18 +51,39 @@ describe("core 契约导出", () => {
   });
 });
 
+describe("discussions 契约导出", () => {
+  it("任务讨论、历史与HTTP壳完整", () => {
+    for (const name of ["listTaskDiscussions", "createTaskDiscussion", "updateTaskDiscussion", "withdrawTaskDiscussion", "setDiscussionResolved", "listDiscussionRevisions", "taskDiscussionsGET", "taskDiscussionsPOST", "taskDiscussionGET", "taskDiscussionPATCH"]) expect(discussions).toHaveProperty(name);
+  });
+});
+
 describe("identity 契约导出", () => {
   it("团队 / 项目函数齐全", () => {
     for (const name of [
       "createTeam",
       "joinTeam",
       "listMyTeams",
+      "listTeamSpaces",
       "listTeamMembers",
       "updateMemberRole",
       "createProject",
       "listTeamProjects",
       "updateProject",
       "listMyProjects",
+      "getAccountProfile",
+      "saveAccountProfile",
+      "getAvatar",
+      "getFeishuConnection",
+      "disconnectFeishu",
+      "getTeamInformation",
+      "updateTeamInformation",
+      "rotateTeamInvite",
+      "listTeamAnnouncements",
+      "createTeamAnnouncement",
+      "updateTeamAnnouncement",
+      "deleteTeamAnnouncement",
+      "leaveTeam",
+      "removeTeamMember",
     ]) {
       expect(identity, `identity 缺少 ${name}`).toHaveProperty(name);
     }
@@ -79,15 +102,33 @@ describe("业务模块契约导出（stub 期）", () => {
         "updateTask",
         "deleteTask",
         "transitionTask",
+        "availableTransitions",
         "createSubtask",
         "listSubtasks",
         "setDueDate",
+        "getTaskDelivery",
+        "saveTaskRequirements",
       ],
     ],
     [
       "board",
       board,
-      ["deriveColumns", "applyFilters", "parseFilters", "serializeFilters", "moveTask"],
+      ["deriveColumns", "applyFilters", "parseFilters", "serializeFilters", "moveTask", "getMoveTransition"],
+    ],
+    [
+      "resources",
+      resources,
+      [
+        "listResources",
+        "getResource",
+        "createResource",
+        "uploadResource",
+        "updateResource",
+        "deleteResource",
+        "listResourceRevisions",
+        "getResourceFile",
+        "bindSubmissionResources",
+      ],
     ],
     [
       "review",
@@ -115,7 +156,21 @@ describe("业务模块契约导出（stub 期）", () => {
         "memberContribution",
       ],
     ],
-    ["calendar", calendar, ["monthView"]],
+    [
+      "calendar",
+      calendar,
+      [
+        "monthView",
+        "listMySchedules",
+        "createSchedule",
+        "updateSchedule",
+        "deleteSchedule",
+        "schedulesGET",
+        "schedulesPOST",
+        "schedulePUT",
+        "scheduleDELETE",
+      ],
+    ],
     [
       "milestone",
       milestone,
