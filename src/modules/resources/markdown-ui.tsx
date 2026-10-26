@@ -4,7 +4,21 @@ import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { safeResourceUrl } from "./client";
 
-function inline(text: string): ReactNode[] {
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function highlightMentions(part: string, mentions: readonly string[]) {
+  if (!mentions.length) return part;
+  const pattern = new RegExp(`(@(?:${[...mentions].sort((left, right) => right.length - left.length).map(escapeRegExp).join("|")}))`, "g");
+  const chunks = part.split(pattern);
+  if (chunks.length === 1) return part;
+  return chunks.map((chunk, index) => chunk.startsWith("@") && mentions.includes(chunk.slice(1))
+    ? <mark key={`${part}-${index}`} className="rounded-sm bg-accent/10 px-0.5 font-medium text-accent">{chunk}</mark>
+    : chunk);
+}
+
+function inline(text: string, mentions: readonly string[] = []): ReactNode[] {
   return text.split(/(`[^`]+`|\*\*[^*]+\*\*|~~[^~]+~~|\*[^*]+\*|!?\[[^\]]+\]\([^\s)]+\))/g).map((part, i) => {
     if (part.startsWith("`") && part.endsWith("`")) return <code key={i} className="rounded bg-muted px-1.5 py-0.5 text-[0.9em]">{part.slice(1, -1)}</code>;
     if (part.startsWith("**") && part.endsWith("**")) return <strong key={i}>{part.slice(2, -2)}</strong>;
@@ -13,7 +27,7 @@ function inline(text: string): ReactNode[] {
     const link = part.match(/^(!?)\[([^\]]+)\]\(([^)]+)\)$/);
     // Remote images remain explicit links so viewing a document does not fetch third-party content.
     if (link && safeResourceUrl(link[3])) return <a key={i} href={link[3]} target="_blank" rel="noopener noreferrer" className="text-brand underline underline-offset-4">{link[1] ? `图片：${link[2]}` : link[2]}</a>;
-    return part;
+    return highlightMentions(part, mentions);
   });
 }
 
@@ -21,12 +35,13 @@ function tableCells(line: string) {
   return line.trim().replace(/^\|/, "").replace(/\|$/, "").split(/(?<!\\)\|/).map((cell) => cell.trim().replace(/\\\|/g, "|"));
 }
 
-export function ResourceMarkdown({ text, idPrefix = "resource" }: { text: string; idPrefix?: string }) {
+export function ResourceMarkdown({ text, idPrefix = "resource", compact = false, mentions = [] }: { text: string; idPrefix?: string; compact?: boolean; mentions?: readonly string[] }) {
   const [largeText, setLargeText] = useState(false);
   const [wide, setWide] = useState(false);
   const headings: { id: string; label: string; level: number }[] = [];
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
+  const renderInline = (value: string) => inline(value, mentions);
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const start = i;
@@ -43,14 +58,14 @@ export function ResourceMarkdown({ text, idPrefix = "resource" }: { text: string
     if (heading) {
       headings.push({ id, label: heading[2], level: heading[1].length });
       const Tag = `h${heading[1].length}` as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
-      blocks.push(<Tag key={i} id={id} className={`scroll-mt-4 pt-4 font-semibold ${heading[1].length <= 2 ? "border-b border-border pb-2 text-xl" : "text-base"}`}>{inline(heading[2])}</Tag>);
+      blocks.push(<Tag key={i} id={id} className={`scroll-mt-4 font-semibold ${heading[1].length <= 2 ? compact ? "pt-2 text-base" : "border-b border-border pb-2 pt-4 text-xl" : compact ? "pt-1 text-sm" : "pt-4 text-base"}`}>{renderInline(heading[2])}</Tag>);
       continue;
     }
     if (line.includes("|") && i + 1 < lines.length && tableCells(lines[i + 1]).every((cell) => /^:?-{3,}:?$/.test(cell))) {
       const header = tableCells(line); const alignment = tableCells(lines[++i]); const rows: string[][] = [];
       while (i + 1 < lines.length && lines[i + 1].trim() && lines[i + 1].includes("|")) rows.push(tableCells(lines[++i]));
       const align = (column: number) => alignment[column]?.startsWith(":") && alignment[column]?.endsWith(":") ? "text-center" : alignment[column]?.endsWith(":") ? "text-right" : "text-left";
-      blocks.push(<div key={start} id={id} className="overflow-x-auto rounded-lg border border-border"><table className="min-w-full text-sm"><thead className="bg-muted/50"><tr>{header.map((cell, column) => <th key={column} className={`border-b border-border px-3 py-2 font-semibold ${align(column)}`}>{inline(cell)}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={index} className="border-b border-border last:border-0 even:bg-muted/20">{header.map((_, column) => <td key={column} className={`px-3 py-2 ${align(column)}`}>{inline(row[column] ?? "")}</td>)}</tr>)}</tbody></table></div>);
+      blocks.push(<div key={start} id={id} className="overflow-x-auto rounded-lg border border-border"><table className="min-w-full text-sm"><thead className="bg-muted/50"><tr>{header.map((cell, column) => <th key={column} className={`border-b border-border px-3 py-2 font-semibold ${align(column)}`}>{renderInline(cell)}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={index} className="border-b border-border last:border-0 even:bg-muted/20">{header.map((_, column) => <td key={column} className={`px-3 py-2 ${align(column)}`}>{renderInline(row[column] ?? "")}</td>)}</tr>)}</tbody></table></div>);
       continue;
     }
     const list = line.match(/^\s*([-*+]\s+|\d+[.)]\s+)(.*)$/);
@@ -60,7 +75,7 @@ export function ResourceMarkdown({ text, idPrefix = "resource" }: { text: string
         const entry = lines[i].match(/^\s*([-*+]\s+|\d+[.)]\s+)(.*)$/);
         if (!entry || /^\d/.test(entry[1]) !== ordered) break;
         const check = entry[2].match(/^\[([ xX])\]\s*(.*)$/);
-        items.push(<li key={i} id={`${idPrefix}-line-${i + 1}`} className={check ? "list-none" : "pl-1"}>{check ? <><span aria-label={check[1] === " " ? "未勾选" : "已勾选"} className="mr-2 text-brand">{check[1] === " " ? "□" : "☑"}</span>{inline(check[2])}</> : inline(entry[2])}</li>);
+        items.push(<li key={i} id={`${idPrefix}-line-${i + 1}`} className={check ? "list-none" : "pl-1"}>{check ? <><span aria-label={check[1] === " " ? "未勾选" : "已勾选"} className="mr-2 text-brand">{check[1] === " " ? "□" : "☑"}</span>{renderInline(check[2])}</> : renderInline(entry[2])}</li>);
         i++;
       } while (i < lines.length);
       i--;
@@ -70,10 +85,11 @@ export function ResourceMarkdown({ text, idPrefix = "resource" }: { text: string
     if (/^>\s?/.test(line)) {
       const quotes = [line.replace(/^>\s?/, "")];
       while (i + 1 < lines.length && /^>\s?/.test(lines[i + 1])) quotes.push(lines[++i].replace(/^>\s?/, ""));
-      blocks.push(<blockquote key={start} id={id} className="whitespace-pre-wrap border-l-4 border-brand/30 pl-4 text-muted-foreground">{inline(quotes.join("\n"))}</blockquote>);
+      blocks.push(<blockquote key={start} id={id} className="whitespace-pre-wrap border-l-4 border-brand/30 pl-4 text-muted-foreground">{renderInline(quotes.join("\n"))}</blockquote>);
     } else if (/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line)) blocks.push(<hr key={i} className="border-border" />);
-    else blocks.push(<p key={i} id={id} className="whitespace-pre-wrap">{inline(line)}</p>);
+    else blocks.push(<p key={i} id={id} className="whitespace-pre-wrap">{renderInline(line)}</p>);
   }
+  if (compact) return <div className="min-w-0 space-y-2 break-words text-sm leading-6 [overflow-wrap:anywhere]">{blocks}</div>;
   return <div className="min-w-0 space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
       <span className="text-xs text-muted-foreground">正文阅读</span>

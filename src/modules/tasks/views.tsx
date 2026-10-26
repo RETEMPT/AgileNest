@@ -84,7 +84,7 @@ export async function TaskDetailView({
       <TaskOrganization taskId={task.id} projectId={projectId} />
       <ResourceTaskLinks taskId={task.id} projectId={projectId} />
       <TaskRequirementsEditor taskId={task.id} requirements={delivery.requirements} canEdit={Boolean(task.permissions?.actions.includes("update")) && !["submitted", "accepted"].includes(task.status)} taskStatus={task.status} />
-      <TaskDiscussions taskId={task.id} projectId={projectId} actorId={user.id} />
+      <TaskDiscussions taskId={task.id} projectId={projectId} actorId={user.id} task={{ id: task.id, title: task.title, status: task.status, dueDate: task.dueDate, assigneeName: task.assigneeName, projectName: access.project.name }} />
       <SubmissionTimeline taskId={task.id} updatedAt={task.updatedAt.toISOString()} />
 
       <section className="space-y-3 rounded-xl border border-border bg-card p-4 sm:p-5">

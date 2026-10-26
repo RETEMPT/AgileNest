@@ -340,10 +340,11 @@ discussionListSchema / discussionPostSchema / discussionHistorySchema / discussi
 discussionCreateSchema / discussionEditSchema / discussionResolveSchema
 
 // discussions/ui：完整页与共享任务抽屉共用
-TaskDiscussions({ taskId, projectId, actorId, onBusyChange?, onDirtyChange? })
+TaskDiscussions({ taskId, projectId, actorId, task?, compact?, onBusyChange?, onDirtyChange? })
 ```
 
-- `listDiscussionMembers(actorId,taskId)`只返回当前团队姓名/ID供明确选择。
+- `listDiscussionMembers(actorId,taskId)`返回当前团队的姓名、ID、职务与头像地址，供讨论侧栏和明确提及选择使用。
+- `task?` 是可选任务摘要上下文（标题、状态、截止、负责人、项目名）；完整页传入后显示 240px 任务栏。`compact?` 用于任务抽屉隐藏任务栏并压缩高度，两者缺省时保持原调用兼容。
 - `createTaskDiscussion`增加mentionedUserIds默认[]；`updateTaskDiscussion`可传mentionedUserIds，缺省延续旧快照而不重新提醒离队成员；编辑显式新提及仍要求当前成员。resolve/withdraw复制该版快照，DTO/history可选mentions={userId,name}[]。
 - `listTaskDiscussions(actorId,taskId,{before?,around?}={})`返回nextCursor可空。createdAt+id稳定分页，补齐回复根主题；before必须当前任务，around用于旧通知定位。裁剪游标保留边界，避免遗漏旧回复。GET列表?members读取名单，?before/?around浏览历史。
 - 原TaskDiscussions共享UI增加姓名提及、任务关注、加载较早记录；草稿与409输入保留，文件引用和五态不变。
