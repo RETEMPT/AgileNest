@@ -89,7 +89,7 @@ export function TaskDrawer({ task, role, actorId, isOpen, onClose, members, mile
           <TaskOrganization taskId={task.id} projectId={task.projectId} onBusyChange={setOrganizationPending} />
           <ResourceTaskLinks taskId={task.id} projectId={task.projectId} onBusyChange={setResourcePending} />
           <SubmissionTimeline taskId={task.id} updatedAt={task.updatedAt instanceof Date ? task.updatedAt.toISOString() : String(task.updatedAt)} compact />
-          <TaskDiscussions taskId={task.id} projectId={task.projectId} actorId={actorId} onBusyChange={setDiscussionPending} />
+          <TaskDiscussions taskId={task.id} projectId={task.projectId} actorId={actorId} compact task={{ id: task.id, title: task.title, status: task.status, dueDate: task.dueDate, assigneeName: task.assigneeName, projectName: task.projectName }} onBusyChange={setDiscussionPending} />
           <details className="border-t border-border pt-4">
             <summary className="cursor-pointer text-sm font-medium">任务活动{loading ? " · 加载中" : ` · ${events.length} 条`}</summary>
             <div className="mt-4">

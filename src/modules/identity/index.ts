@@ -9,6 +9,7 @@ export {
   getAccountProfile,
   saveAccountProfile,
   getAvatar,
+  avatarUrl,
 } from "./profile-service";
 export { avatarGET } from "./api";
 export { getFeishuConnection, disconnectFeishu } from "./connection-service";
