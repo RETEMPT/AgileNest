@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16
+    container_name: agilecampus-db
+    environment:
+      POSTGRES_USER: agilecampus
+      POSTGRES_PASSWORD: agilecampus_dev
+      POSTGRES_DB: agilecampus
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agilecampus -d agilecampus"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:
