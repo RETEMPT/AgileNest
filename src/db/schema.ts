@@ -663,3 +663,46 @@ export const deliveryRecords = pgTable("delivery_records", {
   snapshot: jsonb("snapshot").$type<import("@/modules/delivery/client").DeliverySnapshot>().notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [uniqueIndex("delivery_records_batch_version_unique").on(t.batchId, t.version), check("delivery_records_version_check", sql`${t.version} > 0`), check("delivery_records_action_check", sql`${t.action} in ('create', 'edit', 'bind', 'unbind', 'issue', 'resolve', 'reopenIssue', 'complete', 'reopen', 'archive', 'restore')`)]);
+
+// ============================================================
+// comments：项目评论（师生都可发表，作者可编辑/撤回）
+// ============================================================
+
+export const projectComments = pgTable("project_comments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  parentId: uuid("parent_id").references((): AnyPgColumn => projectComments.id, { onDelete: "cascade" }),
+  body: text("body").notNull(),
+  version: integer("version").notNull().default(1),
+  withdrawn: boolean("withdrawn").notNull().default(false),
+  createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(), updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("project_comments_project_idx").on(t.projectId, t.createdAt), check("project_comments_version_check", sql`${t.version} > 0`), check("project_comments_body_check", sql`char_length(btrim(${t.body})) between 1 and 10000`)]);
+
+// ============================================================
+// assets：团队级资源池与占用申请
+// ============================================================
+
+export const assets = pgTable("assets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  totalQuantity: integer("total_quantity").notNull(),
+  note: text("note").notNull().default(""),
+  version: integer("version").notNull().default(1),
+  createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(), updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("assets_team_idx").on(t.teamId), check("assets_name_check", sql`char_length(btrim(${t.name})) between 1 and 80`), check("assets_quantity_check", sql`${t.totalQuantity} > 0`), check("assets_version_check", sql`${t.version} > 0`)]);
+
+export const assetRequests = pgTable("asset_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  assetId: uuid("asset_id").notNull().references(() => assets.id, { onDelete: "cascade" }),
+  applicantId: uuid("applicant_id").references(() => users.id, { onDelete: "set null" }),
+  quantity: integer("quantity").notNull(),
+  purpose: text("purpose").notNull().default(""),
+  status: text("status").$type<"pending" | "approved" | "rejected" | "returned" | "withdrawn">().notNull().default("pending"),
+  decidedById: uuid("decided_by_id").references(() => users.id, { onDelete: "set null" }),
+  decidedAt: timestamp("decided_at"),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at").notNull().defaultNow(), updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("asset_requests_asset_idx").on(t.assetId), index("asset_requests_applicant_idx").on(t.applicantId), check("asset_requests_quantity_check", sql`${t.quantity} > 0`), check("asset_requests_status_check", sql`${t.status} in ('pending', 'approved', 'rejected', 'returned', 'withdrawn')`), check("asset_requests_version_check", sql`${t.version} > 0`)]);
