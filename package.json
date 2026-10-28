@@ -1,6 +1,6 @@
 {
-  "name": "agilecampus",
-  "version": "0.2.0",
+  "name": "agilenest",
+  "version": "0.6.0",
   "private": true,
   "scripts": {
     "dev": "next dev",

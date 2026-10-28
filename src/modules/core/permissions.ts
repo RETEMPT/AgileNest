@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { projects, teamMembers, type TeamRole } from "@/db/schema";
+import { projects, teamMembers, memberPositions, type TeamRole } from "@/db/schema";
+import { capabilitiesFor, positionsFromRole } from "@/modules/identity/client";
 import { ForbiddenError, NotFoundError } from "./errors";
 
 export type ActorRole = TeamRole;
@@ -14,7 +15,7 @@ export async function getProjectForUser(actorId: string, projectId: string) {
   if (!project) return null;
   const membership = await getTeamMembership(actorId, project.teamId);
   if (!membership) return null;
-  return { project, role: membership.role as ActorRole };
+  return { project, role: membership.role as ActorRole, positions: membership.positions, capabilities: capabilitiesFor(membership.positions, project.kind) };
 }
 
 export async function requireProjectForUser(actorId: string, projectId: string) {
@@ -28,7 +29,9 @@ export async function getTeamMembership(userId: string, teamId: string) {
     .select()
     .from(teamMembers)
     .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)));
-  return member ?? null;
+  if (!member) return null;
+  const [assignment] = await db.select().from(memberPositions).where(eq(memberPositions.membershipId, member.id));
+  return { ...member, positions: assignment?.positions ?? positionsFromRole(member.role) };
 }
 
 export async function requireTeamRole(userId: string, teamId: string, allowed: TeamRole[]) {
@@ -37,22 +40,17 @@ export async function requireTeamRole(userId: string, teamId: string, allowed: T
   return member;
 }
 
-/**
- * 任务写权限：admin + student 可写；teacher 只读（验收走 review 模块的专用动作）。
- * 与 `modules/tasks` 共享同一口径。
- */
-const TASK_WRITE_ROLES: TeamRole[] = ["admin", "student"];
-
+// 可叠加职务按项目场景求并集，学术身份不参与授权。
 export async function requireTaskWrite(actorId: string, projectId: string) {
   const access = await requireProjectForUser(actorId, projectId);
-  if (!TASK_WRITE_ROLES.includes(access.role)) throw new ForbiddenError();
+  if (!access.capabilities.execute) throw new ForbiddenError();
   return access;
 }
 
-/** 教师验收类动作：teacher + admin。 */
+/** 指导老师 / 管理员验收类动作。 */
 export async function requireReviewer(actorId: string, projectId: string) {
   const access = await requireProjectForUser(actorId, projectId);
-  if (access.role !== "teacher" && access.role !== "admin") throw new ForbiddenError();
+  if (!access.capabilities.review) throw new ForbiddenError();
   return access;
 }
 

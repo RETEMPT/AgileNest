@@ -162,7 +162,7 @@ describe("listTeamMembers", () => {
     await joinTeam(teacher.id, team.inviteCode);
     await updateMemberRole(owner.id, team.id, teacher.id, "teacher");
 
-    const list = await listTeamMembers(team.id);
+    const list = await listTeamMembers(owner.id, team.id);
     expect(list).toHaveLength(2);
     expect(list.find((m) => m.id === owner.id)?.role).toBe("admin");
     const t = list.find((m) => m.id === teacher.id);
@@ -176,7 +176,7 @@ describe("listTeamMembers", () => {
     const other = await makeUser("other@example.com");
     await createTeam(other.id, "曹魏参谋部");
 
-    const list = await listTeamMembers(team.id);
+    const list = await listTeamMembers(owner.id, team.id);
     expect(list).toHaveLength(1);
     expect(list[0].id).toBe(owner.id);
   });

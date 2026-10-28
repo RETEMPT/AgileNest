@@ -1,22 +1,31 @@
-import { NotImplementedError } from "@/modules/core/errors";
-import type { TaskDTO } from "@/modules/tasks";
-import type { MilestoneDTO } from "@/modules/milestone";
-
-export type CalendarCell = {
-  iso: string;
-  inMonth: boolean;
-  tasks: TaskDTO[];
-  milestones: MilestoneDTO[];
-};
-
-// —— Owner E（feature/calendar-notify）填实 ——
-
-export async function monthView(
-  _actorId: string,
-  _projectId: string,
-  _year: number,
-  /** 1-12 */
-  _month: number,
-): Promise<CalendarCell[]> {
-  throw new NotImplementedError("monthView");
-}
+export * from "./model";
+export {
+  agendaWindow,
+  calendarBoard,
+  listAgenda,
+  listAgendaDays,
+  monthView,
+  parseCalendarFilters,
+  parseCalendarQuery,
+  serializeCalendarQuery,
+  type CalendarTask,
+} from "./service";
+export type { CalendarCell } from "./service";
+export { CalendarWorkspaceView } from "./project-view";
+export {
+  listMySchedules,
+  createSchedule,
+  updateSchedule,
+  deleteSchedule,
+} from "./schedule-service";
+export {
+  projectCalendarGET,
+  schedulesGET,
+  schedulesPOST,
+  schedulePUT,
+  scheduleDELETE,
+} from "./api";
+export type { ScheduleDTO, ScheduleInput, SchedulePriority } from "./client";
+export { getMyScheduleReminder, saveMyScheduleReminder, collectMyScheduleReminders } from "./reminder-service";
+export { scheduleReminderGET, scheduleReminderPUT } from "./reminder-api";
+export type { ScheduleReminderDTO, ScheduleReminderInput, ScheduleReminderMinutes } from "./client";

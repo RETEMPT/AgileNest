@@ -1,12 +1,8 @@
-import { ModulePlaceholder } from "@/components/ui/placeholder";
+import { ProjectCalendarView } from "@/modules/calendar/views";
 
-export default function CalendarPage() {
-  return (
-    <ModulePlaceholder
-      title="日历（Owner E）"
-      owner="E"
-      branch="feature/calendar-notify"
-      doc="src/modules/calendar/index.ts → monthView"
-    />
-  );
+export default function CalendarPage(props: {
+  params: Promise<{ projectId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  return <ProjectCalendarView {...props} />;
 }
