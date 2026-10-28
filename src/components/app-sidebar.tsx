@@ -15,7 +15,7 @@ import {
   ProjectFolderIcon, LogoutIcon, ChevronDownIcon, MenuIcon,
   SidebarCollapseIcon, SidebarExpandIcon,
 } from "@/components/icons";
-import { Check, Files, PackageCheck, Bookmark } from "lucide-react";
+import { Check, Files, PackageCheck, Bookmark, MessageSquare, Boxes } from "lucide-react";
 
 export type ProjectSummary = {
   id: string;
@@ -46,6 +46,7 @@ type SidebarContentProps = AppSidebarProps & {
 function SidebarContent({ user, projects, onSignOut, onToggleCollapse, pathname, project, onSelectProject, collapsed, closeMobile, projectButtonRef, restoreNavigationFocus }: SidebarContentProps) {
   const name = user.name || "用户";
   const [projectMenuPath, setProjectMenuPath] = useState<string | null>(null);
+  const [projectSearch, setProjectSearch] = useState("");
   const projectMenuOpen = projectMenuPath === pathname;
   if (projectMenuPath !== null && projectMenuPath !== pathname) setProjectMenuPath(null);
   useEffect(() => {
@@ -69,7 +70,9 @@ function SidebarContent({ user, projects, onSignOut, onToggleCollapse, pathname,
     { href: `/p/${project.id}/review`, label: "验收", icon: ReviewIcon, active: pathname === `/p/${project.id}/review` },
     { href: `/p/${project.id}/resources`, label: "项目资料", icon: (props: Parameters<typeof ProjectFolderIcon>[0]) => <Files {...props} />, active: pathname === `/p/${project.id}/resources` },
     { href: `/p/${project.id}/delivery`, label: "阶段交付", icon: (props: Parameters<typeof ProjectFolderIcon>[0]) => <PackageCheck {...props} />, active: pathname === `/p/${project.id}/delivery` },
+    { href: `/p/${project.id}/comments`, label: "项目评论", icon: (props: Parameters<typeof ProjectFolderIcon>[0]) => <MessageSquare {...props} />, active: pathname === `/p/${project.id}/comments` },
     { href: `/p/${project.id}/stats`, label: "成员贡献", icon: StatsIcon, active: pathname === `/p/${project.id}/stats` },
+    { href: `/t/${project.teamId}/assets`, label: "资源申请", icon: (props: Parameters<typeof ProjectFolderIcon>[0]) => <Boxes {...props} />, active: pathname === `/t/${project.teamId}/assets` },
   ] : [];
   const accountItems = [
     { href: "/favorites", label: "我的收藏", icon: (props: Parameters<typeof ProjectFolderIcon>[0]) => <Bookmark {...props} />, active: pathname === "/favorites" },
@@ -77,6 +80,8 @@ function SidebarContent({ user, projects, onSignOut, onToggleCollapse, pathname,
     { href: "/settings", label: "个人中心", icon: SettingsIcon, active: pathname === "/settings" },
     { href: "/guide", label: "使用指引", icon: GuideIcon, active: pathname === "/guide" },
   ];
+  const query = projectSearch.trim().toLocaleLowerCase();
+  const visibleProjects = projects.filter((item) => item.name.toLocaleLowerCase().includes(query) || item.teamName.toLocaleLowerCase().includes(query));
 
   function links(items: typeof workspaceItems, label: string) {
     return <nav aria-label={label} className="space-y-1">{items.map(({ href, label: title, icon: Icon, active }) => (
@@ -96,7 +101,7 @@ function SidebarContent({ user, projects, onSignOut, onToggleCollapse, pathname,
       </Button>
     </div>
     <div className="border-b border-border p-3">
-      <DropdownMenu.Root open={projectMenuOpen} onOpenChange={(open) => setProjectMenuPath(open ? pathname : null)}>
+      <DropdownMenu.Root open={projectMenuOpen} onOpenChange={(open) => { setProjectMenuPath(open ? pathname : null); if (!open) setProjectSearch(""); }}>
         <DropdownMenu.Trigger asChild>
           <button ref={projectButtonRef} type="button" aria-label={project ? `切换项目：${project.name}` : "选择项目"} title={collapsed ? project?.name || "选择项目" : undefined}
             className={`flex min-h-10 w-full items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-left text-sm hover:bg-accent ${collapsed ? "justify-center px-0" : ""}`}>
@@ -112,8 +117,12 @@ function SidebarContent({ user, projects, onSignOut, onToggleCollapse, pathname,
             }
           }} className="z-[70] max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))] w-72 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg">
             <DropdownMenu.Label className="px-3 py-2 text-xs text-muted-foreground">选择项目</DropdownMenu.Label>
+            <div className="px-2 pb-1">
+              <input type="search" value={projectSearch} onChange={(event) => setProjectSearch(event.target.value)} onPointerDown={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()} placeholder="搜索项目名称" aria-label="搜索项目名称" className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring" />
+            </div>
             {projects.length === 0 && <p className="px-3 py-3 text-sm text-muted-foreground">暂无项目，可先创建或加入团队。</p>}
-            {projects.map((item) => <DropdownMenu.Item key={item.id} asChild>
+            {projects.length > 0 && !visibleProjects.length && <p className="px-3 py-3 text-sm text-muted-foreground">没有匹配的项目。</p>}
+            {visibleProjects.map((item) => <DropdownMenu.Item key={item.id} asChild>
               <Link href={`/p/${item.id}/board`} onClick={closeMobile} onNavigate={() => onSelectProject(item.id)} aria-current={item.id === project?.id ? "true" : undefined}
                 className="flex min-h-11 flex-col gap-0.5 rounded-lg px-3 py-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground">
                 <span className="flex w-full items-start gap-2"><span className="min-w-0 flex-1 break-words font-medium">{item.name}</span>{item.id === project?.id && <><Check size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-brand" /><span className="sr-only">当前项目</span></>}</span><span className="text-xs text-muted-foreground">{item.teamName}</span>

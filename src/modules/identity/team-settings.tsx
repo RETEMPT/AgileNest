@@ -21,11 +21,12 @@ import {
 } from "./team-actions";
 import type { IdentityFormState } from "./actions";
 
-export function TeamSectionLinks({ teamId, current }: { teamId: string; current: "projects" | "members" | "settings" | "resources" }) {
+export function TeamSectionLinks({ teamId, current }: { teamId: string; current: "projects" | "members" | "settings" | "resources" | "assets" }) {
   return <nav aria-label="团队页面" className="flex flex-wrap gap-2">
     {[
       { path: "projects", label: "团队项目" }, { path: "members", label: "成员与分工" },
-      { path: "settings", label: "团队信息" }, { path: "resources", label: "资料中心" },
+      { path: "resources", label: "资料中心" }, { path: "assets", label: "资源申请" },
+      { path: "settings", label: "团队信息" },
     ].map((item) => <Button key={item.path} asChild size="sm" variant={current === item.path ? "default" : "outline"}>
       <Link href={`/t/${teamId}/${item.path}`} aria-current={current === item.path ? "page" : undefined}>{item.label}</Link>
     </Button>)}

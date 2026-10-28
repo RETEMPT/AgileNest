@@ -179,6 +179,9 @@ export async function ProjectOverviewView({
           <Link href={"/p/" + projectId + "/stats"} className="text-brand">
             成员贡献 ↗
           </Link>
+          <Link href={"/p/" + projectId + "/comments"} className="text-brand">
+            项目评论 ↗
+          </Link>
         </nav>
       </section>
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
