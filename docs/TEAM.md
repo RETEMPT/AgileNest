@@ -211,11 +211,14 @@ review 的 `getWorkbench` 用成员关联查询进行访问隔离，按项目能
 ```ts
 addWorklog(actorId, taskId, input) / listWorklogs(actorId, taskId) / deleteWorklog(actorId, worklogId)
 completionRatio(actorId, taskId) / projectCompletion(actorId, projectId)
+projectProgress(actorId, projectId)
 taskHours(actorId, projectId, range?)
 memberContribution(actorId, projectId)
 ```
 
 `projectCompletion` 的 `{ done, total, ratio }` 为已验收顶层任务数/顶层总数；`completionRatio` 在有子任务时为已验收子任务数/直接子任务总数。公开 `worklog/views.StatsView` 为成员贡献页。工时填写与删除已停用，addWorklog/deleteWorklog 先查 ACL 后返回 410，旧导出和历史只读契约保留；WorklogForm/addWorklogAction 已移除，历史表未删除。
+
+`projectProgress` 生成 `/p/:projectId/progress` 所需的项目级只读汇总：`total/accepted/ratio` 仍按顶层任务验收；`subtaskTotal/subtaskAccepted` 单独列出；`statusCounts/active/overdue/attention` 描述当前五态、推进中、逾期和去重后的关注任务；`milestones` 按阶段（含“未关联里程碑”）统计顶层任务验收与逾期；`weeks` 按验收时间汇总最近 8 周；`risks` 仅列逾期或待修改的顶层任务。公开 `worklog/views.ProgressView` 为进度页，不新增表、写入或任务状态变更，子任务验收不计入项目完成率。
 
 `memberContribution` 当前管理员/副管理员/指导老师返回全员，普通成员仅本人；Contribution 移除 minutes，新增 tasksTotal/statusCounts/completionRatio/overdue/tasks，tasksSubmitted 为当前待验收数、tasksAccepted 为当前通过数。按当前负责人统计，任务详情列明是否子任务，顶层总完成度单独显示；不以历史投入或任务数量自动评价个人。
 
@@ -342,10 +345,11 @@ discussionListSchema / discussionPostSchema / discussionHistorySchema / discussi
 discussionCreateSchema / discussionEditSchema / discussionResolveSchema
 
 // discussions/ui：完整页与共享任务抽屉共用
-TaskDiscussions({ taskId, projectId, actorId, onBusyChange?, onDirtyChange? })
+TaskDiscussions({ taskId, projectId, actorId, task?, compact?, onBusyChange?, onDirtyChange? })
 ```
 
-- `listDiscussionMembers(actorId,taskId)`只返回当前团队姓名/ID供明确选择。
+- `listDiscussionMembers(actorId,taskId)`返回当前团队的姓名、ID、职务与头像地址，供讨论侧栏和明确提及选择使用。
+- `task?` 是可选任务摘要上下文（标题、状态、截止、负责人、项目名）；完整页传入后显示 240px 任务栏。`compact?` 用于任务抽屉隐藏任务栏并压缩高度，两者缺省时保持原调用兼容。
 - `createTaskDiscussion`增加mentionedUserIds默认[]；`updateTaskDiscussion`可传mentionedUserIds，缺省延续旧快照而不重新提醒离队成员；编辑显式新提及仍要求当前成员。resolve/withdraw复制该版快照，DTO/history可选mentions={userId,name}[]。
 - `listTaskDiscussions(actorId,taskId,{before?,around?}={})`返回nextCursor可空。createdAt+id稳定分页，补齐回复根主题；before必须当前任务，around用于旧通知定位。裁剪游标保留边界，避免遗漏旧回复。GET列表?members读取名单，?before/?around浏览历史。
 - 原TaskDiscussions共享UI增加姓名提及、任务关注、加载较早记录；草稿与409输入保留，文件引用和五态不变。

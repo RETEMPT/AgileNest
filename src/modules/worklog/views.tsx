@@ -6,6 +6,8 @@ import { memberContribution, projectCompletion } from "@/modules/worklog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/badge";
 
+export { ProgressView } from "./progress-view";
+
 export async function StatsView({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
   const user = await requireUser();

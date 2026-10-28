@@ -166,6 +166,7 @@ describe("业务模块契约导出（stub 期）", () => {
         "deleteWorklog",
         "completionRatio",
         "projectCompletion",
+        "projectProgress",
         "taskHours",
         "memberContribution",
       ],

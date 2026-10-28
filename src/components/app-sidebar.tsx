@@ -11,7 +11,7 @@ import { Button } from "./ui/button";
 import { browserSidebarProjectStore, resolveSidebarProject } from "./sidebar-project";
 import {
   LogoIcon, WorkbenchIcon, AiChatIcon, TeamIcon, TasksIcon, CalendarIcon,
-  MilestoneIcon, ReviewIcon, StatsIcon, NotifyIcon, SettingsIcon, GuideIcon,
+  MilestoneIcon, ReviewIcon, StatsIcon, ProgressIcon, NotifyIcon, SettingsIcon, GuideIcon,
   ProjectFolderIcon, LogoutIcon, ChevronDownIcon, MenuIcon,
   SidebarCollapseIcon, SidebarExpandIcon,
 } from "@/components/icons";
@@ -63,6 +63,7 @@ function SidebarContent({ user, projects, onSignOut, onToggleCollapse, pathname,
   ];
   const projectItems = project ? [
     { href: `/p/${project.id}`, label: "项目概览", icon: ProjectFolderIcon, active: pathname === `/p/${project.id}` },
+    { href: `/p/${project.id}/progress`, label: "进度", icon: ProgressIcon, active: pathname === `/p/${project.id}/progress` },
     { href: `/p/${project.id}/board`, label: "任务", icon: TasksIcon, active: ["tasks", "board", "table"].some((view) => pathname === `/p/${project.id}/${view}` || pathname.startsWith(`/p/${project.id}/${view}/`)) },
     { href: `/p/${project.id}/calendar`, label: "项目日历", icon: CalendarIcon, active: pathname === `/p/${project.id}/calendar` },
     { href: `/p/${project.id}/milestones`, label: "里程碑", icon: MilestoneIcon, active: pathname === `/p/${project.id}/milestones` },

@@ -1,7 +1,8 @@
 import { and, asc, desc, eq, inArray, lt, or } from "drizzle-orm";
 import { db, type DbTx } from "@/db";
-import { memberPositions, projects, taskDiscussionMentions, taskDiscussionPosts, taskDiscussionRevisions, tasks, teamMembers, teams, users } from "@/db/schema";
+import { memberPositions, personalProfiles, projects, taskDiscussionMentions, taskDiscussionPosts, taskDiscussionRevisions, tasks, teamMembers, teams, users } from "@/db/schema";
 import { AppError, ConflictError, ForbiddenError, NotFoundError, requireProjectForUser } from "@/modules/core";
+import { avatarUrl } from "@/modules/identity";
 import { capabilitiesFor, positionsFromRole } from "@/modules/identity/client";
 import { bindDiscussionResources } from "@/modules/resources";
 import { enqueueCollaborationNotice, notifyTaskDiscussion } from "@/modules/notify";
@@ -67,8 +68,11 @@ async function mentionRows(posts: readonly Pick<PostRow, "id" | "version">[]) {
 
 export async function listDiscussionMembers(actorId: string, taskId: string) {
   const access = await taskAccess(actorId, taskId);
-  return db.select({ userId: users.id, name: users.name }).from(teamMembers).innerJoin(users, eq(users.id, teamMembers.userId))
+  const rows = await db.select({ userId: users.id, name: users.name, role: teamMembers.role, avatarHash: personalProfiles.avatarHash })
+    .from(teamMembers).innerJoin(users, eq(users.id, teamMembers.userId))
+    .leftJoin(personalProfiles, eq(personalProfiles.userId, users.id))
     .where(eq(teamMembers.teamId, access.teamId)).orderBy(asc(users.name), asc(users.id));
+  return rows.map(({ avatarHash, ...member }) => ({ ...member, avatarUrl: avatarUrl(member.userId, avatarHash) }));
 }
 
 async function writeMentions(tx: DbTx, teamId: string, postId: string, version: number, userIds: readonly string[]) {
