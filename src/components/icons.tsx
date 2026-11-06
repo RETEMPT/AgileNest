@@ -154,6 +154,16 @@ export function StatsIcon(props: IconProps) {
   );
 }
 
+/** 9b. 项目进度：验收趋势与阶段推进 */
+export function ProgressIcon(props: IconProps) {
+  return (
+    <BaseSvg {...props}>
+      <path d="M3 3v18h18" />
+      <path d="m7 14 4-4 3 3 5-6" />
+    </BaseSvg>
+  );
+}
+
 /** 10. 通知中心系统 [notify 分支]：站内信与飞书私信铃铛 */
 export function NotifyIcon(props: IconProps) {
   return (

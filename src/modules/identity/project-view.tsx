@@ -87,7 +87,9 @@ export async function ProjectOverviewView({
             {p.description || "未填写项目说明"}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2"><FollowButton target={{ kind: "project", id: projectId }} /><Button asChild>
+        <div className="flex flex-wrap items-center gap-2"><FollowButton target={{ kind: "project", id: projectId }} /><Button asChild variant="outline">
+          <Link href={"/p/" + projectId + "/progress"}>查看进度</Link>
+        </Button><Button asChild>
           <Link href={"/p/" + projectId + "/tasks"}>
             进入任务池 <ArrowUpRight className="h-4 w-4" />
           </Link>

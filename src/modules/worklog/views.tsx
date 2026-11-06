@@ -17,6 +17,8 @@ const STATUS_DOT: Record<TaskStatus, string> = {
   rejected: "bg-muted-foreground/45",
 };
 
+export { ProgressView } from "./progress-view";
+
 export async function StatsView({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
   const user = await requireUser();
