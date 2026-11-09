@@ -1,10 +1,41 @@
 "use client";
 
-import { Check, Monitor, Moon, Sun, MessageSquare, PanelRightOpen } from "lucide-react";
+import { useRef, useState, type ChangeEvent } from "react";
+import { Check, Image as ImageIcon, Monitor, Moon, Sun, MessageSquare, PanelRightOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUiPreferences } from "@/components/preferences";
 import { openAiFloating } from "@/components/ai/floating";
 import { AiConfiguration } from "@/components/ai/configuration";
+
+function processBackgroundImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("读取图片失败"));
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = () => reject(new Error("无法解析该图片"));
+      image.onload = () => {
+        const maxWidth = 1920;
+        const scale = Math.min(1, maxWidth / Math.max(1, image.naturalWidth));
+        const width = Math.max(1, Math.round(image.naturalWidth * scale));
+        const height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+        if (!context) { reject(new Error("当前浏览器不支持图片处理")); return; }
+        context.drawImage(image, 0, 0, width, height);
+        try {
+          resolve(canvas.toDataURL("image/jpeg", 0.82));
+        } catch {
+          reject(new Error("图片过大或格式不支持，请换一张图片"));
+        }
+      };
+      image.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 function PreferenceFeedback({ error, onReset }: { error: string | null; onReset: () => void }) {
   return error ? <div role="alert" className="mt-6 flex items-center gap-3 text-sm text-destructive">{error}<Button variant="outline" size="sm" onClick={onReset}>重置偏好</Button></div> : <p role="status" className="mt-6 flex items-center gap-2 text-xs text-muted-foreground"><Check size={14} />偏好立即生效，保存在当前账号的浏览器中。</p>;
@@ -12,9 +43,27 @@ function PreferenceFeedback({ error, onReset }: { error: string | null; onReset:
 
 export function AppearanceSettings({ userId }: { userId: string }) {
   const { preferences, update, error, reset } = useUiPreferences(userId);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [skinMessage, setSkinMessage] = useState("");
+
+  async function handleSkinPick(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { setSkinMessage("请选择图片文件"); return; }
+    setSkinMessage("正在处理图片…");
+    try {
+      const dataUrl = await processBackgroundImage(file);
+      update({ backgroundImage: dataUrl });
+      setSkinMessage("背景已更新，可在下方移除。");
+    } catch (err) {
+      setSkinMessage(err instanceof Error ? err.message : "图片处理失败");
+    }
+  }
+
   return <section>
     <h2 className="text-xl font-semibold">主题外观</h2>
-    <p className="mt-2 text-sm text-muted-foreground">选择工作区的显示风格。</p>
+    <p className="mt-2 text-sm text-muted-foreground">选择工作区的显示风格，并管理日夜切换、护眼模式与背景皮肤。</p>
     <fieldset className="mt-8"><legend className="mb-4 text-sm font-medium">颜色主题</legend>
       <div className="grid gap-4 sm:grid-cols-3">
         {([
@@ -31,6 +80,54 @@ export function AppearanceSettings({ userId }: { userId: string }) {
         </label>)}
       </div>
     </fieldset>
+
+    <fieldset className="mt-8"><legend className="mb-3 text-sm font-medium">日夜切换</legend>
+      <p className="mb-4 text-xs leading-5 text-muted-foreground">开启后按时间自动切换浅色与深色，优先级高于上方「颜色主题」。</p>
+      <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-border p-4">
+        <span><span className="block text-sm font-medium">自动切换日夜模式</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">默认晚上 18:00 进入深色，早上 08:00 回到浅色。</span></span>
+        <input type="checkbox" role="switch" aria-label="自动切换日夜模式" checked={preferences.autoTheme} onChange={(event) => update({ autoTheme: event.target.checked })} className="h-5 w-5 shrink-0 accent-brand" />
+      </label>
+      {preferences.autoTheme && (
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <label className="space-y-1.5"><span className="text-xs font-medium">进入日间（浅色）</span><input type="time" value={preferences.dayStart} onChange={(event) => update({ dayStart: event.target.value })} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" /></label>
+          <label className="space-y-1.5"><span className="text-xs font-medium">进入夜间（深色）</span><input type="time" value={preferences.nightStart} onChange={(event) => update({ nightStart: event.target.value })} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" /></label>
+        </div>
+      )}
+    </fieldset>
+
+    <fieldset className="mt-8"><legend className="mb-3 text-sm font-medium">护眼模式</legend>
+      <p className="mb-4 text-xs leading-5 text-muted-foreground">在设定时间段内为页面叠加柔和暖色滤镜，减少夜间蓝光刺激。</p>
+      <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-border p-4">
+        <span><span className="block text-sm font-medium">定时开启护眼模式</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">默认 21:00 开启，次日 07:00 关闭。</span></span>
+        <input type="checkbox" role="switch" aria-label="定时开启护眼模式" checked={preferences.eyeCare} onChange={(event) => update({ eyeCare: event.target.checked })} className="h-5 w-5 shrink-0 accent-brand" />
+      </label>
+      {preferences.eyeCare && (
+        <div className="mt-3 space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="space-y-1.5"><span className="text-xs font-medium">开始时间</span><input type="time" value={preferences.eyeCareStart} onChange={(event) => update({ eyeCareStart: event.target.value })} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" /></label>
+            <label className="space-y-1.5"><span className="text-xs font-medium">结束时间</span><input type="time" value={preferences.eyeCareEnd} onChange={(event) => update({ eyeCareEnd: event.target.value })} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" /></label>
+          </div>
+          <label className="block space-y-2">
+            <span className="flex items-center justify-between text-xs font-medium"><span>滤镜强度</span><span className="tabular-nums text-muted-foreground">{preferences.eyeCareStrength}%</span></span>
+            <input type="range" min={0} max={100} step={5} value={preferences.eyeCareStrength} onChange={(event) => update({ eyeCareStrength: Number(event.target.value) })} aria-label="护眼滤镜强度" className="w-full accent-brand" />
+          </label>
+        </div>
+      )}
+    </fieldset>
+
+    <fieldset className="mt-8"><legend className="mb-3 text-sm font-medium">更换皮肤（背景图片）</legend>
+      <p className="mb-4 text-xs leading-5 text-muted-foreground">从电脑选择一张图片作为网站背景。图片会在浏览器本地压缩后保存，不会上传到服务器。</p>
+      <div className="flex flex-wrap items-center gap-4">
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleSkinPick} className="hidden" />
+        <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}><ImageIcon className="h-4 w-4" />选择图片</Button>
+        {preferences.backgroundImage && (<>
+          <img src={preferences.backgroundImage} alt="当前背景预览" className="h-16 w-28 rounded-lg border border-border object-cover" />
+          <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => { update({ backgroundImage: null }); setSkinMessage("背景已移除。"); }}>移除背景</Button>
+        </>)}
+      </div>
+      {skinMessage && <p role="status" className="mt-2 text-xs text-muted-foreground">{skinMessage}</p>}
+    </fieldset>
+
     <PreferenceFeedback error={error} onReset={reset} />
   </section>;
 }

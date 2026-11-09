@@ -21,6 +21,7 @@ import {
   type FormState,
 } from "@/modules/tasks/actions";
 import type { TaskDTO } from "./service";
+import { TaskDetailSummary } from "./detail-summary";
 import {
   STATUS_LABELS,
   STATUS_DESCRIPTIONS,
@@ -603,6 +604,37 @@ export function TaskActions({
   );
 }
 
+export function TaskDetailDialog({
+  task,
+  open,
+  onOpenChange,
+}: {
+  task: TaskDTO;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay fixed inset-0 z-50 bg-black/35" />
+        <Dialog.Content className="dialog-surface fixed left-1/2 top-1/2 z-50 max-h-[88dvh] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl sm:p-6">
+          <Dialog.Title className="sr-only">{task.title}</Dialog.Title>
+          <Dialog.Description className="sr-only">任务详情快速查看</Dialog.Description>
+          <Dialog.Close asChild>
+            <Button type="button" variant="ghost" size="icon" aria-label="关闭" className="absolute right-3 top-3"><X className="h-4 w-4" /></Button>
+          </Dialog.Close>
+          <div className="pr-8">
+            <TaskDetailSummary task={task} headingLevel="h2" />
+          </div>
+          <div className="mt-6 flex justify-end border-t border-border pt-4">
+            <Button asChild size="sm"><Link href={`/p/${task.projectId}/tasks/${task.id}`}>打开完整任务页<ArrowRight className="h-3.5 w-3.5" /></Link></Button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
 export function TaskCard({
   task,
   role,
@@ -621,6 +653,7 @@ export function TaskCard({
   const isOverdue =
     task.dueDate && task.dueDate < today && task.status !== "accepted";
   const isDueToday = task.dueDate && task.dueDate === today;
+  const [detailOpen, setDetailOpen] = useState(false);
 
   return (
     <div className="group rounded-2xl border border-border bg-card p-4.5 shadow-xs transition hover:border-border/90 hover:shadow-sm space-y-3">
@@ -655,12 +688,13 @@ export function TaskCard({
 
       {/* 任务标题与描述 */}
       <div className="space-y-1">
-        <Link
-          href={`/p/${task.projectId}/tasks/${task.id}`}
-          className="font-medium text-sm text-foreground hover:text-blue-600 transition tracking-tight line-clamp-1"
+        <button
+          type="button"
+          onClick={() => setDetailOpen(true)}
+          className="w-full text-left font-medium text-sm text-foreground hover:text-blue-600 transition tracking-tight line-clamp-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
         >
           {task.title}
-        </Link>
+        </button>
         {task.description && (
           <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
             {task.description}
@@ -729,6 +763,8 @@ export function TaskCard({
       <div className="border-t border-border/60 pt-2.5">
         <TaskActions task={task} role={role} actorId={actorId} />
       </div>
+
+      <TaskDetailDialog task={task} open={detailOpen} onOpenChange={setDetailOpen} />
     </div>
   );
 }

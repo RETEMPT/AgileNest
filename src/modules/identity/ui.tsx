@@ -148,7 +148,7 @@ export function CreateTeamForm() {
           placeholder={SPACE_KINDS.find((item) => item.id === kind)?.example}
         />
         <p className="text-xs text-muted-foreground">
-          创建者拥有管理员职务，可继续创建项目并邀请成员。
+          创建者拥有管理员职务。
         </p>
       </div>
       <div className="flex items-center gap-2 rounded-lg bg-muted p-3 text-xs text-muted-foreground">
@@ -234,7 +234,7 @@ export function TeamEntryActions({ large = false }: { large?: boolean }) {
       </FormDialog>
       <FormDialog
         title="加入已有团队"
-        description="填写团队邀请码。加入后由管理员设置职务。"
+        description="填写团队邀请码。"
         trigger={
           large ? (
             <button className="rounded-2xl border border-border bg-card p-6 text-left transition hover:border-brand/40 hover:shadow-sm">
@@ -384,7 +384,7 @@ export function ProjectForm({
         </div>
       </div>
       <p className="rounded-lg bg-muted p-3 text-xs text-muted-foreground">
-        创建后进入任务看板。管理员、副管理员或指导老师可验收；实验室和竞赛队长可指派任务。
+        管理员、副管理员或指导老师可验收；实验室和竞赛队长可指派任务。
       </p>
       <Feedback state={state} />
       <Button disabled={pending} className="w-full" loading={pending}>

@@ -152,7 +152,7 @@ export function MemberPositionsForm({
         <legend className="mb-2 text-xs font-medium">
           {member.name}的团队职务（可多选）
         </legend>
-        <p className="mb-3 text-xs leading-5 text-muted-foreground">职务可以叠加。管理员负责授权，副管理员负责日常协作；学术身份不会增加权限。</p>
+        <p className="mb-3 text-xs leading-5 text-muted-foreground">管理员负责授权，副管理员负责日常协作；学术身份不会增加权限。</p>
         <div className="grid gap-2 sm:grid-cols-2">
           {TEAM_POSITIONS.map((position) => (
             <label

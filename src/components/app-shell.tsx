@@ -55,7 +55,9 @@ export function AppShell({
     <AccountBoundary key={user.id} userId={user.id}>
     <FeedbackProvider>
     <AppearanceProvider userId={user.id} />
-    <div className="min-h-screen bg-background">
+    <div className="app-shell-root min-h-screen">
+      {/* 皮肤背景层：固定全屏，位于内容之下 */}
+      <div aria-hidden className="skin-backdrop" />
       {/* 统一全局可伸缩侧栏 */}
       <AppSidebar
         key={`sidebar:${user.id}`}

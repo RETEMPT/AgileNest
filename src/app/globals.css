@@ -147,6 +147,74 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* 应用外壳：作为独立的层叠上下文，承载全屏皮肤背景层 */
+.app-shell-root {
+  position: relative;
+  isolation: isolate;
+  background-color: var(--background);
+}
+
+/* 护眼模式：全屏柔和暖色滤镜，强度由 --eyecare-alpha 控制 */
+:root[data-eyecare="on"] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: rgba(255, 176, 106, var(--eyecare-alpha, 0.12));
+  z-index: 2147483647;
+}
+
+/* 更换皮肤：全屏背景层 + 玻璃透明面板（含侧栏） */
+.skin-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+:root[data-skin="on"] .skin-backdrop {
+  background-image: var(--skin-image, none);
+  background-size: cover;
+  background-position: center;
+}
+:root[data-skin="on"] {
+  --background: rgba(245, 247, 251, 0.18);
+  --card: rgba(255, 255, 255, 0.3);
+  --popover: rgba(255, 255, 255, 0.5);
+  --secondary: rgba(244, 244, 245, 0.2);
+  --muted: rgba(244, 244, 245, 0.18);
+  --accent: rgba(244, 244, 245, 0.2);
+  --brand-soft: rgba(237, 242, 249, 0.2);
+  --icon-blue-soft: rgba(237, 242, 249, 0.2);
+  --status-unclaimed-soft: rgba(241, 245, 249, 0.2);
+  --status-in-progress-soft: rgba(239, 246, 255, 0.2);
+  --status-submitted-soft: rgba(255, 251, 235, 0.2);
+  --status-accepted-soft: rgba(236, 253, 245, 0.2);
+  --status-rejected-soft: rgba(254, 242, 242, 0.2);
+}
+:root[data-skin="on"][data-theme="dark"] {
+  --background: rgba(20, 26, 35, 0.2);
+  --card: rgba(27, 35, 48, 0.3);
+  --popover: rgba(34, 44, 58, 0.5);
+  --secondary: rgba(38, 49, 65, 0.2);
+  --muted: rgba(36, 46, 60, 0.18);
+  --accent: rgba(42, 55, 73, 0.2);
+  --brand-soft: rgba(36, 54, 79, 0.2);
+  --icon-blue-soft: rgba(36, 54, 79, 0.2);
+  --status-unclaimed-soft: rgba(43, 52, 66, 0.2);
+  --status-in-progress-soft: rgba(32, 54, 83, 0.2);
+  --status-submitted-soft: rgba(69, 52, 31, 0.2);
+  --status-accepted-soft: rgba(32, 62, 50, 0.2);
+  --status-rejected-soft: rgba(71, 44, 53, 0.2);
+}
+:root[data-skin="on"] .bg-card,
+:root[data-skin="on"] .bg-popover,
+:root[data-skin="on"] .bg-background,
+:root[data-skin="on"] .bg-brand-soft,
+:root[data-skin="on"] .bg-icon-blue-soft {
+  -webkit-backdrop-filter: blur(24px) saturate(1.3);
+  backdrop-filter: blur(24px) saturate(1.3);
+}
+
 .font-display {
   font-family: var(--font-display);
   letter-spacing: -0.015em;

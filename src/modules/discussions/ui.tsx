@@ -513,7 +513,7 @@ function DiscussionPanel({ taskId, projectId, actorId, task, compact = false, on
             <div className="flex items-center gap-0.5" role="group" aria-label="讨论筛选">
               {([["all", "全部"], ["open", "待解决"], ["resolved", "已解决"]] as const).map(([value, label]) => <Button key={value} type="button" size="sm" variant={filter === value ? "secondary" : "ghost"} aria-pressed={filter === value} className="h-7 px-2 text-xs" onClick={() => setFilter(value)}>{label}</Button>)}
             </div>
-            <span className="truncate text-xs text-muted-foreground">{files.length ? `${files.length} 份资料` : "讨论不改变任务状态"}</span>
+            <span className="truncate text-xs text-muted-foreground">{files.length ? `${files.length} 份资料` : ""}</span>
           </div>
           <div ref={thread} aria-label="讨论消息" className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-4">
             {loadError && <div className="mb-3 space-y-2"><FormFeedback message={loadError} /><Button type="button" variant="outline" size="sm" onClick={() => setReload((value) => value + 1)}>重新加载讨论</Button></div>}

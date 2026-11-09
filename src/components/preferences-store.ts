@@ -5,9 +5,29 @@ const preferencesSchema = z.object({
   theme: z.enum(["system", "light", "dark"]),
   aiFloating: z.boolean(),
   ai: aiConfigurationSchema.default(DEFAULT_AI),
+  autoTheme: z.boolean().default(false),
+  dayStart: z.string().default("08:00"),
+  nightStart: z.string().default("18:00"),
+  eyeCare: z.boolean().default(false),
+  eyeCareStart: z.string().default("21:00"),
+  eyeCareEnd: z.string().default("07:00"),
+  eyeCareStrength: z.number().min(0).max(100).default(30),
+  backgroundImage: z.string().nullable().default(null),
 });
 export type UiPreferences = z.infer<typeof preferencesSchema>;
-export const DEFAULT_PREFERENCES: UiPreferences = { theme: "system", aiFloating: true, ai: DEFAULT_AI };
+export const DEFAULT_PREFERENCES: UiPreferences = {
+  theme: "system",
+  aiFloating: true,
+  ai: DEFAULT_AI,
+  autoTheme: false,
+  dayStart: "08:00",
+  nightStart: "18:00",
+  eyeCare: false,
+  eyeCareStart: "21:00",
+  eyeCareEnd: "07:00",
+  eyeCareStrength: 30,
+  backgroundImage: null,
+};
 export const PREFERENCES_SERVER_SNAPSHOT = { preferences: DEFAULT_PREFERENCES, error: null as string | null };
 export const preferencesKey = (userId: string) => `agilenest:preferences:v1:${userId}`;
 

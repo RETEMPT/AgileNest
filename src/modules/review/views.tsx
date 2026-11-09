@@ -478,7 +478,7 @@ export async function ReviewView({
                   )}
                   {subtasks.length > 0 && (
                     <details className="text-sm">
-                      <summary className="cursor-pointer text-muted-foreground">直接子任务已验收 {accepted}/{subtasks.length}{accepted < subtasks.length ? " · 全部验收后才能通过父任务" : ""}</summary>
+                      <summary className="cursor-pointer text-muted-foreground">直接子任务已验收 {accepted}/{subtasks.length}</summary>
                       <ul className="mt-2 space-y-2 border-l-2 border-border pl-3">
                         {subtasks.map((child) => (
                           <li key={child.id} className="flex flex-wrap items-center justify-between gap-2">

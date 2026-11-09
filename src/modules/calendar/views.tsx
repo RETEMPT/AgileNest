@@ -296,11 +296,7 @@ export async function PersonalCalendarView({
                 <p className="mt-3 text-sm font-medium">
                   {filtered ? "当天没有匹配日程" : "当天暂无安排"}
                 </p>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                  {filtered
-                    ? "可以清除筛选，查看当天全部安排。"
-                    : "选择日期后添加课程、会议或个人计划。"}
-                </p>
+                {!filtered && <p className="mt-2 text-xs leading-5 text-muted-foreground">选择日期后添加课程、会议或个人计划。</p>}
                 {filtered && (
                   <Button asChild variant="ghost" size="sm" className="mt-3">
                     <Link href={calendarUrl(query, { q: "", priority: null })}>
