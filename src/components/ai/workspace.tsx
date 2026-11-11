@@ -251,6 +251,7 @@ function AssistantMessageBubble({
     workSources?: ChatResult["workSources"];
     toolSources?: ChatResult["toolSources"];
     retrieval?: ChatResult["retrieval"];
+    progress?: ChatProgress[];
     model?: string;
     createdAt: string;
     materials?: MaterialRef[];
@@ -307,6 +308,7 @@ function AssistantMessageBubble({
         </div>
       ) : null}
 
+      {message.progress?.length ? <ChatProgressList progress={message.progress} /> : null}
       <ResourceMarkdown text={message.text} idPrefix={`chat-${message.id}`} />
       {message.ui && <ChatOutputCards ui={message.ui} workSources={message.workSources} disabled={planningDisabled} onPreview={onPreview} />}
       <ChatSources sources={message.sources} workSources={message.workSources} toolSources={message.toolSources} retrieval={message.retrieval} />
@@ -550,7 +552,7 @@ function DraftEditor({ draft, store, persistRef, busyRef, inputId, focusOnOpen, 
                   <LoaderCircle size={15} className="animate-spin text-brand shrink-0" />
                   <span className="animate-pulse font-medium">{progress.at(-1)?.message || "正在准备消息…"}</span>
                 </div>
-                <ChatProgressList progress={progress} />
+                <ChatProgressList progress={progress} active />
               </article>
             </>
           )}

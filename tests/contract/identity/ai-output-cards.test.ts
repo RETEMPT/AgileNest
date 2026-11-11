@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { ChatOutputUi } from "@/modules/ai/client";
 import { ChatOutputCards, changeRequestSource } from "@/components/ai/chat-output-ui";
+import { ChatWorkflowTrace } from "@/components/ai/chat-response-ui";
 import { appendModelReply } from "@/components/ai/chat-client";
 import { decodeNotebook, EMPTY_NOTEBOOK, saveDraft, type AiDraft } from "@/components/ai/drafts";
 import { taskPlanStorageKey } from "@/components/ai/task-plan";
@@ -40,5 +41,46 @@ describe("可信项目建议卡片与确认入口", () => {
     expect(taskPlanStorageKey("u", "p", context)).toBe(taskPlanStorageKey("u", "p", { ...context, title: "改名" }));
     expect(taskPlanStorageKey("u", "p", context)).not.toBe(taskPlanStorageKey("u", "p", { sourceId: "message:changes:1", title: "对话" }));
     expect(taskPlanStorageKey("u", "p", context)).not.toBe(taskPlanStorageKey("u", "p", { taskId: "message:changes:0", title: "任务" }));
+  });
+  it("渲染任务完成概况和确认认领与跳转卡片", () => {
+    const taskId = "b0cce1bc-ce6b-46b6-bc6b-520a7b67f344";
+    const projectId = "6719707f-3763-414c-9254-3ec3531a86c9";
+    const taskUi: ChatOutputUi = {
+      version: 1,
+      summary: "当前共有 4 项任务，完成率 75%",
+      questions: [],
+      roadmap: [],
+      changeRequests: [],
+      taskStats: { total: 4, completed: 3, inProgress: 1, submitted: 0, unclaimed: 1, overdue: 0, completionRate: "75%" },
+      taskActions: [
+        { taskId, projectId, title: "编写测试用例", status: "unclaimed", statusLabel: "待认领", canClaim: true, jumpHref: `/p/${projectId}/tasks/${taskId}`, boardHref: `/p/${projectId}/board?task=${taskId}` },
+      ],
+    };
+    const html = renderToStaticMarkup(createElement(ChatOutputCards, { ui: taskUi, disabled: false, onPreview: () => undefined }));
+    expect(html).toContain("任务完成情况概览");
+    expect(html).toContain("完成率 75%");
+    expect(html).toContain("确认认领");
+    expect(html).toContain("查看详情");
+    expect(html).toContain("看板视图");
+    expect(html).toContain(`/p/${projectId}/tasks/${taskId}`);
+    expect(html).toContain(`/p/${projectId}/board?task=${taskId}`);
+  });
+  it("Antigravity工作链路展示步骤痕迹、状态标签与折叠能力", () => {
+    const progress = [
+      { type: "progress" as const, phase: "intent" as const, message: "识别用户意图：查询当前账号在项目中的任务概况" },
+      { type: "progress" as const, phase: "tasks" as const, message: "已检索当前账号：4 项负责任务，1 项待认领任务" },
+    ];
+    const htmlActive = renderToStaticMarkup(createElement(ChatWorkflowTrace, { progress, active: true }));
+    expect(htmlActive).toContain("工作链路");
+    expect(htmlActive).toContain("正在执行 · 第 2 步");
+    expect(htmlActive).toContain("意图解析");
+    expect(htmlActive).toContain("STEP 01");
+    expect(htmlActive).toContain("识别用户意图");
+    expect(htmlActive).toContain("工作治理");
+    expect(htmlActive).toContain("STEP 02");
+
+    const htmlFinished = renderToStaticMarkup(createElement(ChatWorkflowTrace, { progress, active: false }));
+    expect(htmlFinished).toContain("工作链路");
+    expect(htmlFinished).toContain("已就绪 · 共 2 步");
   });
 });

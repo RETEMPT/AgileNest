@@ -5,7 +5,7 @@ import type { ResourceDTO } from "@/modules/resources";
 import { builtinCatalog } from "@/modules/ai/plugins-client";
 const calls = vi.hoisted(() => ({ teams: vi.fn(), projects: vi.fn(), list: vi.fn(), get: vi.fn(), read: vi.fn(), tasks: vi.fn(), detail: vi.fn(), delivery: vi.fn(), milestones: vi.fn(), plugins: vi.fn(), builtin: vi.fn(), mcp: vi.fn() }));
 vi.mock("@/modules/resources", () => ({ listResources: calls.list, getResource: calls.get, readResourceContent: calls.read }));
-vi.mock("@/modules/identity", () => ({ listMyTeams: calls.teams, listMyProjects: calls.projects }));
+vi.mock("@/modules/identity", () => ({ listMyTeams: calls.teams, listMyProjects: calls.projects, getAccountProfile: vi.fn().mockResolvedValue({ name: "测试用户" }) }));
 vi.mock("@/modules/tasks", () => ({ listProjectTasks: calls.tasks, getTaskDetail: calls.detail, getTaskDelivery: calls.delivery, STATUS_LABELS: { in_progress: "进行中" } }));
 vi.mock("@/modules/milestone", () => ({ listMilestones: calls.milestones }));
 vi.mock("@/modules/ai/plugins", () => ({ getPluginLibrary: calls.plugins, requireBuiltinPlugin: calls.builtin, callMcpTool: calls.mcp }));

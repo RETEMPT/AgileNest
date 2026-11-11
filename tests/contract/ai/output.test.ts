@@ -32,4 +32,24 @@ describe("受限交互式项目建议", () => {
     expect(interactiveOutputInstruction("请给出需求扩展建议和规划路线")).toContain("待本人审阅");
     expect(interactiveOutputInstruction("请规划任务")).toContain("不能请求自动改平台源码");
   });
+  it("任务概况与认领卡片结构合法解析，提供统计与操作卡片", () => {
+    const taskId = "b0cce1bc-ce6b-46b6-bc6b-520a7b67f344";
+    const projectId = "6719707f-3763-414c-9254-3ec3531a86c9";
+    const taskUi = {
+      version: 1,
+      summary: "任务完成率 50%",
+      questions: [],
+      roadmap: [],
+      changeRequests: [],
+      taskStats: { total: 2, completed: 1, inProgress: 1, submitted: 0, unclaimed: 1, completionRate: "50%" },
+      taskActions: [
+        { taskId, projectId, title: "开发接口", status: "unclaimed" as const, statusLabel: "待认领", canClaim: true, jumpHref: `/p/${projectId}/tasks/${taskId}` },
+      ],
+    };
+    const parsed = parseChatOutput(JSON.stringify({ text: "你的任务情况如下", ui: taskUi }));
+    expect(parsed.ui?.taskStats?.completionRate).toBe("50%");
+    expect(parsed.ui?.taskActions).toHaveLength(1);
+    expect(parsed.ui?.taskActions?.[0].canClaim).toBe(true);
+    expect(interactiveOutputInstruction("看看我的任务完成情况")).toContain("taskStats");
+  });
 });

@@ -1,4 +1,4 @@
-import { chatRequestSchema, type ChatRequest, type ChatResult } from "@/modules/ai/client";
+import { chatRequestSchema, type ChatProgress, type ChatRequest, type ChatResult } from "@/modules/ai/client";
 import { MAX_LOCAL_MESSAGES, MAX_REPLY_LENGTH, saveDraft, titleFromText, type AiDraft, type DraftNotebook } from "./drafts";
 import type { LocalMaterial, MaterialRef } from "./materials";
 
@@ -24,12 +24,12 @@ export async function chatMessages(draft: AiDraft, input: string, read: (id: str
   return parsed.data.messages;
 }
 
-export function appendModelReply(notebook: DraftNotebook, source: AiDraft, input: string, reply: { text: string; reasoning?: string; model: string; sources?: ChatResult["sources"]; workSources?: ChatResult["workSources"]; toolSources?: ChatResult["toolSources"]; ui?: ChatResult["ui"]; retrieval?: ChatResult["retrieval"] }, now: string): DraftNotebook {
+export function appendModelReply(notebook: DraftNotebook, source: AiDraft, input: string, reply: { text: string; reasoning?: string; model: string; sources?: ChatResult["sources"]; workSources?: ChatResult["workSources"]; toolSources?: ChatResult["toolSources"]; ui?: ChatResult["ui"]; retrieval?: ChatResult["retrieval"]; progress?: ChatProgress[] }, now: string): DraftNotebook {
   const current = notebook.drafts.find((item) => item.id === source.id);
   if (!current && source.id !== "initial") throw new Error("此会话已删除。模型回复仍在页面，请复制保留");
   const latest = current ?? source;
   if ((notebook.activeId && notebook.activeId !== source.id) || latest.text !== input || JSON.stringify(latest.messages ?? []) !== JSON.stringify(source.messages ?? []) || JSON.stringify(latest.materials ?? []) !== JSON.stringify(source.materials ?? []) || (latest.projectId ?? null) !== (source.projectId ?? null)) throw new Error("此会话已在其他窗口修改。模型回复仍在页面，请复制保留");
   if ((latest.messages?.length ?? 0) + 2 > MAX_LOCAL_MESSAGES) throw new Error("此会话已满，模型回复仍在页面，请复制保留");
   if (!reply.text.trim() || reply.text.length > MAX_REPLY_LENGTH) throw new Error("模型回复为空或过长，未覆盖当前输入");
-  return saveDraft(notebook, { ...latest, title: latest.customTitle ? latest.title : titleFromText(latest.messages?.[0]?.text || input || "资料问答"), text: "", materials: [], updatedAt: now, messages: [...latest.messages ?? [], { id: crypto.randomUUID(), role: "user", text: input.trim() || "请阅读所选文字资料", materials: latest.materials, createdAt: now }, { id: crypto.randomUUID(), role: "assistant", text: reply.text, model: reply.model, sources: reply.sources, workSources: reply.workSources, toolSources: reply.toolSources, ui: reply.ui, retrieval: reply.retrieval, createdAt: now }] });
+  return saveDraft(notebook, { ...latest, title: latest.customTitle ? latest.title : titleFromText(latest.messages?.[0]?.text || input || "资料问答"), text: "", materials: [], updatedAt: now, messages: [...latest.messages ?? [], { id: crypto.randomUUID(), role: "user", text: input.trim() || "请阅读所选文字资料", materials: latest.materials, createdAt: now }, { id: crypto.randomUUID(), role: "assistant", text: reply.text, model: reply.model, sources: reply.sources, workSources: reply.workSources, toolSources: reply.toolSources, ui: reply.ui, retrieval: reply.retrieval, progress: reply.progress, createdAt: now }] });
 }
