@@ -68,27 +68,32 @@ export async function createPersonalApiToken(
 }
 
 export async function listPersonalApiTokens(userId: string): Promise<ApiTokenItem[]> {
-  const rows = await db
-    .select({
-      id: apiTokens.id,
-      name: apiTokens.name,
-      prefix: apiTokens.prefix,
-      lastUsedAt: apiTokens.lastUsedAt,
-      expiresAt: apiTokens.expiresAt,
-      createdAt: apiTokens.createdAt,
-    })
-    .from(apiTokens)
-    .where(eq(apiTokens.userId, userId))
-    .orderBy(desc(apiTokens.createdAt));
+  try {
+    const rows = await db
+      .select({
+        id: apiTokens.id,
+        name: apiTokens.name,
+        prefix: apiTokens.prefix,
+        lastUsedAt: apiTokens.lastUsedAt,
+        expiresAt: apiTokens.expiresAt,
+        createdAt: apiTokens.createdAt,
+      })
+      .from(apiTokens)
+      .where(eq(apiTokens.userId, userId))
+      .orderBy(desc(apiTokens.createdAt));
 
-  return rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    prefix: r.prefix,
-    lastUsedAt: r.lastUsedAt ? r.lastUsedAt.toISOString() : null,
-    expiresAt: r.expiresAt ? r.expiresAt.toISOString() : null,
-    createdAt: r.createdAt.toISOString(),
-  }));
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      prefix: r.prefix,
+      lastUsedAt: r.lastUsedAt ? r.lastUsedAt.toISOString() : null,
+      expiresAt: r.expiresAt ? r.expiresAt.toISOString() : null,
+      createdAt: r.createdAt.toISOString(),
+    }));
+  } catch (error) {
+    console.error("[apiTokens] listPersonalApiTokens failed:", error);
+    return [];
+  }
 }
 
 export async function revokePersonalApiToken(userId: string, tokenId: string): Promise<void> {
