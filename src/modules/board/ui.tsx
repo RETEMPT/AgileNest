@@ -53,7 +53,8 @@ import {
 } from "./model";
 import { moveTaskAction } from "./actions";
 import { SavedTaskViews } from "./saved-views-ui";
-import type { TeamRole } from "@/db/schema";
+import { isOverdue, isDueSoon } from "@/modules/core/dates";
+import type { TaskPriority, TeamRole } from "@/db/schema";
 
 export { SavedTaskViews } from "./saved-views-ui";
 export type { SavedTaskViewsProps } from "./saved-views-ui";
@@ -207,7 +208,19 @@ function TaskTile({
         </span>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span className="tabular-nums">{task.dueDate ? `截止 ${task.dueDate}` : "未设截止"}</span>
+        <span className="tabular-nums flex items-center gap-1.5">
+          {task.dueDate ? `截止 ${task.dueDate}` : "未设截止"}
+          {isOverdue(task.dueDate) && task.status !== "accepted" && (
+            <span className="inline-flex items-center rounded-full border border-rose-500/25 bg-rose-500/10 px-1.5 py-0.2 text-[10px] font-medium text-rose-700 dark:text-rose-300">
+              逾期
+            </span>
+          )}
+          {!isOverdue(task.dueDate) && isDueSoon(task.dueDate, 2) && task.status !== "accepted" && (
+            <span className="inline-flex items-center rounded-full border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.2 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+              临期
+            </span>
+          )}
+        </span>
         {showStatus ? (
           <StatusPill status={task.status} />
         ) : (
@@ -306,7 +319,7 @@ export function ProjectWorkspace(props: WorkspaceProps) {
     useSensor(KeyboardSensor),
   );
   const filtered = applyFilters(tasks, filters);
-  const columns = deriveColumns(filtered, groupBy);
+  const columns = deriveColumns(filtered, groupBy, { members, milestones });
   if (groupBy === "status")
     columns.sort(
       (a, b) =>
@@ -382,24 +395,70 @@ export function ProjectWorkspace(props: WorkspaceProps) {
   function move(event: DragEndEvent) {
     setActiveId(null);
     const task = tasks.find((task) => task.id === event.active.id);
-    const target = TASK_STATUSES.find(
-      (status) => `column:${status}` === event.over?.id,
-    );
-    if (!task || !target || target === task.status) return;
-    const rule = getMoveTransition(task, target, role, actorId);
-    if (!rule) {
-      setNotice({ error: "当前状态或权限不允许移到该列", ok: "" });
+    if (!task || !event.over) return;
+    const columnId = String(event.over.id).replace(/^column:/, "");
+
+    // 1. 按状态分组：严格保留五态状态机与 TransitionDialog 流转逻辑
+    if (groupBy === "status") {
+      const target = TASK_STATUSES.find((status) => status === columnId);
+      if (!target || target === task.status) return;
+      const rule = getMoveTransition(task, target, role, actorId);
+      if (!rule) {
+        setNotice({ error: "当前状态或权限不允许移到该列", ok: "" });
+        return;
+      }
+      if (transitionNeedsDialog(rule)) {
+        setDialog({ task, rule });
+        return;
+      }
+      startTransition(async () => {
+        const result = await moveTaskAction(task.id, { status: target });
+        setNotice(result);
+        if (!result.error) { notify(result.ok || "任务状态已更新"); router.refresh(); }
+      });
       return;
     }
-    if (transitionNeedsDialog(rule)) {
-      setDialog({ task, rule });
+
+    // 2. 按优先级分组：原子更新任务优先级
+    if (groupBy === "priority") {
+      const targetPriority = (["high", "medium", "low"] as const).find((p) => p === columnId);
+      if (!targetPriority || targetPriority === task.priority) return;
+      startTransition(async () => {
+        const result = await moveTaskAction(task.id, { priority: targetPriority });
+        setNotice(result);
+        if (!result.error) { notify("任务优先级已更新"); router.refresh(); }
+      });
       return;
     }
-    startTransition(async () => {
-      const result = await moveTaskAction(task.id, { status: target });
-      setNotice(result);
-      if (!result.error) { notify(result.ok || "任务状态已更新"); router.refresh(); }
-    });
+
+    // 3. 按里程碑分组：原子更新任务里程碑
+    if (groupBy === "milestone") {
+      const targetMilestoneId = columnId || null;
+      if (targetMilestoneId === (task.milestoneId || null)) return;
+      startTransition(async () => {
+        const result = await moveTaskAction(task.id, { milestoneId: targetMilestoneId });
+        setNotice(result);
+        if (!result.error) {
+          notify(targetMilestoneId ? "任务里程碑已更新" : "任务已移出里程碑");
+          router.refresh();
+        }
+      });
+      return;
+    }
+
+    // 4. 按负责人分组：原子指派或退回任务池
+    if (groupBy === "assignee") {
+      const targetAssigneeId = columnId || null;
+      if (targetAssigneeId === (task.assigneeId || null)) return;
+      startTransition(async () => {
+        const result = await moveTaskAction(task.id, { assigneeId: targetAssigneeId });
+        setNotice(result);
+        if (!result.error) {
+          notify(targetAssigneeId ? "任务负责人已指派" : "任务已退回任务池");
+          router.refresh();
+        }
+      });
+    }
   }
 
   return (
@@ -616,17 +675,31 @@ export function ProjectWorkspace(props: WorkspaceProps) {
                         column={column}
                         active={Boolean(activeTask)}
                         allowed={Boolean(
-                          activeTask &&
-                          TASK_STATUSES.some(
-                            (status) =>
-                              status === column.id &&
-                              getMoveTransition(
-                                activeTask,
-                                status,
-                                role,
-                                actorId,
-                              ),
-                          ),
+                          activeTask && (() => {
+                            if (groupBy === "status") {
+                              return TASK_STATUSES.some(
+                                (status) =>
+                                  status === column.id &&
+                                  getMoveTransition(
+                                    activeTask,
+                                    status,
+                                    role,
+                                    actorId,
+                                  ),
+                              );
+                            }
+                            if (groupBy === "priority") {
+                              return activeTask.priority !== column.id && activeTask.status !== "accepted";
+                            }
+                            if (groupBy === "milestone") {
+                              return (activeTask.milestoneId || "") !== column.id && activeTask.status !== "accepted";
+                            }
+                            if (groupBy === "assignee") {
+                              const targetId = column.id || null;
+                              return targetId !== (activeTask.assigneeId || null) && activeTask.status !== "submitted" && activeTask.status !== "accepted";
+                            }
+                            return false;
+                          })()
                         )}
                       >
                         {column.tasks.map((task) => (
@@ -636,10 +709,18 @@ export function ProjectWorkspace(props: WorkspaceProps) {
                             tasks={tasks}
                             showStatus={groupBy !== "status"}
                             draggable={
-                              groupBy === "status" &&
-                              !pending &&
-                              availableTransitions(task, role, actorId).length >
-                                0
+                              !pending && (() => {
+                                if (groupBy === "status") {
+                                  return availableTransitions(task, role, actorId).length > 0;
+                                }
+                                if (groupBy === "priority" || groupBy === "milestone") {
+                                  return task.status !== "accepted";
+                                }
+                                if (groupBy === "assignee") {
+                                  return task.status !== "submitted" && task.status !== "accepted";
+                                }
+                                return false;
+                              })()
                             }
                             onOpen={(trigger) => openTask(task.id, trigger)}
                           />

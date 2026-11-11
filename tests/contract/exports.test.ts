@@ -84,6 +84,10 @@ describe("identity 契约导出", () => {
       "deleteTeamAnnouncement",
       "leaveTeam",
       "removeTeamMember",
+      "createPersonalApiToken",
+      "listPersonalApiTokens",
+      "revokePersonalApiToken",
+      "authenticateApiToken",
     ]) {
       expect(identity, `identity 缺少 ${name}`).toHaveProperty(name);
     }

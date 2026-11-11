@@ -663,3 +663,19 @@ export const deliveryRecords = pgTable("delivery_records", {
   snapshot: jsonb("snapshot").$type<import("@/modules/delivery/client").DeliverySnapshot>().notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [uniqueIndex("delivery_records_batch_version_unique").on(t.batchId, t.version), check("delivery_records_version_check", sql`${t.version} > 0`), check("delivery_records_action_check", sql`${t.action} in ('create', 'edit', 'bind', 'unbind', 'issue', 'resolve', 'reopenIssue', 'complete', 'reopen', 'archive', 'restore')`)]);
+
+// identity：Personal API Tokens 供外部程序/CLI 安全接入
+export const apiTokens = pgTable("api_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  tokenHash: text("token_hash").notNull().unique(),
+  prefix: text("prefix").notNull(),
+  lastUsedAt: timestamp("last_used_at"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("api_tokens_user_idx").on(t.userId),
+  index("api_tokens_hash_idx").on(t.tokenHash),
+  check("api_tokens_name_check", sql`char_length(btrim(${t.name})) between 1 and 100`),
+]);

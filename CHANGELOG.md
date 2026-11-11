@@ -2,6 +2,12 @@
 
 版本与 `package.json`、锁文件及对应 Git tag 保持一致。每轮完成验收的集成迭代追加一条记录，历史版本内容不覆盖。正式版在合入 `main` 并通过验证后记录；`rc` 表示尚未正式发布的候选版。
 
+## 0.6.1-rc.2（看板四维分组与外部 Agent 接入，未发布） · 2026-11-11
+
+- 看板增强四维自由分组：支持按状态（`status`）、负责人（`assignee`）、优先级（`priority`）和里程碑（`milestone`）分组；跨列拖拽自动原子更新对应字段；按状态拖拽严格保留五态流转规则与结构化验收弹窗；任务卡片增加逾期与临期状态标记。
+- 开放 Personal API Token 体系：数据库追加 `api_tokens` 表，明文令牌仅在创建时显示一次，库内 SHA-256 哈希安全存储；提供 `/api/v1/agent/tasks` 与 `/api/v1/agent/tasks/complete` 端点（兼容 `/api/agent/*` 重写）；个人中心新增「访问令牌」管理面板（支持一键复制与即时撤销）；配套生成 Claude Code 接入技能 `.claude/skills/agilecampus/SKILL.md`。
+- 契约测试与 Windows 生产构建通过：新增 `tests/contract/identity/tokens.test.ts`，全量纯函数契约测试 59/59 绿灯；Next.js 16 (Turbopack) 生产构建通过。
+
 ## 0.6.1-rc.1（成员完成情况，未发布） · 2026-11-06
 
 - 成员贡献页改为完成情况视图：按成员展示验收完成率、16px 中性灰完成条、五态计数、逾期提示及可展开任务明细；移除整页状态图例和旧五色分段。

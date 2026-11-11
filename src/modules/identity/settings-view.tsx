@@ -10,6 +10,8 @@ import { redirect } from "next/navigation";
 import { settingsSection } from "./settings-sections";
 import { SettingsProjects } from "./settings-projects";
 import { AiSettings, AppearanceSettings } from "./settings-preferences";
+import { TokensSettings } from "./settings-tokens";
+import { listPersonalApiTokens } from "./token-service";
 import { POSITION_META } from "./client";
 import { NotificationPreferencesPanel } from "@/modules/notify/ui";
 
@@ -19,9 +21,9 @@ export async function SettingsView({ searchParams }: {
   const user = await requireUser();
   const query = await searchParams;
   if (query.section === "guide" && !query.feishu && !query.notice) redirect("/guide");
-  const [profile, academic, connection, projects, teams] = await Promise.all([
+  const [profile, academic, connection, projects, teams, tokens] = await Promise.all([
     getAccountProfile(user.id), getAcademicProfile(user.id), getFeishuConnection(user.id),
-    listMyProjects(user.id), listTeamSpaces(user.id),
+    listMyProjects(user.id), listTeamSpaces(user.id), listPersonalApiTokens(user.id),
   ]);
   return <SettingsWorkspace profile={profile} joinedAt={profile.createdAt.toLocaleDateString("zh-CN", { timeZone: "Asia/Shanghai" })}
     initialSection={query.feishu || query.notice ? "connections" : settingsSection(query.section)}
@@ -29,6 +31,7 @@ export async function SettingsView({ searchParams }: {
       profile: <AccountProfileForm profile={profile} feishuName={connection.name} />,
       academic: <AcademicProfileForm profile={academic} />,
       projects: <SettingsProjects projects={projects.map((project) => ({ ...project, positions: teams.find((team) => team.id === project.teamId)!.positions.map((position) => POSITION_META[position].label) }))} />,
+      tokens: <TokensSettings initialTokens={tokens} />,
       notifications: <div className="space-y-5"><div><h1 className="text-xl font-semibold">通知与关注</h1><p className="mt-2 text-sm text-muted-foreground">按个人偏好管理站内提醒。在项目、任务和资料详情中关注相关内容。</p></div><NotificationPreferencesPanel /></div>,
       ai: <AiSettings userId={user.id} />,
       appearance: <AppearanceSettings userId={user.id} />,

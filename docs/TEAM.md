@@ -82,6 +82,10 @@ updateTeamAnnouncement(actorId, teamId, announcementId, input)
 deleteTeamAnnouncement(actorId, teamId, announcementId, version)
 leaveTeam(actorId, teamId)              // 保护最后管理员及仍承担未完成任务成员
 removeTeamMember(actorId, teamId, targetUserId)
+createPersonalApiToken(userId, { name, expiresInDays? })
+listPersonalApiTokens(userId)
+revokePersonalApiToken(userId, tokenId)
+authenticateApiToken(authHeader)
 // re-export: getTeamMembership / getProjectForUser / requireTeamRole
 ```
 
@@ -91,7 +95,7 @@ removeTeamMember(actorId, teamId, targetUserId)
 - `identity/client` 导出目录DTO/变更类型、Zod、`projectSpacePath`、`projectSpaceMoveError`；`identity/ui.ProjectDirectory({teamId,initial,kind?})`。
 - POST `/api/v1/teams/:teamId/project-spaces` op=create/update/delete/place：update/delete带目录version；place带projectId/spaceId和placement version（首次0）。管理员/副管理员整理、成员读取，团队锁后复核，四层子树/循环/范围保护，空目录才能删除。
 - `identity/client` 提供学术身份/职务元数据、兼容角色映射和 `capabilitiesFor(positions,projectKind)`；不加载 DB/session。`getTeamMembership` 返回 positions，`getProjectForUser` 返回 positions/capabilities，学术身份不参与授权。
-- `SettingsView` 的 section 支持 profile/academic/projects/ai/appearance/connections/notifications，飞书回调 notice 优先进入连接；通知分区复用 notify 公开面板。
+- `SettingsView` 的 section 支持 profile/academic/projects/tokens/ai/appearance/connections/notifications，飞书回调 notice 优先进入连接；通知分区复用 notify 公开面板。开放 `/api/v1/agent/tasks` 与 `/api/v1/agent/tasks/complete` 供 Personal API Token 以本人身份调用。
 - 职务能力：`TEAM_POSITIONS` 增加deputy，member显示组员；`capabilitiesFor` 增加manageTeamInformation/manageProjectDirectory/manageResources，admin/deputy均可日常管理，manageMembers仅admin。`canRemoveTeamMember(actorPositions,targetPositions)`供成员入口计算移除权限。
 - 根入口`requireTeamCapability(actorId,teamId,capability,tx?)`，capability为manageMembers/manageTeamInformation/manageProjectDirectory/manageResources；identity事务在团队锁后重查实际职务。`updateMemberPositions(actorId,teamId,targetUserId,positions,positionVersion?)`可选版本参数，返回positionVersion；`listTeamMembers`增加positionVersion:string|null，页面强制携带。旧服务调用保留兼容，最后主管理员不因副管理员存在而放行降级/退出。
 

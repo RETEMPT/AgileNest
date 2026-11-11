@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
-import { Bell, Bot, FolderKanban, GraduationCap, Link2, Palette, UserRound } from "lucide-react";
+import { Bell, Bot, FolderKanban, GraduationCap, KeyRound, Link2, Palette, UserRound } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { canLeaveModelSettings } from "@/components/ai/model-connection";
 import { settingsSection, type SettingsSection } from "./settings-sections";
@@ -11,6 +11,7 @@ const SECTIONS = [
   { id: "profile", label: "个人资料", icon: UserRound, group: "账号" },
   { id: "academic", label: "学术身份", icon: GraduationCap },
   { id: "projects", label: "参与项目", icon: FolderKanban },
+  { id: "tokens", label: "访问令牌", icon: KeyRound },
   { id: "notifications", label: "通知与关注", icon: Bell, group: "偏好设置" },
   { id: "ai", label: "AI 助手", icon: Bot },
   { id: "appearance", label: "主题外观", icon: Palette },

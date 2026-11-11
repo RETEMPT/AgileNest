@@ -8,6 +8,14 @@ const nextConfig: NextConfig = {
   },
   // 开发工具浮标会遮挡折叠侧栏的账号操作。
   devIndicators: false,
+  async rewrites() {
+    return [
+      {
+        source: "/api/agent/:path*",
+        destination: "/api/v1/agent/:path*",
+      },
+    ];
+  },
 };
 
 export default nextConfig;
