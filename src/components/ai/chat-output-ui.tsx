@@ -79,7 +79,11 @@ function TaskActionItemCard({ card }: { card: TaskActionCard }) {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.error || "认领失败，请稍后重试");
+        const detail = typeof data?.error === "string" ? data.error : "";
+        const hint = res.status === 403 ? "当前账号在此项目没有认领权限，或职务已变化"
+          : res.status === 409 ? "任务状态已变化，请刷新后到任务详情操作"
+          : detail || "认领失败，请稍后重试";
+        throw new Error(hint);
       }
       setClaimed(true);
     } catch (e) {
@@ -99,6 +103,10 @@ function TaskActionItemCard({ card }: { card: TaskActionCard }) {
 
   const currentStatus = claimed ? "in_progress" : card.status ?? "unclaimed";
   const currentStatusLabel = claimed ? "进行中" : card.statusLabel ?? "待认领";
+  // 只有服务端确认「待认领 + 当前账号有认领权限」才展示操作按钮；链接必须通过站内白名单校验。
+  const canClaimNow = card.canClaim && card.status === "unclaimed" && !claimed;
+  const jumpHref = card.jumpHref ? safeChatSourceHref(card.jumpHref) : undefined;
+  const boardHref = card.boardHref ? safeChatSourceHref(card.boardHref) : undefined;
 
   return (
     <div className="rounded-xl border border-border/70 bg-card p-3 shadow-2xs transition-all hover:border-brand/40">
@@ -121,7 +129,7 @@ function TaskActionItemCard({ card }: { card: TaskActionCard }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
-          {card.canClaim && !claimed && (
+          {canClaimNow && (
             <Button
               size="sm"
               className="h-7 gap-1 bg-brand px-2.5 text-xs text-brand-foreground hover:bg-brand/90"
@@ -148,9 +156,9 @@ function TaskActionItemCard({ card }: { card: TaskActionCard }) {
             </span>
           )}
 
-          {card.jumpHref && (
+          {jumpHref && (
             <a
-              href={safeChatSourceHref(card.jumpHref)}
+              href={jumpHref}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -159,9 +167,9 @@ function TaskActionItemCard({ card }: { card: TaskActionCard }) {
             </a>
           )}
 
-          {card.boardHref && (
+          {boardHref && (
             <a
-              href={safeChatSourceHref(card.boardHref)}
+              href={boardHref}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -191,12 +199,12 @@ export function ChatOutputCards({ ui, workSources, disabled, onPreview }: { ui: 
     {!!ui.taskActions?.length && (
       <div className="space-y-2.5">
         <div className="flex items-center justify-between">
-          <h4 className="text-xs font-semibold text-foreground">任务列表与交互操作 · {ui.taskActions.length} 项</h4>
+          <h4 className="text-xs font-semibold text-foreground">任务列表与交互操作 · {Math.min(ui.taskActions.length, 8)} 项</h4>
           <span className="text-[11px] text-muted-foreground">可一键认领或跳转详情/看板</span>
         </div>
         <div className="space-y-2">
-          {ui.taskActions.map((card) => (
-            <TaskActionItemCard key={card.taskId} card={card} />
+          {ui.taskActions.slice(0, 8).map((card, index) => (
+            <TaskActionItemCard key={`${card.taskId}-${index}`} card={card} />
           ))}
         </div>
       </div>

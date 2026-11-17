@@ -494,3 +494,9 @@ resources 新增根导出 `extractFileContent({name,bytes:Uint8Array},{signal?}?
 resources 新增 `listResourceFavorites(actorId)` 与 `setResourceFavorite(actorId, resourceId, favorite)`；收藏仅属于会话本人，服务端 `.data/resource-favorites` 按账号哈希文件保存资料 ID，上限 1000 条，原子替换与文件锁避免并发覆盖。读取通过 `getResource` 逐条执行现行 ACL（有界并发），跳过失权/删除资料，仅返回标题、标签和归属等导航元数据；取消收藏不改变原资料。`RESOURCE_FAVORITES_DIR` 可指定持久卷，部署备份需包含此目录；异常退出遗留锁由管理员确认后处理。
 
 薄接口 `GET/PUT /api/v1/resources/favorites` 使用当前会话，无账号参数，禁止缓存。`/favorites` 页面通过 `resources/views.ResourceFavoritesView`，资料操作区通过 `resources/ui.ResourceFavoriteButton({resourceId})` 接入；收藏不写浏览器持久缓存。
+
+### Agent 任务卡片与工作链路边界 · 2026-11-13
+
+`ai/client` 的 `ChatResult` 追加可选 `progress`（最多 24 步；phase 为 searching/reading/answering/intent/tasks/planning，message≤300、stepTitle≤60），`chatOutputUiSchema` 追加 `taskActions?`/`taskStats?`。二者都是展示数据，不授予写入权限；任务统计与认领卡片只由服务端 `answerWithKnowledge` 依据 `listProjectTasks`/`getTaskDetail`/`getTaskDelivery` 的真实结果和 `TaskDTO.permissions` 生成，模型输出中的 taskActions/taskStats 一律剔除，`canClaim` 需同时满足 `unclaimed` 状态与账号在该项目的 claim 能力。跳转链接只允许站内相对路径，UI 再用 `safeChatSourceHref` 白名单复核；单条任务失权或删除时只跳过该条，不使整次回答失败。
+
+任务类提示词不再要求模型输出任务 ID、状态、链接或统计：模型输出按不可信输入处理（OWASP LLM05 不当输出处理），由平台真实数据覆盖。`preferences-store` 读取时写回校验后的规范化偏好，剥离旧版本遗留的 API 地址、模型标识、密钥变量名等未知镜像键，会话、其他账号与服务器配置不受影响。针对性契约见 `tests/contract/ai` 与 `tests/contract/identity`；GUI 与全量数据库测试仍按 [UX.md](UX.md) 流程另行验收。

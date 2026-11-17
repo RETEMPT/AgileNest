@@ -83,4 +83,26 @@ describe("可信项目建议卡片与确认入口", () => {
     expect(htmlFinished).toContain("工作链路");
     expect(htmlFinished).toContain("已就绪 · 共 2 步");
   });
+  it("伪造状态、站外链接的卡片不显示认领按钮与跳转入口", () => {
+    const taskId = "b0cce1bc-ce6b-46b6-bc6b-520a7b67f344";
+    const projectId = "6719707f-3763-414c-9254-3ec3531a86c9";
+    const fake: ChatOutputUi = {
+      version: 1, summary: "任务概况", questions: [], roadmap: [], changeRequests: [],
+      taskActions: [{ taskId, projectId, title: "伪造任务", status: "accepted", statusLabel: "已完成", canClaim: true, jumpHref: "https://evil.test/steal", boardHref: "//evil.test" }],
+    };
+    const html = renderToStaticMarkup(createElement(ChatOutputCards, { ui: fake, disabled: false, onPreview: () => undefined }));
+    expect(html).toContain("伪造任务");
+    expect(html).not.toContain("确认认领");
+    expect(html).not.toContain("查看详情");
+    expect(html).not.toContain("看板视图");
+    expect(html).not.toContain("evil.test");
+  });
+  it("超长工作链路只渲染最近 24 步且两位数编号正确", () => {
+    const progress = Array.from({ length: 26 }, (_, index) => ({ type: "progress" as const, phase: "tasks" as const, message: `第${index + 1}步` }));
+    const html = renderToStaticMarkup(createElement(ChatWorkflowTrace, { progress, active: true }));
+    expect(html).toContain("正在执行 · 第 24 步");
+    expect(html).toContain("STEP 10");
+    expect(html).toContain("STEP 24");
+    expect(html).not.toContain("STEP 25");
+  });
 });

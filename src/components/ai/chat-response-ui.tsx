@@ -5,7 +5,7 @@ import { Check, CheckCircle2, ChevronDown, LoaderCircle, Sparkles } from "lucide
 import type { ChatProgress, ChatResult } from "@/modules/ai/client";
 
 export function safeChatSourceHref(href: string) {
-  if (!href.startsWith("/") || href.startsWith("//") || href.includes("\\")) return undefined;
+  if (!href.startsWith("/") || href.startsWith("//") || href.includes("\\") || /[\u0000-\u001f\u007f]/.test(href)) return undefined;
   try {
     const url = new URL(href, "https://agilenest.local");
     return /^\/(?:p|t)\/[a-f0-9-]{36}\/(?:resources|tasks|milestones|board)(?:\/[a-f0-9-]{36})?$/.test(url.pathname) ? href : undefined;
@@ -50,7 +50,9 @@ const PHASE_CONFIG: Record<
 
 export function ChatWorkflowTrace({ progress, active = false }: { progress?: ChatProgress[]; active?: boolean }) {
   const [open, setOpen] = useState(active);
-  if (!progress?.length) return null;
+  // 历史草稿或异常流可能带超量步骤，只渲染最近 24 步。
+  const steps = progress?.slice(-24) ?? [];
+  if (!steps.length) return null;
 
   return (
     <div className="my-3 rounded-xl border border-border/80 bg-card/60 backdrop-blur-xs p-3 shadow-xs transition-all hover:border-brand/30">
@@ -68,12 +70,12 @@ export function ChatWorkflowTrace({ progress, active = false }: { progress?: Cha
           {active ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand">
               <LoaderCircle size={10} className="animate-spin" />
-              正在执行 · 第 {progress.length} 步
+              正在执行 · 第 {steps.length} 步
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 size={11} />
-              已就绪 · 共 {progress.length} 步
+              已就绪 · 共 {steps.length} 步
             </span>
           )}
         </div>
@@ -85,8 +87,8 @@ export function ChatWorkflowTrace({ progress, active = false }: { progress?: Cha
 
       {open && (
         <div className="relative mt-3 pl-6 space-y-3.5 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-[1.5px] before:bg-border/80">
-          {progress.map((item, index) => {
-            const isLatest = index === progress.length - 1;
+          {steps.map((item, index) => {
+            const isLatest = index === steps.length - 1;
             const config = PHASE_CONFIG[item.phase] || PHASE_CONFIG.answering;
             return (
               <div key={index} className="relative flex items-start gap-2.5 text-xs">
@@ -104,7 +106,7 @@ export function ChatWorkflowTrace({ progress, active = false }: { progress?: Cha
                     <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium ${config.iconBg}`}>
                       {item.stepTitle || config.label}
                     </span>
-                    <span className="font-mono text-[10px] text-muted-foreground">STEP 0{index + 1}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground">STEP {String(index + 1).padStart(2, "0")}</span>
                   </div>
                   <p className="mt-1 font-sans text-xs leading-relaxed break-words text-foreground/85">
                     {item.message}

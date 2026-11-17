@@ -161,4 +161,37 @@ describe("有界只读资料工具", () => {
     expect(result.ui).toEqual(ui); expect(result.text).toBe("请先确认目标"); expect(generate).toHaveBeenCalledTimes(1);
     expect(generate.mock.calls[0][1]).toContain("本次可使用交互式项目建议"); expect(calls.list).not.toHaveBeenCalled(); expect(calls.tasks).not.toHaveBeenCalled();
   });
+  it("任务卡片以服务端真实任务与账号权限为准，剔除模型编造的卡片与统计", async () => {
+    const claimableId = "b0cce1bc-ce6b-46b6-bc6b-520a7b67f344";
+    const restrictedId = "a5a01d24-16ce-40a1-98ed-09a33c5c1a4f";
+    const base = { projectId, title: "待认领任务", description: null, status: "unclaimed", assigneeId: null, assigneeName: null, dueDate: null, updatedAt: new Date(), parentTaskId: null, milestoneId: null };
+    const claimable = { ...base, id: claimableId, permissions: { actions: ["claim"] } };
+    const restricted = { ...base, id: restrictedId, title: "无认领权限任务", permissions: { actions: [] } };
+    calls.tasks.mockResolvedValue([claimable, restricted]);
+    calls.detail.mockImplementation(async (_actor, id) => id === claimableId ? claimable : restricted);
+    calls.delivery.mockResolvedValue({ requirements: { version: 1, criteria: [{ id: "c1", text: "验收项" }] }, submissions: [] });
+    const forged = { version: 1, summary: "模型摘要", questions: [], roadmap: [], changeRequests: [], taskStats: { total: 99, completed: 100, inProgress: 0, submitted: 0, unclaimed: 99, completionRate: "100%" }, taskActions: [{ taskId: restrictedId, projectId, title: "伪造任务", status: "accepted", canClaim: true, jumpHref: "https://evil.test" }] };
+    const generate = vi.fn().mockResolvedValueOnce(output({ action: "answer" })).mockResolvedValueOnce(output({ text: "任务概况", ui: forged }));
+    const result = await answerWithKnowledge("alice", { ...input, messages: [{ role: "user", content: "看看我的待办任务" }] }, generate);
+    expect(result.ui?.summary).toBe("模型摘要");
+    expect(result.ui?.taskStats).toMatchObject({ total: 0, unclaimed: 2 });
+    expect(result.ui?.taskActions).toHaveLength(2);
+    expect(result.ui?.taskActions?.find((card) => card.taskId === claimableId)).toMatchObject({ canClaim: true, jumpHref: `/p/${projectId}/tasks/${claimableId}` });
+    expect(result.ui?.taskActions?.find((card) => card.taskId === restrictedId)?.canClaim).toBe(false);
+    expect(JSON.stringify(result.ui)).not.toContain("evil.test");
+  });
+  it("单个任务在查询期间失去权限时跳过该条，不使整次回答失败", async () => {
+    const goneId = "a5a01d24-16ce-40a1-98ed-09a33c5c1a4f";
+    const live = { id: resourceId, projectId, title: "真实任务", description: null, status: "in_progress", assigneeId: "alice", assigneeName: "小林", dueDate: null, updatedAt: new Date(), parentTaskId: null, milestoneId: null };
+    const gone = { ...live, id: goneId, title: "已失权任务" };
+    calls.tasks.mockResolvedValue([live, gone]);
+    calls.detail.mockImplementation(async (_actor, id) => { if (id === goneId) throw new ForbiddenError(); return { ...live, id }; });
+    calls.delivery.mockResolvedValue({ requirements: { version: 1, criteria: [{ id: "c1", text: "验收项" }] }, submissions: [] });
+    const generate = vi.fn().mockResolvedValueOnce(output({ action: "query_work", query: "" })).mockResolvedValueOnce(output({ action: "answer" })).mockResolvedValueOnce(output("已完成任务查询[工作来源1]"));
+    const result = await answerWithKnowledge("alice", input, generate);
+    expect(result.workSources).toHaveLength(1);
+    expect(result.workSources[0].id).toBe(resourceId);
+    expect(result.text).toContain("已完成任务查询");
+    expect(generate).toHaveBeenCalledTimes(3);
+  });
 });

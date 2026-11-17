@@ -41,7 +41,21 @@ describe("旧配置兼容与浏览器偏好清理", () => {
     const values = new Map([[preferencesKey("a"),JSON.stringify(old)],["agilenest:ai-drafts:v1:a","保留的会话"],[preferencesKey("b"),"其他账号"]]);
     const storage = {getItem:(key:string) => values.get(key) ?? null,setItem:(key:string,value:string) => {values.set(key,value);},removeItem:(key:string) => {values.delete(key);}};
     const current = createPreferencesStore("a",() => storage).getSnapshot();
-    expect(current.preferences).toEqual({theme:"dark",aiFloating:false,ai:{plugins:["research"]}});
+    // 夜间/护眼/背景等新偏好由 schema 补齐默认值，旧 API 镜像被剥离，其余合法偏好保留。
+    expect(current.preferences).toEqual({ ...DEFAULT_PREFERENCES, theme:"dark", aiFloating:false, ai:{plugins:["research"]} });
+    expect(current.preferences.ai).not.toHaveProperty("model");
+    expect(values.get(preferencesKey("a"))).not.toContain("legacy.test");
+    expect(values.get("agilenest:ai-drafts:v1:a")).toBe("保留的会话");
+    expect(values.get(preferencesKey("b"))).toBe("其他账号");
+  });
+  it("清理散落在偏好根部的旧 API 地址、模型与密钥变量镜像，不影响其他账号与会话", () => {
+    const old = {theme:"light",aiFloating:true,apiBaseUrl:"https://legacy.test/v1",apiKeyEnv:"AI_API_KEY",model:"old-model",ai:{plugins:["research"]}};
+    const values = new Map([[preferencesKey("a"),JSON.stringify(old)],["agilenest:ai-drafts:v1:a","保留的会话"],[preferencesKey("b"),"其他账号"]]);
+    const storage = {getItem:(key:string) => values.get(key) ?? null,setItem:(key:string,value:string) => {values.set(key,value);},removeItem:(key:string) => {values.delete(key);}};
+    createPreferencesStore("a",() => storage).getSnapshot();
+    const saved = JSON.parse(values.get(preferencesKey("a"))!);
+    expect(saved).toEqual({...DEFAULT_PREFERENCES,theme:"light",ai:{plugins:["research"]}});
+    for (const key of ["apiBaseUrl","apiKeyEnv","model"]) expect(saved).not.toHaveProperty(key);
     expect(values.get(preferencesKey("a"))).not.toContain("legacy.test");
     expect(values.get("agilenest:ai-drafts:v1:a")).toBe("保留的会话");
     expect(values.get(preferencesKey("b"))).toBe("其他账号");

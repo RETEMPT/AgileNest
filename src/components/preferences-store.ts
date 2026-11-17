@@ -43,8 +43,10 @@ export function createPreferencesStore(userId: string, storage: () => Pick<Stora
         const value: unknown = saved === null ? null : JSON.parse(saved);
         const preferences = value === null ? DEFAULT_PREFERENCES : preferencesSchema.parse(value);
         snapshot = { preferences, error: null };
-        if (value && typeof value === "object" && "ai" in value && value.ai && typeof value.ai === "object" && "model" in value.ai) {
-          const cleaned = JSON.stringify(preferences);
+        // 只要存储值与校验后的规范化值不同就写回：既补齐新增偏好默认值，
+        // 也剥离旧版本遗留的 API 地址、模型标识、密钥变量名等未知镜像键，避免敏感配置留在浏览器缓存。
+        const cleaned = saved === null ? null : JSON.stringify(preferences);
+        if (cleaned !== null && cleaned !== saved) {
           storage().setItem(preferencesKey(userId), cleaned);
           raw = cleaned;
         } else raw = saved;
