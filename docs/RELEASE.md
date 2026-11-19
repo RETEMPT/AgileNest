@@ -1,8 +1,8 @@
 # Windows 发布包：运行、升级与构建
 
-当前正式版本 **0.6.1**。本页只维护发布包运行、数据保留和打包流程；功能见 [DESIGN](DESIGN.md)，验收见 [UX](UX.md)，版本变化见 [CHANGELOG](../CHANGELOG.md)。
+当前正式版本 **0.6.2**。本页只维护发布包运行、数据保留和打包流程；功能见 [DESIGN](DESIGN.md)，验收见 [UX](UX.md)，版本变化见 [CHANGELOG](../CHANGELOG.md)。
 
-正式包的逐项验收与校验附件见 [0.6.1 Release](https://github.com/RETEMPT/AgileNest/releases/tag/v0.6.1)。已有 [0.6.0 稳定包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.6.0)、[0.5.0 稳定包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.5.0) 与历史发布保留。GitHub 自动生成的 Source code 是源码，运行包须选择 Windows ZIP。
+正式包的逐项验收与校验附件见 [0.6.2 Release](https://github.com/RETEMPT/AgileNest/releases/tag/v0.6.2)。已有 [0.6.1 稳定包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.6.1)、[0.6.0 稳定包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.6.0)、[0.5.0 稳定包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.5.0) 与历史发布保留。GitHub 自动生成的 Source code 是源码，运行包须选择 Windows ZIP。
 
 ## 运行发布包
 
