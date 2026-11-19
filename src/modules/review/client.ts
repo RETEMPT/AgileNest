@@ -3,7 +3,7 @@ import { addDaysISO, isOverdue } from "@/modules/core/dates";
 import type { SubmissionDTO, TaskDeliveryDTO } from "@/modules/tasks/client";
 
 const querySchema = z.object({
-  view: z.enum(["mine", "review", "pool"]).catch("mine"),
+  view: z.enum(["mine", "review", "pool", "rejected", "none"]).catch("none"),
   q: z.string().trim().transform((value) => value.slice(0, 200)).catch(""),
   projectId: z.string().trim().catch(""),
   due: z.enum(["all", "overdue", "today", "soon", "undated"]).catch("all"),

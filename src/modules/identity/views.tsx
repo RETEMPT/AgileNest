@@ -31,7 +31,6 @@ export { SettingsView } from "./settings-view";
 export { GuideView } from "./guide-view";
 export { TeamSettingsView } from "./team-settings-view";
 import { TeamMemberRemovalButton, TeamSectionLinks } from "./team-settings";
-import { TeamProjectGuide } from "./project-journey";
 import { getProjectDirectory } from "./space-service";
 import { ProjectDirectory } from "./space-ui";
 import { ACADEMIC_LABELS, POSITION_META, capabilitiesFor, canRemoveTeamMember } from "./client";
@@ -249,7 +248,6 @@ export async function TeamProjectsView({
         </div>
       </header>
       <TeamSectionLinks teamId={teamId} current="projects" />
-      <TeamProjectGuide teamId={teamId} />
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
         <div>
           <h2 className="text-sm font-semibold">邀请团队成员</h2>
@@ -311,19 +309,6 @@ export async function TeamMembersView({ teamId }: { teamId: string }) {
       </header>
       <TeamSectionLinks teamId={teamId} current="members" />
       <CollaborationPath current={1} />
-      <section
-        className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2 xl:grid-cols-5"
-        aria-label="团队职务权限说明"
-      >
-        {Object.entries(POSITION_META).map(([key, meta]) => (
-          <div key={key}>
-            <h2 className="text-sm font-semibold text-brand">{meta.label}</h2>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              {meta.description}
-            </p>
-          </div>
-        ))}
-      </section>
       <p className="text-xs text-muted-foreground">
         身份由本人在
         <Link className="text-brand underline" href="/settings">

@@ -11,6 +11,7 @@ import type { TaskStatus } from "@/db/schema";
 import { Badge, StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ExpandableSection } from "@/components/expandable-section";
 import { projectProgress, type ProgressMilestone, type ProgressWeek } from "./progress";
 
 const STATUS_BAR: Record<TaskStatus, string> = {
@@ -226,71 +227,54 @@ export async function ProgressView({ params }: { params: Promise<{ projectId: st
         </Card>
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(19rem,1fr)]">
-        <div className="min-w-0 space-y-4">
-          <Card className="p-4">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <h2 className="font-display text-base font-semibold">整体进度</h2>
-                <p className="mt-1 text-xs text-muted-foreground">五态分布 · 顶层任务</p>
-              </div>
+      <div className="space-y-4">
+        <ExpandableSection title="整体进度">
+          <div className="p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">五态分布 · 顶层任务</p>
               <Link href={`/p/${projectId}/table`} className="inline-flex items-center gap-1 text-xs text-brand hover:underline">任务列表<ArrowRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
             </div>
             <StatusDistribution projectId={projectId} counts={progress.statusCounts} total={progress.total} />
-          </Card>
+          </div>
+        </ExpandableSection>
 
-          <Card className="overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
-              <div>
-                <h2 className="font-display text-base font-semibold">里程碑进度</h2>
-                <p className="mt-1 text-xs text-muted-foreground">按阶段查看顶层任务验收情况</p>
-              </div>
-              <Link href={`/p/${projectId}/milestones`} className="inline-flex items-center gap-1 text-xs text-brand hover:underline">全部里程碑<ArrowRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
+        <ExpandableSection title="里程碑进度">
+          <div className="flex items-center justify-between gap-2 px-4 pt-3">
+            <p className="text-xs text-muted-foreground">按阶段查看顶层任务验收情况</p>
+            <Link href={`/p/${projectId}/milestones`} className="inline-flex items-center gap-1 text-xs text-brand hover:underline">全部里程碑<ArrowRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
+          </div>
+          <MilestoneProgress projectId={projectId} milestones={progress.milestones} />
+        </ExpandableSection>
+
+        <ExpandableSection title="近 8 周完成">
+          <CompletionChart weeks={progress.weeks} />
+        </ExpandableSection>
+
+        <ExpandableSection
+          title="需要关注"
+          badge={<span className="rounded-full bg-muted px-2 py-1 text-xs tabular-nums text-muted-foreground">{progress.attention}</span>}
+        >
+          {progress.risks.length ? (
+            <ul className="divide-y divide-border">
+              {progress.risks.map((task) => (
+                <li key={task.id}>
+                  <Link href={`/p/${projectId}/tasks/${task.id}`} className="flex items-start justify-between gap-3 px-4 py-3 hover:bg-muted/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand">
+                    <div className="min-w-0">
+                      <p className="break-words text-sm font-medium">{task.title}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{task.assigneeName || "未认领"}{task.dueDate ? ` · 截止 ${task.dueDate}` : " · 未设截止日期"}</p>
+                    </div>
+                    <StatusPill status={task.status} />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="flex items-center gap-2 px-4 py-6 text-sm text-muted-foreground">
+              <CheckCircle2 className="h-4 w-4 text-status-accepted" aria-hidden="true" />
+              当前没有逾期或待修改任务
             </div>
-            <MilestoneProgress projectId={projectId} milestones={progress.milestones} />
-          </Card>
-        </div>
-
-        <div className="min-w-0 space-y-4">
-          <Card className="overflow-hidden">
-            <div className="border-b border-border px-4 py-3">
-              <h2 className="font-display text-base font-semibold">近 8 周完成</h2>
-              <p className="mt-1 text-xs text-muted-foreground">已验收顶层任务</p>
-            </div>
-            <CompletionChart weeks={progress.weeks} />
-          </Card>
-
-          <Card className="overflow-hidden">
-            <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
-              <div>
-                <h2 className="font-display text-base font-semibold">需要关注</h2>
-                <p className="mt-1 text-xs text-muted-foreground">逾期或待修改的顶层任务</p>
-              </div>
-              <span className="rounded-full bg-muted px-2 py-1 text-xs tabular-nums text-muted-foreground">{progress.attention}</span>
-            </div>
-            {progress.risks.length ? (
-              <ul className="divide-y divide-border">
-                {progress.risks.map((task) => (
-                  <li key={task.id}>
-                    <Link href={`/p/${projectId}/tasks/${task.id}`} className="flex items-start justify-between gap-3 px-4 py-3 hover:bg-muted/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand">
-                      <div className="min-w-0">
-                        <p className="break-words text-sm font-medium">{task.title}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{task.assigneeName || "未认领"}{task.dueDate ? ` · 截止 ${task.dueDate}` : " · 未设截止日期"}</p>
-                      </div>
-                      <StatusPill status={task.status} />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="flex items-center gap-2 px-4 py-6 text-sm text-muted-foreground">
-                <CheckCircle2 className="h-4 w-4 text-status-accepted" aria-hidden="true" />
-                当前没有逾期或待修改任务
-              </div>
-            )}
-          </Card>
-
-        </div>
+          )}
+        </ExpandableSection>
       </div>
 
       <p className="text-xs leading-6 text-muted-foreground">

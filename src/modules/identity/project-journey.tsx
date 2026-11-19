@@ -7,9 +7,9 @@ import {
   ListTodo,
   MessagesSquare,
   PackageCheck,
-  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ExpandableSection } from "@/components/expandable-section";
 
 export function ProjectJourney({
   projectId,
@@ -65,11 +65,10 @@ export function ProjectJourney({
     },
   ];
   return (
-    <section aria-labelledby="project-journey-title" className="overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-5 sm:p-6">
+    <ExpandableSection title="项目协作路径">
+      <div className="flex flex-wrap items-start justify-between gap-4 p-5 sm:p-6">
         <div className="max-w-2xl">
-          <p className="text-xs font-medium text-brand">项目协作路径</p>
-          <h2 id="project-journey-title" className="mt-2 text-lg font-semibold">从共同目标到可验收的成果</h2>
+          <h2 className="text-lg font-semibold">从共同目标到可验收的成果</h2>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">适用于课题研究、课程作业、竞赛方案与软件研发。资料提供共同依据，任务推进工作，指定成果版本用于验收和阶段交付。</p>
         </div>
         <Button asChild variant="outline" size="sm">
@@ -90,26 +89,6 @@ export function ProjectJourney({
           </li>
         ))}
       </ol>
-    </section>
-  );
-}
-
-export function TeamProjectGuide({ teamId }: { teamId: string }) {
-  const items = [
-    { title: "明确成员与职务", detail: "管理员设置职务，执行与验收各有负责人。", href: `/t/${teamId}/members`, icon: Users },
-    { title: "整理团队共用资料", detail: "公告、规范与共用参考资料在团队内共享。", href: `/t/${teamId}/resources`, icon: FolderOpen },
-    { title: "选择项目开始协作", detail: "进入项目概览，按目标、任务、成果和验收推进。", href: "#team-project-list", icon: ListTodo },
-  ];
-  return (
-    <section aria-label="团队项目协作说明" className="grid gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-3 sm:p-5">
-      {items.map((item, index) => (
-        <div key={item.title} className="min-w-0">
-          <Link href={item.href} className="inline-flex min-h-9 items-center gap-2 text-sm font-medium text-brand underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
-            <item.icon aria-hidden="true" className="h-4 w-4 shrink-0" />{index + 1}. {item.title}
-          </Link>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.detail}</p>
-        </div>
-      ))}
-    </section>
+    </ExpandableSection>
   );
 }

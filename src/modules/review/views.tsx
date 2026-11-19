@@ -8,8 +8,6 @@ import {
   UsersRound,
   Search,
   SlidersHorizontal,
-  AlarmClock,
-  CalendarDays,
   RotateCcw,
   X,
 } from "lucide-react";
@@ -44,29 +42,23 @@ export async function WorkbenchView({
   const query = parseWorkbenchQuery(params);
   const { view } = query;
   const today = todayISO();
-  const tabs = [
-    { key: "mine", title: "我负责的", count: work.mine.length, icon: ListTodo },
-    {
-      key: "review",
-      title: "待我验收",
-      count: work.review.length,
-      icon: CheckCheck,
-    },
-    { key: "pool", title: "可以认领", count: work.pool.length, icon: Inbox },
+  const panels = [
+    { key: "mine", label: "我负责的", count: work.mine.length, icon: ListTodo },
+    { key: "review", label: "待我验收", count: work.review.length, icon: CheckCheck },
+    { key: "pool", label: "可以认领", count: work.pool.length, icon: Inbox },
+    { key: "rejected", label: "需修改", count: work.rejected.length, icon: RotateCcw },
   ] as const;
-  const items = selectWorkbenchItems(work[view], query, today);
+  const currentLabel = panels.find((panel) => panel.key === view)?.label ?? "任务";
+  const selectedView = view === "none" ? null : view;
+  const items = selectedView
+    ? selectWorkbenchItems(work[selectedView], query, today)
+    : [];
   const page = paginateWorkbenchItems(items, query.page);
   const filtered = Boolean(query.q || query.projectId || query.due !== "all" || query.status !== "all");
   const resetUrl = workbenchUrl(query, { q: "", projectId: "", due: "all", status: "all" });
   const dueLabels = { all: "全部日期", overdue: "已逾期", today: "今天到期", soon: "7 天内到期（含今天）", undated: "未设截止日期" };
   const statusLabels = { all: "全部状态", unclaimed: "待认领", in_progress: "进行中", rejected: "需修改", submitted: "待验收" };
   const sortLabels = { smart: "逾期优先 · 优先级 · 截止日期", due: "截止日期从近到远 · 未设日期置后", updated: "最近更新优先" };
-  const quickViews = [
-    { label: "今天到期", description: "我负责的任务", icon: CalendarDays, query: parseWorkbenchQuery({ due: "today" }) },
-    { label: "已逾期", description: "我负责的任务", icon: AlarmClock, query: parseWorkbenchQuery({ due: "overdue" }) },
-    { label: "需修改", description: "查看打回意见并重交", icon: RotateCcw, query: parseWorkbenchQuery({ status: "rejected" }) },
-    { label: "待我验收", description: "核对成果与验收要求", icon: CheckCheck, query: parseWorkbenchQuery({ view: "review" }) },
-  ];
   const activeFilters = [
     ...(query.q ? [{ label: `关键词：${query.q}`, href: workbenchUrl(query, { q: "" }) }] : []),
     ...(query.projectId ? [{ label: `项目：${projects.find((project) => project.id === query.projectId)?.name ?? "已归档或不可访问"}`, href: workbenchUrl(query, { projectId: "" }) }] : []),
@@ -79,7 +71,7 @@ export async function WorkbenchView({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">工作台</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            跨项目查看负责、待验收和可认领的任务。
+            跨项目查看负责、待验收、可认领和需修改的任务。
           </p>
         </div>
         <Button asChild variant="outline">
@@ -91,34 +83,20 @@ export async function WorkbenchView({
       </header>
       <section aria-labelledby="workbench-focus-heading" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="workbench-focus-heading" className="text-sm font-semibold">待办速览</h2>
+          <h2 id="workbench-focus-heading" className="text-sm font-semibold">任务分类</h2>
           <p className="text-xs text-muted-foreground">全部活跃项目 · <time dateTime={today}>{today}</time></p>
         </div>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {quickViews.map(({ label, description, icon: Icon, query: shortcut }) => {
-            const count = selectWorkbenchItems(work[shortcut.view], shortcut, today).length;
-            return <Link key={label} href={workbenchUrl(shortcut)} aria-label={`${label}，${count} 项，${description}`} className="min-w-0 rounded-xl border border-border bg-card p-4 transition hover:border-brand/40 hover:bg-brand-soft/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground"><span>{label}</span><Icon aria-hidden="true" className="h-4 w-4 shrink-0" /></div>
+          {panels.map(({ key, label, icon: Icon, count }) => {
+            const active = view === key;
+            return <Link key={key} href={workbenchUrl(query, { view: key, status: "all" })} aria-current={active ? "page" : undefined} aria-label={`${label}，${count} 项`} className={`min-w-0 rounded-xl border p-4 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "border-brand/50 bg-brand-soft" : "border-border bg-card hover:border-brand/40 hover:bg-brand-soft/40"}`}>
+              <div className="flex items-center justify-between gap-2 text-sm"><span className={active ? "font-medium text-brand" : "text-muted-foreground"}>{label}</span><Icon aria-hidden="true" className={`h-4 w-4 shrink-0 ${active ? "text-brand" : "text-muted-foreground"}`} /></div>
               <p className="mt-3 text-2xl font-semibold tabular-nums">{count}<span className="ml-1.5 text-xs font-normal text-muted-foreground">项</span></p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
             </Link>;
           })}
         </div>
       </section>
-      <nav aria-label="工作台任务分类" className="flex flex-wrap gap-2">
-        {tabs.map(({ key, title, count, icon: Icon }) => (
-          <Link
-            key={key}
-            href={workbenchUrl(query, { view: key, status: "all" })}
-            aria-current={view === key ? "page" : undefined}
-            className={`inline-flex min-h-10 items-center gap-2 rounded-lg border px-3 py-2 text-sm transition ${view === key ? "border-brand/40 bg-brand-soft font-medium text-brand" : "border-border bg-card text-muted-foreground hover:border-brand/30"}`}
-          >
-            <Icon aria-hidden="true" className="h-4 w-4" />
-            {title}
-            <span className="rounded bg-background/70 px-1.5 py-0.5 text-xs tabular-nums">{count}</span>
-          </Link>
-        ))}
-      </nav>
+      {selectedView && (
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_260px]">
         <section className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card">
           <form
@@ -214,9 +192,9 @@ export async function WorkbenchView({
           </nav>}
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3 sm:px-5">
             <h2 className="text-sm font-semibold">
-              {tabs.find((tab) => tab.key === view)?.title}
+              {currentLabel}
               <span className="ml-2 text-xs font-normal text-muted-foreground">
-                {items.length} 项{filtered ? ` / 共 ${work[view].length} 项` : ""}
+                {items.length} 项{filtered ? ` / 共 ${work[selectedView].length} 项` : ""}
               </span>
             </h2>
             <p className="text-xs text-muted-foreground">{sortLabels[query.sort]}</p>
@@ -229,18 +207,22 @@ export async function WorkbenchView({
                   ? "暂无负责的任务"
                   : view === "review"
                     ? "暂无待验收任务"
-                    : "暂无可认领任务"}
+                    : view === "pool"
+                      ? "暂无可认领任务"
+                      : "暂无需要修改的任务"}
               </h2>
               <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
                 {filtered ? "调整关键词、项目、状态或截止日期后重试。" : view === "mine"
                   ? "可到任务池认领，或由有指派权限的成员分配任务。"
                   : view === "review"
                     ? "仅显示当前职务允许验收的项目任务。"
-                    : "可进入团队项目查看或创建任务。"}
+                    : view === "pool"
+                      ? "可进入团队项目查看或创建任务。"
+                      : "暂时没有被退回需要修改的任务。"}
               </p>
               <Button asChild variant="outline" size="sm" className="mt-5">
-                <Link href={filtered ? resetUrl : view === "mine" ? "/home?view=pool" : "/t"}>
-                  {filtered ? "清除筛选" : view === "mine" ? "查看可认领任务" : "进入团队空间"}
+                <Link href={filtered ? resetUrl : view === "mine" ? "/home?view=pool" : view === "rejected" ? "/home?view=mine" : "/t"}>
+                  {filtered ? "清除筛选" : view === "mine" ? "查看可认领任务" : view === "rejected" ? "查看我负责的任务" : "进入团队空间"}
                 </Link>
               </Button>
             </div>
@@ -327,39 +309,6 @@ export async function WorkbenchView({
           </nav>}
         </section>
         <aside className="min-w-0 space-y-5">
-          <section>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold">我的项目</h2>
-              <Link href="/t" className="text-xs text-brand">
-                查看团队 →
-              </Link>
-            </div>
-            <div className="divide-y divide-border rounded-xl border border-border bg-card">
-              {projects.slice(0, 8).map((project) => (
-                <Link
-                  key={project.id}
-                  href={`/p/${project.id}`}
-                  className="flex items-center justify-between gap-3 p-3.5 hover:bg-brand-soft"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium">
-                      {project.name}
-                    </span>
-                    <span className="mt-1 block truncate text-xs text-muted-foreground">
-                      {project.teamName}
-                      {project.status === "archived" ? " · 已归档" : ""}
-                    </span>
-                  </span>
-                  <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                </Link>
-              ))}
-              {projects.length === 0 && (
-                <p className="p-4 text-sm text-muted-foreground">
-                  暂无项目，可在团队空间创建或加入团队。
-                </p>
-              )}
-            </div>
-          </section>
           <Link
             href="/notifications"
             className="block rounded-xl bg-brand-soft p-4"
@@ -371,6 +320,7 @@ export async function WorkbenchView({
           </Link>
         </aside>
       </div>
+      )}
     </div>
   );
 }

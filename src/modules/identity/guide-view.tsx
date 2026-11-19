@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { ArrowDown, ArrowRight, Bell, Bot, ChartNoAxesCombined, Check, Code2, FileText, FolderOpen, GitBranch, History, ListTree, Plus, Search, type LucideIcon } from "lucide-react";
+import { ArrowDown, ArrowRight, Bell, Bot, ChartNoAxesCombined, Check, Code2, FileText, FolderOpen, GitBranch, History, LayoutDashboard, ListTree, Plus, Search, type LucideIcon } from "lucide-react";
 import { GuideIcon } from "@/components/icons";
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { findTransition, TRANSITIONS } from "@/modules/tasks/client";
 
 const chapters = [
+  { id: "home", title: "首页与工作台", icon: LayoutDashboard },
   { id: "tasks", title: "任务与验收", icon: FileText },
   { id: "files", title: "资料与文件", icon: FolderOpen },
   { id: "dependencies", title: "任务先后", icon: GitBranch },
@@ -77,6 +78,26 @@ function DependencyFigure() {
   </figure>;
 }
 
+function WorkbenchFigure() {
+  const panels = ["我负责的", "待我验收", "可以认领", "需修改"];
+  return (
+    <figure aria-label="工作台板块示意" className="rounded-xl bg-background p-4 sm:p-5">
+      <figcaption className="mb-3 text-xs font-medium text-muted-foreground">工作台示意 · 先选板块，再显示任务</figcaption>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {panels.map((label, index) => (
+          <div key={label} className={`rounded-xl border p-3 text-center text-sm font-medium ${index === 0 ? "border-brand/40 bg-brand-soft text-brand" : "border-border bg-card text-muted-foreground"}`}>
+            {label}
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+        <ArrowDown size={14} aria-hidden="true" className="shrink-0 text-brand" />
+        点击某个板块后，对应任务列表才显示在下方
+      </div>
+    </figure>
+  );
+}
+
 function MilestoneFigure() {
   return <figure aria-label="里程碑任务树图例" className="space-y-4 rounded-xl border border-border p-4 sm:p-5">
     <figcaption className="flex items-center gap-2 text-sm font-medium"><ListTree size={18} aria-hidden="true" />里程碑 · 中期报告（示意）</figcaption>
@@ -98,9 +119,15 @@ export function GuideView() {
       <h1 className="text-2xl font-semibold sm:text-3xl">使用指引</h1>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">用图例了解任务、资料和协作入口。选择下面的主题，快速找到需要的操作。</p>
     </header>
-    <nav aria-label="指引章节" className="sticky top-0 z-10 grid grid-cols-2 gap-2 rounded-xl border border-border bg-card/95 p-3 backdrop-blur-sm sm:grid-cols-3 lg:grid-cols-6">
+    <nav aria-label="指引章节" className="sticky top-0 z-10 grid grid-cols-2 gap-2 rounded-xl border border-border bg-card/95 p-3 backdrop-blur-sm sm:grid-cols-3 lg:grid-cols-7">
       {chapters.map(({ id, title, icon: Icon }) => <a key={id} href={`#${id}`} className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-brand-soft hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Icon size={16} aria-hidden="true" className="shrink-0" />{title}</a>)}
     </nav>
+    <ChapterTitle id="home" title="首页与工作台" icon={LayoutDashboard}>
+      <p className="text-sm leading-6 text-muted-foreground">打开网站后只显示左侧导航，右侧居中展示校徽；点击侧栏里的任一入口，才会加载对应板块。</p>
+      <WorkbenchFigure />
+      <p className="text-sm leading-6 text-muted-foreground">工作台顶部是四个板块：我负责的、待我验收、可以认领、需修改。默认下方为空白，点击某个板块后，才显示该板块对应的任务列表；右侧仅保留“消息中心”入口。</p>
+      <p className="text-sm leading-6 text-muted-foreground">项目概览与进度页面采用同样的「先看标题、按需展开」：项目概览的“项目协作路径”“需要关注”，以及进度页的“整体进度”“里程碑进度”“近 8 周完成”“需要关注”都默认收起，点击“展开”查看具体内容。</p>
+    </ChapterTitle>
     <ChapterTitle id="tasks" title="任务与验收" icon={FileText}>
       <p className="text-sm leading-6 text-muted-foreground">点击任务的文件图标或标题查看详情；提交时填写完成说明，附上成果并逐项自检。</p>
       <TaskFlowFigure />

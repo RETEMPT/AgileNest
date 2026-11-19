@@ -133,6 +133,9 @@ export async function getWorkbench(actorId: string) {
     pool: visible.filter(
       (task) => task.status === "unclaimed" && task.canExecute,
     ),
+    rejected: visible.filter(
+      (task) => task.assigneeId === actorId && task.status === "rejected",
+    ),
   };
 }
 
@@ -145,9 +148,7 @@ export async function listMyInProgress(actorId: string): Promise<TaskDTO[]> {
   );
 }
 export async function listMyRejected(actorId: string): Promise<TaskDTO[]> {
-  return (await getWorkbench(actorId)).mine.filter(
-    (task) => task.status === "rejected",
-  );
+  return (await getWorkbench(actorId)).rejected;
 }
 
 export async function listUnclaimedPool(

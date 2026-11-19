@@ -14,9 +14,18 @@ import { POSITION_META } from "./client";
 import { ProjectSettingsForm } from "./academic-ui";
 import { Badge, StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowUpRight, CheckCircle2 } from "lucide-react";
+import {
+  ArrowUpRight,
+  CheckCircle2,
+  ClipboardCheck,
+  LayoutGrid,
+  ListTodo,
+  TrendingUp,
+  Users,
+} from "lucide-react";
 import { ProjectJourney } from "./project-journey";
 import { FollowButton } from "@/modules/notify/ui";
+import { ExpandableSection } from "@/components/expandable-section";
 
 export async function ProjectOverviewView({
   params,
@@ -58,9 +67,18 @@ export async function ProjectOverviewView({
   for (const task of tasks) {
     counts[task.status] += 1;
   }
+  const shortcuts = [
+    { label: "查看看板", href: `/p/${projectId}/board`, icon: LayoutGrid },
+    { label: "我的任务", href: `/p/${projectId}/table?assigneeId=${user.id}`, icon: ListTodo },
+    ...(access.capabilities.review
+      ? [{ label: "验收成果", href: `/p/${projectId}/review`, icon: ClipboardCheck }]
+      : []),
+    { label: "成员与分工", href: `/t/${p.teamId}/members`, icon: Users },
+    { label: "成员贡献", href: `/p/${projectId}/stats`, icon: TrendingUp },
+  ];
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+      <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <Link
             href={"/t/" + p.teamId + "/projects"}
@@ -85,20 +103,19 @@ export async function ProjectOverviewView({
             {p.description || "未填写项目说明"}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2"><FollowButton target={{ kind: "project", id: projectId }} /><Button asChild variant="outline">
-          <Link href={"/p/" + projectId + "/progress"}>查看进度</Link>
-        </Button><Button asChild>
-          <Link href={"/p/" + projectId + "/tasks"}>
-            进入任务池 <ArrowUpRight className="h-4 w-4" />
-          </Link>
-        </Button></div>
+        <div className="flex flex-wrap items-center gap-2">
+          <FollowButton target={{ kind: "project", id: projectId }} />
+          <Button asChild variant="outline">
+            <Link href={"/p/" + projectId + "/progress"}>查看进度</Link>
+          </Button>
+          <Button asChild>
+            <Link href={"/p/" + projectId + "/tasks"}>
+              进入任务池 <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
       </header>
-      <ProjectJourney
-        projectId={projectId}
-        actorId={user.id}
-        canReview={access.capabilities.review}
-        canExecute={access.capabilities.execute}
-      />
+
       <section className="overflow-hidden rounded-2xl border border-border bg-card">
         <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[240px_1fr]">
           <div>
@@ -147,43 +164,43 @@ export async function ProjectOverviewView({
             </div>
           </div>
         </div>
-        <nav
-          aria-label="项目快捷操作"
-          className="flex flex-wrap gap-x-6 gap-y-3 border-t border-border bg-muted/30 px-5 py-4 text-sm sm:px-6"
-        >
-          <Link
-            href={"/p/" + projectId + "/board"}
-            className="font-medium text-brand"
-          >
-            查看看板 ↗
-          </Link>
-          <Link
-            href={"/p/" + projectId + "/table?assigneeId=" + user.id}
-            className="text-brand"
-          >
-            我的任务 ↗
-          </Link>
-          {access.capabilities.review && (
-            <Link href={"/p/" + projectId + "/review"} className="text-brand">
-              验收成果 ↗
-            </Link>
-          )}
-          <Link href={"/t/" + p.teamId + "/members"} className="text-brand">
-            成员与分工 ↗
-          </Link>
-          <Link href={"/p/" + projectId + "/stats"} className="text-brand">
-            成员贡献 ↗
-          </Link>
-        </nav>
       </section>
+
+      <nav
+        aria-label="项目快捷入口"
+        className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5"
+      >
+        {shortcuts.map((shortcut) => (
+          <Link
+            key={shortcut.label}
+            href={shortcut.href}
+            className="group flex items-center gap-3 rounded-2xl border border-border bg-card p-4 transition hover:border-brand/35 hover:shadow-sm"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
+              <shortcut.icon className="h-4 w-4" />
+            </span>
+            <span className="text-sm font-medium">{shortcut.label}</span>
+            <ArrowUpRight className="ml-auto h-4 w-4 shrink-0 text-muted-foreground transition group-hover:text-brand" />
+          </Link>
+        ))}
+      </nav>
+
+      <ProjectJourney
+        projectId={projectId}
+        actorId={user.id}
+        canReview={access.capabilities.review}
+        canExecute={access.capabilities.execute}
+      />
+
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-        <section className="overflow-hidden rounded-2xl border border-border bg-card">
-          <div className="flex items-center justify-between border-b border-border p-5">
-            <h2 className="font-semibold">需要关注</h2>
+        <ExpandableSection
+          title="需要关注"
+          badge={
             <span className="rounded-full bg-muted px-2 py-1 text-xs">
               {risks.length} 项
             </span>
-          </div>
+          }
+        >
           {risks.length ? (
             <ul className="divide-y divide-border">
               {risks.slice(0, 8).map((task) => (
@@ -222,7 +239,7 @@ export async function ProjectOverviewView({
               </p>
             </div>
           )}
-        </section>
+        </ExpandableSection>
         <section className="overflow-hidden rounded-2xl border border-border bg-card">
           <div className="flex items-center justify-between border-b border-border p-5">
             <h2 className="font-semibold">近期里程碑</h2>
