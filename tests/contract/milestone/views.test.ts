@@ -49,7 +49,7 @@ describe("里程碑页面读取与权限边界", () => {
     expect(html).not.toContain("里程碑创建表单");
     expect(html).toContain("真实任务");
     expect(html).toContain("阶段进程");
-    expect(html).toContain("选择阶段，查看模块进展与任务。");
+    expect(html).toContain("选择一个阶段");
     expect(html).not.toContain("模块与任务</span>");
   });
 });

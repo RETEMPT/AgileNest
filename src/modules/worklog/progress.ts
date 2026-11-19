@@ -23,6 +23,11 @@ export type ProgressWeek = {
   count: number;
 };
 
+export type ProgressDay = {
+  date: string;
+  count: number;
+};
+
 export type ProgressRisk = {
   id: string;
   title: string;
@@ -44,6 +49,7 @@ export type ProjectProgress = {
   risks: ProgressRisk[];
   milestones: ProgressMilestone[];
   weeks: ProgressWeek[];
+  days: ProgressDay[];
 };
 
 function startOfWeek(value: Date): Date {
@@ -70,6 +76,24 @@ function recentWeeks(acceptedDates: Date[]): ProgressWeek[] {
     weeks.push({ weekStart: todayISO(start), label: weekLabel(start), count });
   }
   return weeks;
+}
+
+function recentDays(acceptedDates: Date[]): ProgressDay[] {
+  const counts = new Map<string, number>();
+  for (const date of acceptedDates) {
+    const key = todayISO(date);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const current = startOfWeek(new Date());
+  const first = new Date(current);
+  first.setDate(first.getDate() - 15 * 7);
+  const days: ProgressDay[] = [];
+  for (let offset = 0; offset < 16 * 7; offset += 1) {
+    const day = new Date(first);
+    day.setDate(first.getDate() + offset);
+    days.push({ date: todayISO(day), count: counts.get(todayISO(day)) ?? 0 });
+  }
+  return days;
 }
 
 /**
@@ -184,5 +208,6 @@ export async function projectProgress(
     risks,
     milestones: milestoneProgress,
     weeks: recentWeeks(acceptedDates),
+    days: recentDays(acceptedDates),
   };
 }

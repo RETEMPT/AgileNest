@@ -147,10 +147,6 @@ export function getMoveTransition(
 export function deriveColumns(
   unsortedTasks: TaskDTO[],
   groupBy: GroupBy,
-  options?: {
-    members?: { id: string; name: string }[];
-    milestones?: { id: string; title: string }[];
-  },
 ): ColumnDef[] {
   const tasks = [...unsortedTasks].sort(
     (a, b) =>
@@ -173,15 +169,8 @@ export function deriveColumns(
   }
   if (groupBy === "assignee") {
     const names = new Map<string, string>();
-    if (options?.members?.length) {
-      for (const m of options.members) {
-        names.set(m.id, m.name);
-      }
-    }
     for (const t of tasks) {
-      if (t.assigneeId && !names.has(t.assigneeId)) {
-        names.set(t.assigneeId, t.assigneeName ?? t.assigneeId);
-      }
+      if (t.assigneeId) names.set(t.assigneeId, t.assigneeName ?? t.assigneeId);
     }
     const cols: ColumnDef[] = [...names.entries()].map(([id, title]) => ({
       id,
@@ -189,26 +178,19 @@ export function deriveColumns(
       tasks: tasks.filter((t) => t.assigneeId === id),
     }));
     const unassigned = tasks.filter((t) => !t.assigneeId);
-    if (unassigned.length > 0 || cols.length === 0 || options?.members) {
+    if (unassigned.length > 0 || cols.length === 0) {
       cols.push({ id: "", title: "未指派", tasks: unassigned });
     }
     return cols;
   }
   // milestone
   const titles = new Map<string, string>();
-  if (options?.milestones?.length) {
-    for (const m of options.milestones) {
-      titles.set(m.id, m.title);
-    }
-  }
   for (const t of tasks) {
-    if (t.milestoneId && !titles.has(t.milestoneId)) {
-      titles.set(t.milestoneId, t.milestoneId);
-    }
+    if (t.milestoneId) titles.set(t.milestoneId, t.milestoneId);
   }
-  const cols: ColumnDef[] = [...titles.entries()].map(([id, title]) => ({
+  const cols: ColumnDef[] = [...titles.entries()].map(([id]) => ({
     id,
-    title,
+    title: id,
     tasks: tasks.filter((t) => t.milestoneId === id),
   }));
   const none = tasks.filter((t) => !t.milestoneId);

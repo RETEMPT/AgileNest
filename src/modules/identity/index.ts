@@ -13,12 +13,3 @@ export {
 } from "./profile-service";
 export { avatarGET } from "./api";
 export { getFeishuConnection, disconnectFeishu } from "./connection-service";
-export {
-  createPersonalApiToken,
-  listPersonalApiTokens,
-  revokePersonalApiToken,
-  authenticateApiToken,
-  type ApiTokenItem,
-  type CreatedApiToken,
-  type TokenCreateInput,
-} from "./token-service";
