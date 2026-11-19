@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useId, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ArrowRight, FileText, Plus, RotateCcw, Trash2, X } from "lucide-react";
+import { ArrowRight, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormFeedback, useFeedback } from "@/components/ui/feedback";
@@ -660,11 +660,6 @@ export function TaskCard({
       {/* 顶部身份与状态条 (Linear/Harness Style) */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-2.5">
         <div className="flex items-center gap-2">
-          {task.id && (
-            <Link href={`/p/${task.projectId}/tasks/${task.id}`} aria-label={`查看任务详情：${task.title}`} title="查看任务详情" className="inline-flex items-center gap-1.5 rounded font-mono text-[11px] font-medium text-muted-foreground hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              <FileText aria-hidden="true" className="h-4 w-4" />查看详情
-            </Link>
-          )}
           {showProjectBadge && effectiveProjectName && (
             <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
               {effectiveProjectName}
@@ -751,12 +746,6 @@ export function TaskCard({
             <span>无截止日期</span>
           )}
         </div>
-        <Link
-          href={`/p/${task.projectId}/tasks/${task.id}`}
-          className="text-[11px] text-muted-foreground hover:text-foreground hover:underline"
-        >
-          任务详情 →
-        </Link>
       </div>
 
       {/* 原位流转动作栏 */}

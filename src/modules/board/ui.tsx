@@ -175,7 +175,6 @@ function TaskTile({
       className={`rounded-xl border border-border bg-card p-3 shadow-xs ${isDragging ? "opacity-30" : "transition hover:border-brand/35 hover:shadow-sm"}`}
     >
       <div className="flex items-start gap-2">
-        <button type="button" onClick={(event) => onOpen(event.currentTarget)} aria-label={`查看任务详情：${task.title}`} title="查看任务详情" className="mt-0.5 shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><FileText aria-hidden="true" className="h-4 w-4" /></button>
         <button
           type="button"
           onClick={(event) => onOpen(event.currentTarget)}

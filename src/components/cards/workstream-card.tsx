@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, memo } from "react";
-import { FileText } from "lucide-react";
 import type { TaskDTO } from "@/modules/tasks";
 import type { TeamRole } from "@/db/schema";
 import { StatusPill, PriorityPill } from "@/components/ui/badge";
@@ -51,9 +50,6 @@ export const WorkstreamCard = memo(function WorkstreamCard({
         >
           <div className="flex items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2">
-              {task.id && (
-                <button type="button" onClick={() => setDrawerOpen(true)} aria-label={`查看任务详情：${task.title}`} title="查看任务详情" className="inline-flex items-center gap-1.5 rounded font-mono text-[11px] font-semibold text-muted-foreground hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><FileText aria-hidden="true" className="h-4 w-4" />查看详情</button>
-              )}
               {showProjectBadge && effectiveProjectName && (
                 <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                   {effectiveProjectName}
@@ -90,7 +86,6 @@ export const WorkstreamCard = memo(function WorkstreamCard({
                 <span className="text-rose-600 font-medium">● 待修改重交</span>
               )}
             </div>
-            <button type="button" onClick={() => setDrawerOpen(true)} className="rounded text-[11px] text-muted-foreground hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">任务详情 ↗</button>
           </div>
         </div>
 
@@ -113,18 +108,6 @@ export const WorkstreamCard = memo(function WorkstreamCard({
         {/* 1. 顶部身份与状态元数据条 (Linear/Harness Style) */}
         <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-border/50">
           <div className="flex items-center gap-2">
-            {task.id && (
-              <button
-                type="button"
-                onClick={() => setDrawerOpen(true)}
-                title="查看任务详情"
-                aria-label={`查看任务详情：${task.title}`}
-                className="inline-flex items-center gap-1.5 rounded font-mono text-[11px] font-medium text-muted-foreground hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <FileText aria-hidden="true" className="h-4 w-4" />查看详情
-              </button>
-            )}
-
             {showProjectBadge && effectiveProjectName && (
               <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                 {effectiveProjectName}
@@ -149,17 +132,7 @@ export const WorkstreamCard = memo(function WorkstreamCard({
 
         {/* 2. 任务标题与语境说明 */}
         <div className="pt-3 pb-2 space-y-1.5">
-          <div className="flex items-start justify-between gap-2">
-            <h3><button type="button" onClick={() => setDrawerOpen(true)} className="rounded text-left text-sm font-medium tracking-tight text-foreground hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{task.title}</button></h3>
-            <button
-              type="button"
-              onClick={() => setDrawerOpen(true)}
-              className="shrink-0 text-[11px] text-muted-foreground hover:text-foreground transition"
-              title="查看任务详情"
-            >
-              详情 ↗
-            </button>
-          </div>
+          <h3><button type="button" onClick={() => setDrawerOpen(true)} className="rounded text-left text-sm font-medium tracking-tight text-foreground hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{task.title}</button></h3>
 
           {task.description && (
             <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
@@ -205,14 +178,6 @@ export const WorkstreamCard = memo(function WorkstreamCard({
             )}
 
           </div>
-
-          <button
-            type="button"
-            onClick={() => setDrawerOpen(true)}
-            className="text-[11px] text-muted-foreground hover:text-foreground transition underline"
-          >
-            任务详情 →
-          </button>
         </div>
 
         {/* 5. 原位流转动作栏 (Inline Action Pipeline) */}
