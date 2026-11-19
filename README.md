@@ -1,6 +1,6 @@
 # AgileNest · 高校项目协作
 
-面向课程、研究、竞赛与软件项目，覆盖团队 → 项目资料与目标 → 任务分工 → 成果提交 → 逐项验收 → 阶段交付。当前版本 **0.6.0** 汇总知识库阅读与收藏、里程碑进程、任务贡献、独立指引、真实模型对话与需本人确认的任务规划。API 提供商与插件凭据按账号在服务器加密保存；新增旧页面账号错配防护及发布包敏感信息门禁。对话、规划和附件仍为当前浏览器副本，不是跨设备同步。详见 [AI](docs/AI.md)、[检查记录](docs/UX.md)和[API 配置安全记录](docs/SECURITY-060.md)。下载与校验附件见 [0.6.0 Release](https://github.com/RETEMPT/AgileNest/releases/tag/v0.6.0)。
+面向课程、研究、竞赛与软件项目，覆盖团队 → 项目资料与目标 → 任务分工 → 成果提交 → 逐项验收 → 阶段交付。当前版本 **0.6.2** 在 0.6.1 基础上新增任务进度页的验收热力图与一键 AI 周报/答辩稿、项目评论与团队资源池模块，并汇总 GitHub 代码仓库卡片与可折叠 README 预览、敏捷多角色演示体系、全景资料库与个人日程联动、AI 对话界面优化，以及知识库阅读与收藏、里程碑进程、任务贡献、独立指引、真实模型对话与需本人确认的任务规划。API 提供商与插件凭据按账号在服务器加密保存；新增旧页面账号错配防护及发布包敏感信息门禁。对话、规划和附件仍为当前浏览器副本，不是跨设备同步。详见 [AI](docs/AI.md)、[检查记录](docs/UX.md)和[API 配置安全记录](docs/SECURITY-060.md)。下载与校验附件见 [0.6.2 Release](https://github.com/RETEMPT/AgileNest/releases/tag/v0.6.2)。
 
 知识库接续改为全宽页面式阅读与扁平导航，弱化表格和抽屉。本轮知识库增加 Markdown 文章目录、字号/版心调整、资料排序与按需展开的协作信息；个人侧栏新增「我的收藏」，服务端按账号保存并重新校验资料访问权限。针对检查与待测界面项见 UX。
 
@@ -8,7 +8,7 @@
 
 ## 开始使用
 
-**直接试用**：下载 Release 中的 `AgileNest-0.6.0-windows-x64.zip` 和 SHA256 文件，完整解压后双击 **start.bat**。自带网站、Node.js 与 PostgreSQL，详情及旧数据升级见 [RELEASE](docs/RELEASE.md)。
+**直接试用**：下载 Release 中的 `AgileNest-0.6.2-windows-x64.zip` 和 SHA256 文件，完整解压后双击 **start.bat**。自带网站、Node.js 与 PostgreSQL，详情及旧数据升级见 [RELEASE](docs/RELEASE.md)。
 
 **源码开发**：准备 Node.js 22 LTS、Docker Desktop 或 PostgreSQL，在项目目录运行：
 
@@ -18,11 +18,12 @@
 
 首次自动生成缺失配置、安装锁定依赖并初始化空库；已有配置与业务数据保留。保持启动窗口打开，关闭窗口或 Ctrl+C 停止网站。本机数据库配置、追加迁移与排错统一见 [WINDOWS](docs/WINDOWS.md)，已有库不要用新库初始化替代升级迁移。
 
-| 演示账号 | 初始密码 | 职务 |
-|---|---|---|
-| admin@agilecampus.local | password123 | 管理员、组员 |
-| teacher@agilecampus.local | password123 | 指导老师 |
-| student@agilecampus.local | password123 | 组员 |
+| 演示账号 | 初始密码 | 职务 | 职责说明 |
+|---|---|---|---|
+| admin@agilecampus.local | password123 | 管理员、组员 | 全局权限、团队维护、终审验收 |
+| teacher@agilecampus.local | password123 | 指导老师 | 课题指导、里程碑与成果验收 |
+| student@agilecampus.local | password123 | 组员 | 前端核心、任务认领与提交 |
+| dev@agilecampus.local | password123 | 队长、组员 | 后端架构、数据模型与协调 |
 
 ## 当前能力
 

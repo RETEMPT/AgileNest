@@ -17,3 +17,6 @@ export type { PluginLibrary, BuiltinId } from "./plugins-client";
 export { assistExistingTask, applyTaskAssistance } from "./task-assistance";
 export { taskAssistancePOST, applyTaskAssistancePOST } from "./task-assistance-api";
 export type { TaskAssistanceRequest, TaskAssistanceResult, ApplyTaskAssistanceInput } from "./task-assistance-client";
+export { generateProjectReport } from "./report";
+export { projectReportPOST } from "./report-api";
+export type { ProjectReportRequest, ProjectReportResult } from "./report-client";

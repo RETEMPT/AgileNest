@@ -210,7 +210,7 @@ function TaskTile({
         {showStatus ? (
           <StatusPill status={task.status} />
         ) : (
-          null
+          <span>查看任务详情</span>
         )}
       </div>
     </article>

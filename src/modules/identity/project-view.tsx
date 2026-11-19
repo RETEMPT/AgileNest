@@ -10,7 +10,7 @@ import { listProjectTasks } from "@/modules/tasks";
 import { projectCompletion } from "@/modules/worklog";
 import { listMilestones } from "@/modules/milestone";
 
-import { POSITION_META } from "./client";
+import { POSITION_META, parseProjectRepo } from "./client";
 import { ProjectSettingsForm } from "./academic-ui";
 import { Badge, StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,10 +20,12 @@ import {
   ClipboardCheck,
   LayoutGrid,
   ListTodo,
+  MessageSquare,
   TrendingUp,
   Users,
 } from "lucide-react";
 import { ProjectJourney } from "./project-journey";
+import { ProjectRepoCard } from "./project-repo";
 import { FollowButton } from "@/modules/notify/ui";
 import { ExpandableSection } from "@/components/expandable-section";
 
@@ -64,9 +66,12 @@ export async function ProjectOverviewView({
     { key: "accepted", label: "已验收", color: "bg-status-accepted" },
   ] as const;
   const counts = { unclaimed: 0, in_progress: 0, submitted: 0, rejected: 0, accepted: 0 };
+  const ownCounts = { ...counts };
   for (const task of tasks) {
     counts[task.status] += 1;
+    if (task.assigneeId === user.id) ownCounts[task.status] += 1;
   }
+  const repoInfo = parseProjectRepo(p.description, p.name);
   const shortcuts = [
     { label: "查看看板", href: `/p/${projectId}/board`, icon: LayoutGrid },
     { label: "我的任务", href: `/p/${projectId}/table?assigneeId=${user.id}`, icon: ListTodo },
@@ -75,6 +80,7 @@ export async function ProjectOverviewView({
       : []),
     { label: "成员与分工", href: `/t/${p.teamId}/members`, icon: Users },
     { label: "成员贡献", href: `/p/${projectId}/stats`, icon: TrendingUp },
+    { label: "项目评论", href: `/p/${projectId}/comments`, icon: MessageSquare },
   ];
   return (
     <div className="space-y-6">
@@ -168,7 +174,7 @@ export async function ProjectOverviewView({
 
       <nav
         aria-label="项目快捷入口"
-        className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5"
+        className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
       >
         {shortcuts.map((shortcut) => (
           <Link
@@ -188,8 +194,11 @@ export async function ProjectOverviewView({
       <ProjectJourney
         projectId={projectId}
         actorId={user.id}
+        counts={counts}
+        ownCounts={ownCounts}
         canReview={access.capabilities.review}
         canExecute={access.capabilities.execute}
+        canAssign={access.capabilities.task.actions.includes("assign")}
       />
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
@@ -240,44 +249,54 @@ export async function ProjectOverviewView({
             </div>
           )}
         </ExpandableSection>
-        <section className="overflow-hidden rounded-2xl border border-border bg-card">
-          <div className="flex items-center justify-between border-b border-border p-5">
-            <h2 className="font-semibold">近期里程碑</h2>
-            <Link
-              href={"/p/" + projectId + "/milestones"}
-              className="text-xs text-brand"
-            >
-              全部 →
-            </Link>
-          </div>
-          {upcoming.length ? (
-            <ol className="space-y-5 p-5">
-              {upcoming.slice(0, 5).map((m) => (
-                <li key={m.id} className="flex gap-3">
-                  <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full border-2 border-brand" />
-                  <div className="min-w-0 flex-1">
-                    <Link
-                      href={"/p/" + projectId + "/table?milestoneId=" + m.id}
-                      className="text-sm font-medium hover:text-brand"
-                    >
-                      {m.title}
-                    </Link>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {m.targetDate || "尚未排期"} · 点击查看关联任务
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="p-6 text-sm text-muted-foreground">
-              暂无待完成的里程碑。可在里程碑页面安排阶段目标。
-            </p>
+        <div className="space-y-6">
+          {repoInfo && (
+            <ProjectRepoCard
+              owner={repoInfo.owner}
+              repo={repoInfo.repo}
+              url={repoInfo.url}
+              description={p.description}
+            />
           )}
-          <div className="border-t border-border bg-muted/30 p-5 text-xs text-muted-foreground">
-            项目周期：{p.startDate || "未设开始"} → {p.endDate || "未设结束"}
-          </div>
-        </section>
+          <section className="overflow-hidden rounded-2xl border border-border bg-card">
+            <div className="flex items-center justify-between border-b border-border p-5">
+              <h2 className="font-semibold">近期里程碑</h2>
+              <Link
+                href={"/p/" + projectId + "/milestones"}
+                className="text-xs text-brand"
+              >
+                全部 →
+              </Link>
+            </div>
+            {upcoming.length ? (
+              <ol className="space-y-5 p-5">
+                {upcoming.slice(0, 5).map((m) => (
+                  <li key={m.id} className="flex gap-3">
+                    <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full border-2 border-brand" />
+                    <div className="min-w-0 flex-1">
+                      <Link
+                        href={"/p/" + projectId + "/table?milestoneId=" + m.id}
+                        className="text-sm font-medium hover:text-brand"
+                      >
+                        {m.title}
+                      </Link>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {m.targetDate || "尚未排期"} · 点击查看关联任务
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="p-6 text-sm text-muted-foreground">
+                暂无待完成的里程碑。可在里程碑页面安排阶段目标。
+              </p>
+            )}
+            <div className="border-t border-border bg-muted/30 p-5 text-xs text-muted-foreground">
+              项目周期：{p.startDate || "未设开始"} → {p.endDate || "未设结束"}
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   );

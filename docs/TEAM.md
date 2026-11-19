@@ -13,6 +13,8 @@
 | tasks、delivery | A | 五态任务、提交验收、阶段交付；/p/:id/tasks、/p/:id/delivery |
 | board | B | 看板、表格、统一筛选与本人保存视图 |
 | review、discussions | C（root 集成） | 工作台、验收台、活动流、任务讨论 |
+| comments | C（root 集成） | 项目评论（师生可评论、编辑与撤回）；/p/:id/comments |
+| assets | foundation | 团队资源池、占用申请与审批；/t/:id/assets |
 | worklog（含 stats） | D | 任务完成度、成员贡献与历史记录；/p/:id/stats |
 | calendar、milestone、notify | E | 项目排期、本人日程、里程碑、站内消息与提醒 |
 | components/ai、共享偏好、Windows 发布工具 | foundation | 本地 AI 草稿、统一浮窗、主题与发布生命周期 |
@@ -21,7 +23,7 @@
 
 默认仅 Owner 修改所属目录；完整链路迭代须先登记模块范围和 Owner，再通过公开契约集成。不顺手重构、接管成员分支。core 修补由 foundation 说明理由并使用 feature/core-patch/<slug>；登录文件锁定，依赖变更单独声明理由。schema 仅在 src/db/schema.ts 末尾追加，不重排旧块；迁移和 DB 检查由集成人串行执行，旧 SQL/hash、历史业务数据保留。
 
-表归属：identity 管理账号、团队/成员/职务/学术确认、项目目录、团队资料公告和本人联系方式；tasks 管理任务、要求、不可变提交/评审、标签、依赖和行动项；resources 管理资料/版本/目录/授权/评论/双向引用/回收；discussions 管理讨论/修订/提及与附件引用；delivery 管理批次/条目/问题/历史快照；calendar 管理本人日程与提醒；milestone/worklog/notify/review 各管理对应节点、工时、消息/订阅/偏好、任务活动。
+表归属：identity 管理账号、团队/成员/职务/学术确认、项目目录、团队资料公告和本人联系方式；tasks 管理任务、要求、不可变提交/评审、标签、依赖和行动项；resources 管理资料/版本/目录/授权/评论/双向引用/回收；discussions 管理讨论/修订/提及与附件引用；comments 管理项目评论（正文、一层回复、版本与撤回）；assets 管理团队资源池与占用申请（录入、申请、审批、归还）；delivery 管理批次/条目/问题/历史快照；calendar 管理本人日程与提醒；milestone/worklog/notify/review 各管理对应节点、工时、消息/订阅/偏好、任务活动。
 
 ## 2. 公开契约
 
@@ -90,8 +92,8 @@ removeTeamMember(actorId, teamId, targetUserId)
 - 根入口 `getProjectDirectory(actorId,teamId):Promise<ProjectDirectoryDTO>`、`mutateProjectDirectory(actorId,teamId,ProjectSpaceMutation):Promise<void>`；HTTP薄壳 `projectDirectoryGET/POST`。
 - `identity/client` 导出目录DTO/变更类型、Zod、`projectSpacePath`、`projectSpaceMoveError`；`identity/ui.ProjectDirectory({teamId,initial,kind?})`。
 - POST `/api/v1/teams/:teamId/project-spaces` op=create/update/delete/place：update/delete带目录version；place带projectId/spaceId和placement version（首次0）。管理员/副管理员整理、成员读取，团队锁后复核，四层子树/循环/范围保护，空目录才能删除。
-- `identity/client` 提供学术身份/职务元数据、兼容角色映射和 `capabilitiesFor(positions,projectKind)`；不加载 DB/session。`getTeamMembership` 返回 positions，`getProjectForUser` 返回 positions/capabilities，学术身份不参与授权。
-- `SettingsView` 的 section 支持 profile/academic/projects/ai/appearance/connections/notifications，飞书回调 notice 优先进入连接；通知分区复用 notify 公开面板。
+- `identity/client` 提供学术身份/职务元数据、兼容角色映射、`capabilitiesFor(positions,projectKind)`，以及 `parseProjectRepo(description?, projectName?)` 与 `ProjectRepoInfo`；不加载 DB/session。`getTeamMembership` 返回 positions，`getProjectForUser` 返回 positions/capabilities，学术身份不参与授权。
+- `SettingsView` 的 section 支持 profile/academic/projects/tokens/ai/appearance/connections/notifications，飞书回调 notice 优先进入连接；通知分区复用 notify 公开面板。开放 `/api/v1/agent/tasks` 与 `/api/v1/agent/tasks/complete` 供 Personal API Token 以本人身份调用。
 - 职务能力：`TEAM_POSITIONS` 增加deputy，member显示组员；`capabilitiesFor` 增加manageTeamInformation/manageProjectDirectory/manageResources，admin/deputy均可日常管理，manageMembers仅admin。`canRemoveTeamMember(actorPositions,targetPositions)`供成员入口计算移除权限。
 - 根入口`requireTeamCapability(actorId,teamId,capability,tx?)`，capability为manageMembers/manageTeamInformation/manageProjectDirectory/manageResources；identity事务在团队锁后重查实际职务。`updateMemberPositions(actorId,teamId,targetUserId,positions,positionVersion?)`可选版本参数，返回positionVersion；`listTeamMembers`增加positionVersion:string|null，页面强制携带。旧服务调用保留兼容，最后主管理员不因副管理员存在而放行降级/退出。
 
@@ -216,7 +218,7 @@ memberContribution(actorId, projectId)
 
 `projectCompletion` 的 `{ done, total, ratio }` 为已验收顶层任务数/顶层总数；`completionRatio` 在有子任务时为已验收子任务数/直接子任务总数。公开 `worklog/views.StatsView` 为成员贡献页。工时填写与删除已停用，addWorklog/deleteWorklog 先查 ACL 后返回 410，旧导出和历史只读契约保留；WorklogForm/addWorklogAction 已移除，历史表未删除。
 
-`projectProgress` 生成 `/p/:projectId/progress` 所需的项目级只读汇总：`total/accepted/ratio` 仍按顶层任务验收；`subtaskTotal/subtaskAccepted` 单独列出；`statusCounts/active/overdue/attention` 描述当前五态、推进中、逾期和去重后的关注任务；`milestones` 按阶段（含“未关联里程碑”）统计顶层任务验收与逾期；`weeks` 按验收时间汇总最近 8 周；`risks` 仅列逾期或待修改的顶层任务。公开 `worklog/views.ProgressView` 为进度页，不新增表、写入或任务状态变更，子任务验收不计入项目完成率。
+`projectProgress` 生成 `/p/:projectId/progress` 所需的项目级只读汇总：`total/accepted/ratio` 仍按顶层任务验收；`subtaskTotal/subtaskAccepted` 单独列出；`statusCounts/active/overdue/attention` 描述当前五态、推进中、逾期和去重后的关注任务；`milestones` 按阶段（含“未关联里程碑”）统计顶层任务验收与逾期；`weeks` 按验收时间汇总最近 8 周，`days` 按验收时间逐日汇总最近 16 周（供验收热力图）；`risks` 仅列逾期或待修改的顶层任务。公开 `worklog/views.ProgressView` 为进度页，不新增表、写入或任务状态变更，子任务验收不计入项目完成率。
 
 `memberContribution` 当前管理员/副管理员/指导老师返回全员，普通成员仅本人；Contribution 移除 minutes，新增 tasksTotal/statusCounts/completionRatio/overdue/tasks，tasksSubmitted 为当前待验收数、tasksAccepted 为当前通过数。按当前负责人统计，任务详情列明是否子任务，顶层总完成度单独显示；不以历史投入或任务数量自动评价个人。
 
@@ -354,6 +356,60 @@ TaskDiscussions({ taskId, projectId, actorId, task?, compact?, onBusyChange?, on
 
 API：`/api/v1/tasks/:taskId/discussions` GET/POST、`/:postId?history` GET、`/:postId` PATCH `op=edit|withdraw|resolve`。新讨论/回复按当前关注与偏好通知负责人、被回复作者和明确提及的成员，排除本人/离队成员，通知与新内容同事务提交。撤回保留历史与文件引用，不改任务状态。独立迁移 `discussions.sql`、`migrate-discussions.mjs` 分别用于开发/测试库，旧业务迁移不改哈希。
 
+### `@/modules/comments`（C / root）
+
+```ts
+// 根入口：当前项目成员读取；写入事务重新验证团队归属与职务
+listProjectComments(actorId, projectId): Promise<ProjectCommentListDTO>
+createProjectComment(actorId, projectId, { body, parentId? }): Promise<ProjectCommentDTO>
+updateProjectComment(actorId, projectId, commentId, { version, body }): Promise<ProjectCommentDTO>
+withdrawProjectComment(actorId, projectId, commentId, version): Promise<ProjectCommentDTO>
+projectCommentsGET / projectCommentsPOST / projectCommentPATCH
+
+// comments/client：浏览器安全 DTO、输入与响应 Zod schema；不含 DB/session
+ProjectCommentDTO // 正文、版本、父评论、撤回、作者姓名、本人 canEdit/canWithdraw
+projectCommentSchema / projectCommentListSchema / projectCommentCreateSchema / projectCommentEditSchema
+
+// comments/ui：完整页
+ProjectComments({ projectId, actorId, projectName })
+// comments/views：服务端组合
+ProjectCommentsView({ params })
+```
+
+- 教师与成员都可发表项目评论；写权限来自项目成员资格（`requireProjectForUser`），学术身份不参与授权。一层回复绑定本项目，回复子回复、绑定其他项目或回复已撤回评论返回 409/404。
+- 作者可编辑并保留版本（version+1），旧版本编辑返回 409，他人编辑返回 403；作者或团队管理员可撤回，撤回隐藏正文且不可继续回复。中文错误直接展示。
+- API：`/api/v1/projects/:projectId/comments` GET/POST、`/:commentId` PATCH `op=edit|withdraw`。表 `project_comments` 追加在 schema 末尾，独立迁移 `comments-assets.sql`、`migrate-comments-assets.mjs`。页面 `/p/:projectId/comments`，项目概览快捷操作与侧栏「项目评论」均指向该页。
+
+### `@/modules/assets`（foundation）
+
+```ts
+// 根入口：团队级资源池，教师维护，成员申请
+listAssets(actorId, teamId): Promise<AssetListDTO>                       // {assets, canManage}
+createAsset(actorId, teamId, { name, totalQuantity, note? }): Promise<AssetDTO>
+updateAsset(actorId, teamId, assetId, { version, name, totalQuantity, note? }): Promise<AssetDTO>
+deleteAsset(actorId, teamId, assetId, version): Promise<void>
+listAssetRequests(actorId, teamId): Promise<AssetRequestListDTO>          // 教师看全部，成员看本人
+createAssetRequest(actorId, teamId, { assetId, quantity, purpose? }): Promise<AssetRequestDTO>
+withdrawAssetRequest(actorId, teamId, requestId, version): Promise<AssetRequestDTO>
+decideAssetRequest(actorId, teamId, requestId, { version, decision }): Promise<AssetRequestDTO>
+returnAssetRequest(actorId, teamId, requestId, version): Promise<AssetRequestDTO>
+assetsGET / assetsPOST / assetPATCH / assetDELETE / assetRequestsGET / assetRequestsPOST / assetRequestPATCH
+
+// assets/client：浏览器安全 DTO、输入与响应 Zod schema；不含 DB/session
+AssetDTO // name、totalQuantity、occupied、available、version、canManage
+AssetRequestDTO // assetName、applicantName、quantity、purpose、status、canWithdraw/canDecide
+assetSchema / assetListSchema / assetRequestSchema / assetRequestListSchema / assetCreateSchema / assetRequestCreateSchema
+
+// assets/ui：完整页
+AssetsWorkspace({ teamId, actorId, teamName })
+// assets/views：服务端组合
+TeamAssetsView({ params })
+```
+
+- 教师（admin/deputy/advisor 职务）录入、维护、删除资源并审批申请；成员查看全部资源并提交申请。占用只统计 `approved` 且未归还的申请，可用 = 总量 − 占用。申请超过可用、审批导致超量、或删除存在 `pending`/`approved` 申请的资源时返回 409，审批与占用在事务内按资源行锁重新核对。
+- 申请状态 `pending/approved/rejected/returned/withdrawn`；本人可撤回待审批，教师或申请人可归还已批准，教师审批待处理。教师列表看全部，成员只看本人。所有变更带版本，旧版本 409。
+- API：`/api/v1/teams/:teamId/assets` GET/POST、`/:assetId` PATCH/DELETE（删除带 `?version=`）、`/api/v1/teams/:teamId/asset-requests` GET/POST、`/:requestId` PATCH `op=withdraw|decide|return`。表 `assets`、`asset_requests` 追加在 schema 末尾，迁移同上 `comments-assets.sql`。页面 `/t/:teamId/assets`，`TeamSectionLinks` 增加「资源申请」入口。
+
 ### `@/modules/delivery`（A）
 
 - 根契约：`getProjectDeliveries(actorId,projectId):Promise<DeliveryProjectDTO>`、`getDeliveryBatch(actorId,batchId):Promise<DeliveryBatchDTO>`、`createDeliveryBatch(actorId,projectId,input:DeliveryBatchInput,requestKey?:string):Promise<string>`、`mutateDeliveryBatch(actorId,batchId,input:DeliveryMutation):Promise<DeliveryBatchDTO>`、`exportDeliveryRecord(actorId,batchId,version,format:"markdown"|"json"):Promise<{fileName:string,body:string}>`。根导出 DeliveryBatchDTO/DeliveryProjectDTO/DeliveryBatchInput/DeliveryMutation/DeliveryCheck/DeliverySnapshot/DeliveryRecordDTO；浏览器安全 `client` 另提供校验和展示纯函数。`delivery/ui`、`delivery/views.DeliveryProjectView({params,searchParams})` 登记为公共 UI/页面组合入口。
@@ -467,6 +523,8 @@ resources 新增根导出 `extractFileContent({name,bytes:Uint8Array},{signal?}?
 新增明确浏览器入口例外 `@/modules/ai/task-assistance-client`，仅Zod/纯类型/纯函数：taskAssistanceRequestSchema、taskAssistanceSuggestionSchema、taskAssistanceResultSchema、applyTaskAssistanceSchema、selectedTaskAssistancePatch 及对应类型。根服务 `assistExistingTask(actorId,cookie,input,signal?)` 只读当前任务/验收要求并生成建议，生成前后复核权限/版本；`applyTaskAssistance(actorId,input)` 只经tasks.updateTask写入已确认的标题/背景。根薄壳 taskAssistancePOST/applyTaskAssistancePOST 对应 `/api/v1/ai/task-assist` 和 `/task-assist/apply`，成功更新重验相关页面。
 
 建议输入 `{taskId,expectedUpdatedAt,brief?}`，结果 `{task:{id,projectId,title,description,status,updatedAt},requirements:{version,criteria},suggestion:{title,description,rationale,extensions:[{title,reason,addition}],questions,roadmap:[{title,outcome,orderNote}]},model}`；无要求的旧任务version为0。应用输入 `{taskId,expectedUpdatedAt,title?,description?,confirmed:true}`，至少一项，成功返回 `{task}`；原验收要求、状态和其他字段不变。界面默认不采纳，先比较最终内容再确认，冻结/旧版本/无权限拒绝保存，补充说明或源版本改变后须重新生成。
+
+新增根契约 `generateProjectReport(actorId,cookie,input:ProjectReportRequest,signal?)` 与薄壳 `projectReportPOST`，对应 `POST /api/v1/ai/report`。输入 `{projectId,kind?:"weekly"|"defense",brief?}`，只读聚合当前项目的任务、成员贡献、里程碑与进度后生成中文 Markdown 报告，返回 `{text,model}`；不创建或修改任务/资料，成员贡献沿用 memberContribution 的 ACL（普通成员仅本人）。`ai/client` 导出 ProjectReportRequest/ProjectReportResult 及 projectReportRequestSchema/projectReportResultSchema。共享组件 `components/ai/project-report` 的 `ProjectReport({projectId})` 渲染进度页生成入口，结果以纯文本展示并支持复制。
 
 ### 交互式回复与规划来源 · 2026-10-16
 

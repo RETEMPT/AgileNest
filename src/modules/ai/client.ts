@@ -1,6 +1,7 @@
 import { z } from "zod";
 export * from "./plugins-client";
 export * from "./output-client";
+export * from "./report-client";
 import { chatOutputUiSchema } from "./output-client";
 import { wouldCreateTaskDependencyCycle } from "@/modules/tasks/client";
 

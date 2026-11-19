@@ -33,3 +33,4 @@ yarn-error.log*
 .idea/
 .playwright-mcp/
 .tools/
+.workbuddy-ai/

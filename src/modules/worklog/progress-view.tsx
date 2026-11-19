@@ -2,8 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   ArrowRight,
+  CalendarClock,
   ChartNoAxesCombined,
   CheckCircle2,
+  Flag,
+  TriangleAlert,
 } from "lucide-react";
 import { isOverdue, requireUser, getProjectForUser, todayISO } from "@/modules/core";
 import { TASK_STATUSES, STATUS_LABELS } from "@/modules/tasks";
@@ -12,6 +15,8 @@ import { Badge, StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ExpandableSection } from "@/components/expandable-section";
+import { ProjectReport } from "@/components/ai/project-report";
+import { ContributionHeatmap } from "./heatmap";
 import { projectProgress, type ProgressMilestone, type ProgressWeek } from "./progress";
 
 const STATUS_BAR: Record<TaskStatus, string> = {
@@ -227,6 +232,9 @@ export async function ProgressView({ params }: { params: Promise<{ projectId: st
         </Card>
       </section>
 
+      <ProjectReport projectId={projectId} />
+      <ContributionHeatmap days={progress.days} />
+
       <div className="space-y-4">
         <ExpandableSection title="整体进度">
           <div className="p-4">
@@ -277,9 +285,27 @@ export async function ProgressView({ params }: { params: Promise<{ projectId: st
         </ExpandableSection>
       </div>
 
-      <p className="text-xs leading-6 text-muted-foreground">
-        统计口径：完成率只统计顶层任务，子任务共 {progress.subtaskTotal} 项（已验收 {progress.subtaskAccepted} 项）不计入百分比；里程碑用于观察阶段进展，不改变任务状态或验收结果。
-      </p>
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex items-start gap-2">
+          <CalendarClock className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <div>
+            <p className="text-xs font-medium">统计口径</p>
+            <p className="mt-1 text-xs leading-[18px] text-muted-foreground">
+              项目完成率只统计顶层任务；子任务共 {progress.subtaskTotal} 项，已验收 {progress.subtaskAccepted} 项，不计入上方百分比。
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 flex items-start gap-2 border-t border-border pt-3">
+          <Flag className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <p className="text-xs leading-[18px] text-muted-foreground">里程碑用于观察阶段进展，不改变任务状态或验收结果。</p>
+        </div>
+        {progress.overdue > 0 && (
+          <div className="mt-3 flex items-start gap-2 border-t border-border pt-3 text-destructive">
+            <TriangleAlert className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
+            <p className="text-xs leading-[18px]">有 {progress.overdue} 个逾期顶层任务需要跟进。</p>
+          </div>
+        )}
+      </div>
     </main>
   );
 }
