@@ -56,8 +56,10 @@ export async function ProjectOverviewView({
     { key: "accepted", label: "已验收", color: "bg-status-accepted" },
   ] as const;
   const counts = { unclaimed: 0, in_progress: 0, submitted: 0, rejected: 0, accepted: 0 };
+  const ownCounts = { ...counts };
   for (const task of tasks) {
     counts[task.status] += 1;
+    if (task.assigneeId === user.id) ownCounts[task.status] += 1;
   }
 
   const repoInfo = parseProjectRepo(p.description, p.name);
@@ -100,8 +102,11 @@ export async function ProjectOverviewView({
       <ProjectJourney
         projectId={projectId}
         actorId={user.id}
+        counts={counts}
+        ownCounts={ownCounts}
         canReview={access.capabilities.review}
         canExecute={access.capabilities.execute}
+        canAssign={access.capabilities.task.actions.includes("assign")}
       />
       <section className="overflow-hidden rounded-2xl border border-border bg-card">
         <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[240px_1fr]">
@@ -177,6 +182,9 @@ export async function ProjectOverviewView({
           </Link>
           <Link href={"/p/" + projectId + "/stats"} className="text-brand">
             成员贡献 ↗
+          </Link>
+          <Link href={"/p/" + projectId + "/comments"} className="text-brand">
+            项目评论 ↗
           </Link>
         </nav>
       </section>

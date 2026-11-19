@@ -39,6 +39,8 @@ describe("项目进度汇总", () => {
     expect(progress.statusCounts).toEqual({ unclaimed: 0, in_progress: 0, submitted: 0, accepted: 0, rejected: 0 });
     expect(progress.weeks).toHaveLength(8);
     expect(progress.weeks.every((week) => week.count === 0)).toBe(true);
+    expect(progress.days).toHaveLength(112);
+    expect(progress.days.every((day) => day.count === 0)).toBe(true);
   });
 
   it("按顶层验收统计完成率，并分别汇总里程碑、子任务、风险与周趋势", async () => {
@@ -88,6 +90,8 @@ describe("项目进度汇总", () => {
       total: 1,
     });
     expect(progress.weeks[progress.weeks.length - 1].count).toBe(1);
+    expect(progress.days.reduce((sum, day) => sum + day.count, 0)).toBe(1);
+    expect(progress.days.find((day) => day.date === todayISO())?.count).toBe(1);
     expect(unclaimed.id).toBeTruthy();
   });
 

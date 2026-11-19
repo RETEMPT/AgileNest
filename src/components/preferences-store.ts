@@ -5,29 +5,9 @@ const preferencesSchema = z.object({
   theme: z.enum(["system", "light", "dark"]),
   aiFloating: z.boolean(),
   ai: aiConfigurationSchema.default(DEFAULT_AI),
-  autoTheme: z.boolean().default(false),
-  dayStart: z.string().default("08:00"),
-  nightStart: z.string().default("18:00"),
-  eyeCare: z.boolean().default(false),
-  eyeCareStart: z.string().default("21:00"),
-  eyeCareEnd: z.string().default("07:00"),
-  eyeCareStrength: z.number().min(0).max(100).default(30),
-  backgroundImage: z.string().nullable().default(null),
 });
 export type UiPreferences = z.infer<typeof preferencesSchema>;
-export const DEFAULT_PREFERENCES: UiPreferences = {
-  theme: "system",
-  aiFloating: true,
-  ai: DEFAULT_AI,
-  autoTheme: false,
-  dayStart: "08:00",
-  nightStart: "18:00",
-  eyeCare: false,
-  eyeCareStart: "21:00",
-  eyeCareEnd: "07:00",
-  eyeCareStrength: 30,
-  backgroundImage: null,
-};
+export const DEFAULT_PREFERENCES: UiPreferences = { theme: "system", aiFloating: true, ai: DEFAULT_AI };
 export const PREFERENCES_SERVER_SNAPSHOT = { preferences: DEFAULT_PREFERENCES, error: null as string | null };
 export const preferencesKey = (userId: string) => `agilenest:preferences:v1:${userId}`;
 
@@ -43,10 +23,8 @@ export function createPreferencesStore(userId: string, storage: () => Pick<Stora
         const value: unknown = saved === null ? null : JSON.parse(saved);
         const preferences = value === null ? DEFAULT_PREFERENCES : preferencesSchema.parse(value);
         snapshot = { preferences, error: null };
-        // 只要存储值与校验后的规范化值不同就写回：既补齐新增偏好默认值，
-        // 也剥离旧版本遗留的 API 地址、模型标识、密钥变量名等未知镜像键，避免敏感配置留在浏览器缓存。
-        const cleaned = saved === null ? null : JSON.stringify(preferences);
-        if (cleaned !== null && cleaned !== saved) {
+        if (value && typeof value === "object" && "ai" in value && value.ai && typeof value.ai === "object" && "model" in value.ai) {
+          const cleaned = JSON.stringify(preferences);
           storage().setItem(preferencesKey(userId), cleaned);
           raw = cleaned;
         } else raw = saved;

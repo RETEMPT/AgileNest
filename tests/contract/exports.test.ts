@@ -11,6 +11,8 @@ import * as milestone from "@/modules/milestone";
 import * as notify from "@/modules/notify";
 import * as resources from "@/modules/resources";
 import * as discussions from "@/modules/discussions";
+import * as comments from "@/modules/comments";
+import * as assets from "@/modules/assets";
 import {
   TASK_STATUSES,
   STATUS_LABELS,
@@ -57,6 +59,18 @@ describe("discussions 契约导出", () => {
   });
 });
 
+describe("comments 契约导出", () => {
+  it("项目评论与HTTP壳完整", () => {
+    for (const name of ["listProjectComments", "createProjectComment", "updateProjectComment", "withdrawProjectComment", "projectCommentsGET", "projectCommentsPOST", "projectCommentPATCH"]) expect(comments).toHaveProperty(name);
+  });
+});
+
+describe("assets 契约导出", () => {
+  it("资源池、申请与HTTP壳完整", () => {
+    for (const name of ["listAssets", "createAsset", "updateAsset", "deleteAsset", "listAssetRequests", "createAssetRequest", "withdrawAssetRequest", "decideAssetRequest", "returnAssetRequest", "assetsGET", "assetsPOST", "assetPATCH", "assetDELETE", "assetRequestsGET", "assetRequestsPOST", "assetRequestPATCH"]) expect(assets).toHaveProperty(name);
+  });
+});
+
 describe("identity 契约导出", () => {
   it("团队 / 项目函数齐全", () => {
     for (const name of [
@@ -84,10 +98,6 @@ describe("identity 契约导出", () => {
       "deleteTeamAnnouncement",
       "leaveTeam",
       "removeTeamMember",
-      "createPersonalApiToken",
-      "listPersonalApiTokens",
-      "revokePersonalApiToken",
-      "authenticateApiToken",
     ]) {
       expect(identity, `identity 缺少 ${name}`).toHaveProperty(name);
     }

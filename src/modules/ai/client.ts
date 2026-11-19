@@ -1,6 +1,7 @@
 import { z } from "zod";
 export * from "./plugins-client";
 export * from "./output-client";
+export * from "./report-client";
 import { chatOutputUiSchema } from "./output-client";
 import { wouldCreateTaskDependencyCycle } from "@/modules/tasks/client";
 
@@ -74,8 +75,8 @@ export const chatSourceSchema = z.object({ resourceId: z.uuid(), title: z.string
 export const chatRetrievalSchema = z.object({ scope: z.enum(["project", "accessible", "none"]), searchedScopes: z.number().int().nonnegative(), matchedResources: z.number().int().nonnegative(), readResources: z.number().int().nonnegative(), truncated: z.boolean() }).strict();
 export const chatWorkSourceSchema = z.object({ kind: z.enum(["task", "milestone"]), id: z.uuid(), title: z.string().max(200), href: z.string().max(500), excerpt: z.string().max(500) }).strict();
 export const chatToolSourceSchema = z.object({ serverId: z.uuid(), serverName: z.string().max(60), toolName: z.string().max(128), excerpt: z.string().max(300), truncated: z.boolean() }).strict();
-export const chatProgressSchema = z.object({ type: z.literal("progress"), phase: z.enum(["searching", "reading", "answering", "intent", "tasks", "planning"]), message: z.string().max(300), stepTitle: z.string().max(60).optional() }).strict();
-export const chatResultSchema = z.object({ text: z.string().min(1).max(24000), model: z.string().min(1).max(120), sources: z.array(chatSourceSchema).max(12), workSources: z.array(chatWorkSourceSchema).max(10).default([]), toolSources: z.array(chatToolSourceSchema).max(2).default([]), retrieval: chatRetrievalSchema, ui: chatOutputUiSchema.optional(), progress: z.array(chatProgressSchema).max(24).optional() }).strict();
+export const chatResultSchema = z.object({ text: z.string().min(1).max(24000), model: z.string().min(1).max(120), sources: z.array(chatSourceSchema).max(12), workSources: z.array(chatWorkSourceSchema).max(10).default([]), toolSources: z.array(chatToolSourceSchema).max(2).default([]), retrieval: chatRetrievalSchema, ui: chatOutputUiSchema.optional() }).strict();
+export const chatProgressSchema = z.object({ type: z.literal("progress"), phase: z.enum(["searching", "reading", "answering"]), message: z.string() }).strict();
 export const chatStreamEventSchema = z.discriminatedUnion("type", [chatProgressSchema, chatResultSchema.extend({ type: z.literal("result") }), z.object({ type: z.literal("error"), error: z.string() }).strict()]);
 export type ChatSource = z.infer<typeof chatSourceSchema>;
 export type ChatResult = z.infer<typeof chatResultSchema>;
