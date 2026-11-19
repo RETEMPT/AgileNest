@@ -10,12 +10,13 @@ import { listProjectTasks } from "@/modules/tasks";
 import { projectCompletion } from "@/modules/worklog";
 import { listMilestones } from "@/modules/milestone";
 
-import { POSITION_META } from "./client";
+import { POSITION_META, parseProjectRepo } from "./client";
 import { ProjectSettingsForm } from "./academic-ui";
 import { Badge, StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight, CheckCircle2 } from "lucide-react";
 import { ProjectJourney } from "./project-journey";
+import { ProjectRepoCard } from "./project-repo";
 import { FollowButton } from "@/modules/notify/ui";
 
 export async function ProjectOverviewView({
@@ -58,6 +59,9 @@ export async function ProjectOverviewView({
   for (const task of tasks) {
     counts[task.status] += 1;
   }
+
+  const repoInfo = parseProjectRepo(p.description, p.name);
+
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -223,44 +227,54 @@ export async function ProjectOverviewView({
             </div>
           )}
         </section>
-        <section className="overflow-hidden rounded-2xl border border-border bg-card">
-          <div className="flex items-center justify-between border-b border-border p-5">
-            <h2 className="font-semibold">近期里程碑</h2>
-            <Link
-              href={"/p/" + projectId + "/milestones"}
-              className="text-xs text-brand"
-            >
-              全部 →
-            </Link>
-          </div>
-          {upcoming.length ? (
-            <ol className="space-y-5 p-5">
-              {upcoming.slice(0, 5).map((m) => (
-                <li key={m.id} className="flex gap-3">
-                  <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full border-2 border-brand" />
-                  <div className="min-w-0 flex-1">
-                    <Link
-                      href={"/p/" + projectId + "/table?milestoneId=" + m.id}
-                      className="text-sm font-medium hover:text-brand"
-                    >
-                      {m.title}
-                    </Link>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {m.targetDate || "尚未排期"} · 点击查看关联任务
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="p-6 text-sm text-muted-foreground">
-              暂无待完成的里程碑。可在里程碑页面安排阶段目标。
-            </p>
+        <div className="space-y-6">
+          {repoInfo && (
+            <ProjectRepoCard
+              owner={repoInfo.owner}
+              repo={repoInfo.repo}
+              url={repoInfo.url}
+              description={p.description}
+            />
           )}
-          <div className="border-t border-border bg-muted/30 p-5 text-xs text-muted-foreground">
-            项目周期：{p.startDate || "未设开始"} → {p.endDate || "未设结束"}
-          </div>
-        </section>
+          <section className="overflow-hidden rounded-2xl border border-border bg-card">
+            <div className="flex items-center justify-between border-b border-border p-5">
+              <h2 className="font-semibold">近期里程碑</h2>
+              <Link
+                href={"/p/" + projectId + "/milestones"}
+                className="text-xs text-brand"
+              >
+                全部 →
+              </Link>
+            </div>
+            {upcoming.length ? (
+              <ol className="space-y-5 p-5">
+                {upcoming.slice(0, 5).map((m) => (
+                  <li key={m.id} className="flex gap-3">
+                    <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full border-2 border-brand" />
+                    <div className="min-w-0 flex-1">
+                      <Link
+                        href={"/p/" + projectId + "/table?milestoneId=" + m.id}
+                        className="text-sm font-medium hover:text-brand"
+                      >
+                        {m.title}
+                      </Link>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {m.targetDate || "尚未排期"} · 点击查看关联任务
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="p-6 text-sm text-muted-foreground">
+                暂无待完成的里程碑。可在里程碑页面安排阶段目标。
+              </p>
+            )}
+            <div className="border-t border-border bg-muted/30 p-5 text-xs text-muted-foreground">
+              项目周期：{p.startDate || "未设开始"} → {p.endDate || "未设结束"}
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   );

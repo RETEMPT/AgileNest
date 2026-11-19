@@ -1,8 +1,8 @@
 # Windows 发布包：运行、升级与构建
 
-当前正式版本 **0.6.0**。本页只维护发布包运行、数据保留和打包流程；功能见 [DESIGN](DESIGN.md)，验收见 [UX](UX.md)，版本变化见 [CHANGELOG](../CHANGELOG.md)。
+当前正式版本 **0.6.1**。本页只维护发布包运行、数据保留和打包流程；功能见 [DESIGN](DESIGN.md)，验收见 [UX](UX.md)，版本变化见 [CHANGELOG](../CHANGELOG.md)。
 
-PR #12 合入 main 后重新通过104文件/1030条契约与Windows构建。独立候选包已检查首装、关闭/重启、旧数据保留和API配置隔离；正式包的逐项验收与校验附件见 [0.6.0 Release](https://github.com/RETEMPT/AgileNest/releases/tag/v0.6.0)。已有 [0.5.0 稳定包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.5.0)、[rc.4 候选包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.4.0-rc.4) 与 [0.3.0 历史稳定包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.3.0) 保留。GitHub 自动生成的 Source code 是源码，运行包须选择 Windows ZIP。
+正式包的逐项验收与校验附件见 [0.6.1 Release](https://github.com/RETEMPT/AgileNest/releases/tag/v0.6.1)。已有 [0.6.0 稳定包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.6.0)、[0.5.0 稳定包](https://github.com/RETEMPT/AgileNest/releases/tag/v0.5.0) 与历史发布保留。GitHub 自动生成的 Source code 是源码，运行包须选择 Windows ZIP。
 
 ## 运行发布包
 
@@ -10,13 +10,12 @@ PR #12 合入 main 后重新通过104文件/1030条契约与Windows构建。独�
 
 首次启动创建本机数据库和示例空间，完成后自动打开 `http://localhost:3000`。**从 0.3.1-rc.1 构建的新包只有 start.bat 一个运行入口，保持窗口打开，关闭窗口或按 Ctrl+C 即停止网站。** 重复启动会提示原窗口仍在运行；个人资料、任务和日程保留。
 
-已经下载的 0.3.0 包保持原行为：网站在后台运行，使用包内 stop.bat 停止。仓库整理不会改变旧 ZIP。
-
-| 演示账号 | 初始密码 | 职务 |
-|---|---|---|
-| admin@agilecampus.local | password123 | 管理员、组员 |
-| teacher@agilecampus.local | password123 | 指导老师 |
-| student@agilecampus.local | password123 | 组员 |
+| 演示账号 | 初始密码 | 职务 | 职责说明 |
+|---|---|---|---|
+| admin@agilecampus.local | password123 | 管理员、组员 | 全局权限、团队维护、终审验收 |
+| teacher@agilecampus.local | password123 | 指导老师 | 课题指导、里程碑与成果验收 |
+| student@agilecampus.local | password123 | 组员 | 前端核心、任务认领与提交 |
+| dev@agilecampus.local | password123 | 队长、组员 | 后端架构、数据模型与协调 |
 
 示例仅初始化一次，后续启动不覆盖姓名、职务、头像或任务。也可在登录页注册个人账号，建立自己的团队。网站和数据库均只监听本机地址。
 

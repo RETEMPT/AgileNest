@@ -108,3 +108,32 @@ export function capabilitiesFor(
 export function canRemoveTeamMember(actorPositions: readonly TeamPosition[], targetPositions: readonly TeamPosition[]) {
   return actorPositions.includes("admin") || (actorPositions.includes("deputy") && !targetPositions.some((position) => position === "admin" || position === "deputy"));
 }
+
+export type ProjectRepoInfo = {
+  owner: string;
+  repo: string;
+  url: string;
+};
+
+export function parseProjectRepo(
+  description?: string | null,
+  projectName?: string
+): ProjectRepoInfo | null {
+  const match = description?.match(/https?:\/\/github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)/);
+  if (match) {
+    return {
+      owner: match[1],
+      repo: match[2].replace(/\.git$/, ""),
+      url: match[0].replace(/\.git$/, ""),
+    };
+  }
+  const isDemo = Boolean(projectName && (projectName.includes("AgileCampus") || projectName.includes("AgileNest")));
+  if (isDemo) {
+    return {
+      owner: "RETEMPT",
+      repo: "AgileNest",
+      url: "https://github.com/RETEMPT/AgileNest",
+    };
+  }
+  return null;
+}
