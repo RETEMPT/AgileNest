@@ -15,6 +15,7 @@ import {
 } from "@/modules/tasks";
 import { transitionBodySchema, requirementsSchema } from "./delivery-validation";
 import type { TaskDeliveryDTO } from "./delivery-types";
+import { createTaskVersion, listTaskVersions, type TaskVersionDTO } from "./version-service";
 import { listTeamMembers } from "@/modules/identity";
 import { createMilestone } from "@/modules/milestone";
 
@@ -332,4 +333,21 @@ export async function setDueDateAction(
   }
   revalidatePath(`/p/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
   return { error: "", ok: "已改截止日期" };
+}
+
+export async function saveTaskVersionAction(
+  taskId: string,
+  input: { content: string; remark?: string },
+): Promise<{ error: string; ok?: string; versions?: TaskVersionDTO[] }> {
+  const user = await requireUser();
+  try {
+    const id = z.uuid("任务无效").parse(taskId);
+    const { projectId } = await createTaskVersion(user.id, id, input);
+    const versions = await listTaskVersions(user.id, id);
+    revalidatePath(`/p/${projectId}/tasks/${id}`);
+    revalidatePath(`/p/${projectId}`, "layout");
+    return { error: "", ok: "已记录新版本", versions };
+  } catch (error) {
+    return { error: fail(error)?.error ?? "保存失败" };
+  }
 }

@@ -15,7 +15,7 @@ import {
   ProjectFolderIcon, LogoutIcon, ChevronDownIcon, MenuIcon,
   SidebarCollapseIcon, SidebarExpandIcon,
 } from "@/components/icons";
-import { Check, Files, PackageCheck, Bookmark, MessageSquare, Boxes } from "lucide-react";
+import { Check, Files, PackageCheck, Bookmark, MessageSquare, Boxes, FolderOpen } from "lucide-react";
 
 export type ProjectSummary = {
   id: string;
@@ -58,6 +58,7 @@ function SidebarContent({ user, projects, onSignOut, onToggleCollapse, pathname,
   const workspaceItems = [
     { href: "/home", label: "工作台", icon: WorkbenchIcon, active: pathname === "/home" || pathname.startsWith("/home/") },
     { href: "/t", label: "团队空间", icon: TeamIcon, active: pathname === "/t" || pathname.startsWith("/t/") },
+    { href: "/files", label: "公共文件库", icon: (props: Parameters<typeof ProjectFolderIcon>[0]) => <FolderOpen {...props} />, active: pathname === "/files" || pathname.startsWith("/files/") },
     { href: "/calendar", label: "我的日历", icon: CalendarIcon, active: pathname === "/calendar" },
     { href: "/ai", label: "AI 对话", icon: AiChatIcon, active: pathname === "/ai" },
   ];

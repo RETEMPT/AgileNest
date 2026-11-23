@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { TaskAuditStream } from "@/components/cards/task-audit-stream";
 import { SubmissionTimeline } from "@/modules/review/ui";
 import { TaskRequirementsEditor } from "./requirements-ui";
+import { TaskVersionHistory } from "./version-ui";
+import { listTaskVersions } from "./version-service";
 import { applyFilters, parseFilters, serializeFilters, workspaceUrl, type GroupBy } from "@/modules/board/client";
 import { TaskPoolFilters } from "./pool-filters";
 import { SavedTaskViews } from "@/modules/board/ui";
@@ -38,11 +40,12 @@ export async function TaskDetailView({
   const task = await getTaskDetail(user.id, taskId).catch(() => null);
   if (!task || task.projectId !== projectId) notFound();
 
-  const [events, members, milestones, delivery] = await Promise.all([
+  const [events, members, milestones, delivery, versions] = await Promise.all([
     listTaskEvents(user.id, taskId),
     listTeamMembers(user.id, access.project.teamId),
     listMilestones(user.id, projectId),
     getTaskDelivery(user.id, taskId),
+    listTaskVersions(user.id, taskId),
   ]);
 
   return (
@@ -84,6 +87,7 @@ export async function TaskDetailView({
       <TaskOrganization taskId={task.id} projectId={projectId} />
       <ResourceTaskLinks taskId={task.id} projectId={projectId} />
       <TaskRequirementsEditor taskId={task.id} requirements={delivery.requirements} canEdit={Boolean(task.permissions?.actions.includes("update")) && !["submitted", "accepted"].includes(task.status)} taskStatus={task.status} />
+      <TaskVersionHistory taskId={task.id} initialVersions={versions} currentContent={task.description ?? ""} />
       <TaskDiscussions taskId={task.id} projectId={projectId} actorId={user.id} task={{ id: task.id, title: task.title, status: task.status, dueDate: task.dueDate, assigneeName: task.assigneeName, projectName: access.project.name }} />
       <SubmissionTimeline taskId={task.id} updatedAt={task.updatedAt.toISOString()} />
 

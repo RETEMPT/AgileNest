@@ -722,3 +722,41 @@ export const assetRequests = pgTable("asset_requests", {
   version: integer("version").notNull().default(1),
   createdAt: timestamp("created_at").notNull().defaultNow(), updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [index("asset_requests_asset_idx").on(t.assetId), index("asset_requests_applicant_idx").on(t.applicantId), check("asset_requests_quantity_check", sql`${t.quantity} > 0`), check("asset_requests_status_check", sql`${t.status} in ('pending', 'approved', 'rejected', 'returned', 'withdrawn')`), check("asset_requests_version_check", sql`${t.version} > 0`)]);
+
+// ============================================================
+// tasks：任务内容版本快照（版本号 + 备注，可回看与切换）
+// ============================================================
+
+export const taskVersions = pgTable("task_versions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  taskId: uuid("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  version: integer("version").notNull(),
+  remark: text("remark").notNull().default(""),
+  createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("task_versions_task_version_unique").on(t.taskId, t.version),
+  index("task_versions_task_idx").on(t.taskId, t.createdAt),
+  check("task_versions_content_check", sql`char_length(btrim(${t.content})) between 1 and 20000`),
+  check("task_versions_remark_check", sql`char_length(${t.remark}) <= 500`),
+  check("task_versions_version_check", sql`${t.version} > 0`),
+]);
+
+// ============================================================
+// public-files：全站公共文件库（登录用户均可上传下载）
+// ============================================================
+
+export const publicFiles = pgTable("public_files", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  fileName: text("file_name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  size: integer("size").notNull().default(0),
+  contentBase64: text("content_base64").notNull(),
+  uploadedById: uuid("uploaded_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("public_files_created_idx").on(t.createdAt),
+  check("public_files_name_check", sql`char_length(btrim(${t.fileName})) between 1 and 200`),
+  check("public_files_size_check", sql`${t.size} >= 0`),
+]);
