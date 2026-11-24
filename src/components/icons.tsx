@@ -164,7 +164,7 @@ export function ProgressIcon(props: IconProps) {
   );
 }
 
-/** 10. 通知中心系统 [notify 分支]：站内信与飞书私信铃铛 */
+/** 10. 通知中心系统 [notify 分支]：站内消息铃铛 */
 export function NotifyIcon(props: IconProps) {
   return (
     <BaseSvg {...props}>

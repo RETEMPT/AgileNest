@@ -5,7 +5,6 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { verifyPassword } from "./password";
-import { loginWithFeishuCode } from "./user";
 
 const credentialsSchema = z.object({
   email: z.email(),
@@ -30,20 +29,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!ok) return null;
 
         return { id: user.id, email: user.email, name: user.name };
-      },
-    }),
-    Credentials({
-      id: "feishu",
-      credentials: { code: {} },
-      authorize: async (credentials) => {
-        const code = credentials?.code;
-        if (typeof code !== "string" || !code) return null;
-        try {
-          const user = await loginWithFeishuCode(code);
-          return { id: user.id, email: user.email, name: user.name };
-        } catch {
-          return null;
-        }
       },
     }),
   ],

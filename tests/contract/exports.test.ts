@@ -87,8 +87,6 @@ describe("identity 契约导出", () => {
       "getAccountProfile",
       "saveAccountProfile",
       "getAvatar",
-      "getFeishuConnection",
-      "disconnectFeishu",
       "getTeamInformation",
       "updateTeamInformation",
       "rotateTeamInvite",

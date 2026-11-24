@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, type ReactNode } from "react";
+import { useActionState, useState } from "react";
 import Image, { getImageProps } from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -34,9 +34,8 @@ const mobileArtwork = getImageProps({
   sizes: "100vw",
 }).props;
 
-export function LoginExperience({ action, children }: {
+export function LoginExperience({ action }: {
   action: (previous: LoginState, formData: FormData) => Promise<LoginState>;
-  children: ReactNode;
 }) {
   const [state, formAction, pending] = useActionState<LoginState, FormData>(action, null);
   const [showPassword, setShowPassword] = useState(false);
@@ -108,9 +107,6 @@ export function LoginExperience({ action, children }: {
             {searchParams.get("registered") && (
               <p className={styles.success} role="status">注册成功，请使用新账号登录。</p>
             )}
-            {searchParams.get("error") === "feishu_not_configured" && (
-              <p className={styles.notice} role="status">当前站点尚未配置飞书登录，请使用邮箱和密码登录。</p>
-            )}
 
             <form action={formAction} className={styles.form} aria-busy={pending} aria-describedby={state?.error ? "login-error" : undefined}>
               <div className={styles.field}>
@@ -132,7 +128,6 @@ export function LoginExperience({ action, children }: {
               </Button>
             </form>
 
-            <div className={styles.feishu}>{children}</div>
             <p className={styles.register}>还没有账号？<Link href="/register">创建账号 <ArrowUpRight size={14} aria-hidden="true" /></Link></p>
             <details className={styles.demo}>
               <summary>只是来看看？使用演示账号 <span aria-hidden="true">＋</span></summary>

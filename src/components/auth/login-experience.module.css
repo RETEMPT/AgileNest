@@ -90,13 +90,6 @@
 .form .submit:hover { background: #0e2f4e; box-shadow: 2px 2px 0 var(--accent-blue); }
 .form .submit > svg:last-child { margin-left: auto; }
 .form .submit::before { content: ""; width: 18px; margin-right: auto; }
-.feishu { margin-top: 20px; }
-.feishu > div { display: flex; flex-direction: column; gap: 13px; }
-.feishu > div > div { color: #49637a; font-size: 10px; }
-.feishu > div > div > span { background: #bbcddb; }
-.feishu a { min-height: 46px; border-radius: 0; background: transparent; border-color: var(--input); color: var(--ink); font-size: 12px; }
-.feishu a:hover { background: #dfedf7; }
-.feishu p { color: #a5222a; }
 .register { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 18px; color: #49637a; font-size: 12px; }
 .register a { display: inline-flex; align-items: center; gap: 2px; color: var(--ink); font-weight: 700; }
 .register a:hover { text-decoration: underline; }

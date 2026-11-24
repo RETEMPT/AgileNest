@@ -26,9 +26,6 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   name: text("name").notNull(),
-  feishuOpenId: text("feishu_open_id").unique(),
-  feishuName: text("feishu_name"),
-  feishuBoundAt: timestamp("feishu_bound_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

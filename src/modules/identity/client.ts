@@ -3,15 +3,6 @@ export { projectDirectorySchema, projectSpacePath, projectSpaceMoveError, projec
 export type { ProjectDirectoryDTO, ProjectSpaceDTO, ProjectSpaceMutation } from "./space-client";
 export type { TeamInformationDTO, TeamAnnouncementDTO } from "./team-client";
 
-export type FeishuConnection = {
-  connected: boolean;
-  configured: boolean;
-  name: string | null;
-  boundAt: string | null;
-  bindingVersion: string | null;
-  canDisconnect: boolean;
-};
-
 export const ACADEMIC_IDENTITIES = [
   "undergraduate",
   "master",

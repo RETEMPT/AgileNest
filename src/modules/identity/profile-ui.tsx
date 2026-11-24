@@ -42,7 +42,6 @@ async function prepareAvatar(file: File): Promise<string> {
 
 export function AccountProfileForm({
   profile,
-  feishuName,
 }: {
   profile: {
     name: string;
@@ -51,7 +50,6 @@ export function AccountProfileForm({
     avatarUrl: string | null;
     contacts: PersonalContacts;
   };
-  feishuName?: string | null;
 }) {
   const id = useId();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -80,7 +78,6 @@ export function AccountProfileForm({
   );
   const preview = avatar === "remove" ? null : avatar || saved.avatarUrl;
   const dirty = name !== saved.name || bio !== saved.bio || avatar !== "" || JSON.stringify(contacts) !== JSON.stringify(saved.contacts);
-  const importedName = feishuName?.trim().slice(0, 50);
   return (
     <form
       action={action}
@@ -184,20 +181,6 @@ export function AccountProfileForm({
               required
               autoComplete="name"
             />
-            {importedName && importedName !== name && (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="h-auto max-w-full justify-start whitespace-normal px-0 text-left text-xs text-brand"
-                onClick={() => {
-                  setName(importedName);
-                  setShowFeedback(false);
-                }}
-              >
-                使用飞书姓名：{importedName}（保存后生效）
-              </Button>
-            )}
           </div>
           <div className="space-y-2">
             <label htmlFor={`${id}-email`} className="text-sm font-medium">
