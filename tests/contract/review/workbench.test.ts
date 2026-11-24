@@ -93,6 +93,7 @@ describe("统一工作台", () => {
       mine: [],
       review: [],
       pool: [],
+      rejected: [],
     });
   });
   it("纯指导老师没有可认领队列", async () => {
