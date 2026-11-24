@@ -515,7 +515,7 @@ function DiscussionPanel({ taskId, projectId, actorId, task, compact = false, on
             </div>
             <span className="truncate text-xs text-muted-foreground">{files.length ? `${files.length} 份资料` : "讨论不改变任务状态"}</span>
           </div>
-          <div ref={thread} aria-label="讨论消息" className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-4">
+          <div ref={thread} aria-label="讨论消息" className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-4">
             {loadError && <div className="mb-3 space-y-2"><FormFeedback message={loadError} /><Button type="button" variant="outline" size="sm" onClick={() => setReload((value) => value + 1)}>重新加载讨论</Button></div>}
             {!list && !loadError && <div className="space-y-3 py-2" role="status"><p className="text-xs text-muted-foreground">正在加载讨论…</p><div className="h-16 rounded-lg bg-muted/40" /><div className="h-12 w-3/4 rounded-lg bg-muted/30" /></div>}
             {list?.nextCursor && <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs"><p className="text-muted-foreground">较早讨论保留在历史中。</p><Button type="button" size="sm" variant="outline" disabled={loadingEarlier || busy} onClick={() => void loadEarlier()}>{loadingEarlier ? "加载中…" : "加载较早讨论"}</Button></div>}
