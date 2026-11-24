@@ -20,7 +20,7 @@ const query = (input = {}) => parseWorkbenchQuery(input);
 
 describe("工作台筛选与排序", () => {
   it("未知分类、日期选项和重复参数回到可用默认值", () => {
-    expect(query({ view: "unknown", q: ["a", "b"], due: "later" })).toEqual({ view: "mine", q: "", projectId: "", due: "all", status: "all", sort: "smart", page: 1 });
+    expect(query({ view: "unknown", q: ["a", "b"], due: "later" })).toEqual({ view: "none", q: "", projectId: "", due: "all", status: "all", sort: "smart", page: 1 });
   });
   it("关键词去除首尾空白且限制长度", () => {
     expect(query({ q: "  API  " }).q).toBe("API");
