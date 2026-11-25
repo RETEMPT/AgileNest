@@ -33,10 +33,9 @@ export { TeamSettingsView } from "./team-settings-view";
 import { TeamMemberRemovalButton, TeamSectionLinks } from "./team-settings";
 import { getProjectDirectory } from "./space-service";
 import { ProjectDirectory } from "./space-ui";
-import { ACADEMIC_LABELS, POSITION_META, capabilitiesFor, canRemoveTeamMember } from "./client";
+import { POSITION_META, capabilitiesFor, canRemoveTeamMember } from "./client";
 import {
   AcademicProfileForm,
-  ConfirmIdentityButton,
   MemberPositionsForm,
 } from "./academic-ui";
 
@@ -357,58 +356,6 @@ export async function TeamMembersView({ teamId }: { teamId: string }) {
                   {member.bio}
                 </p>
               )}
-              <div className="rounded-xl bg-muted/50 p-3 space-y-2">
-                <p className="text-xs text-muted-foreground">学术资料 · 不决定协作权限</p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium">
-                    {member.profile
-                      ? ACADEMIC_LABELS[member.profile.identity]
-                      : "未填写学术身份"}
-                  </span>
-                  {member.profile && (
-                    <Badge
-                      variant={
-                        member.identityConfirmed ? "default" : "secondary"
-                      }
-                    >
-                      {member.identityConfirmed ? "团队已确认" : "待管理员确认"}
-                    </Badge>
-                  )}
-                </div>
-                {member.profile && (
-                  <>
-                    <p className="text-xs text-muted-foreground">
-                      {[member.profile.institution, member.profile.department]
-                        .filter(Boolean)
-                        .join(" · ") || "未填写学校与院系"}
-                    </p>
-                    {member.profile.researchFocus && (
-                      <p className="break-words text-xs">
-                        研究方向：{member.profile.researchFocus}
-                      </p>
-                    )}
-                  </>
-                )}
-                {membership.positions.includes("admin") &&
-                  member.id !== user.id &&
-                  member.profile &&
-                  !member.identityConfirmed && (
-                    <ConfirmIdentityButton
-                      teamId={teamId}
-                      userId={member.id}
-                      version={member.profile.version}
-                    />
-                  )}
-                {member.id === user.id &&
-                  member.profile &&
-                  !member.identityConfirmed && (
-                    <p className="text-xs text-muted-foreground">
-                      {member.positions.includes("admin")
-                        ? "请联系另一位团队管理员确认身份资料。"
-                        : "请联系团队管理员确认身份资料。"}
-                    </p>
-                  )}
-              </div>
               {capabilitiesFor(membership.positions).manageMembers && (
                 <MemberPositionsForm teamId={teamId} member={member} />
               )}

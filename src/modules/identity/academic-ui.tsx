@@ -152,12 +152,10 @@ export function MemberPositionsForm({
         <legend className="mb-2 text-xs font-medium">
           {member.name}的团队职务（可多选）
         </legend>
-        <p className="mb-3 text-xs leading-5 text-muted-foreground">职务可以叠加。管理员负责授权，副管理员负责日常协作；学术身份不会增加权限。</p>
         <div className="grid gap-2 sm:grid-cols-2">
           {TEAM_POSITIONS.map((position) => (
             <label
               key={position}
-              title={POSITION_META[position].description}
               className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-3 text-xs transition-colors ${selected.includes(position) ? "border-brand/40 bg-brand-soft" : "border-border hover:bg-muted/50"}`}
             >
               <input
@@ -174,7 +172,7 @@ export function MemberPositionsForm({
                 }
                 className="mt-0.5 accent-brand"
               />
-              <span><span className="block font-medium">{POSITION_META[position].label}</span><span className="mt-1 block leading-5 text-muted-foreground">{POSITION_META[position].description}</span></span>
+              <span><span className="block font-medium">{POSITION_META[position].label}</span></span>
             </label>
           ))}
         </div>
