@@ -24,7 +24,7 @@ export function ProjectComments(props: Props) {
   return <CommentsPanel key={`${props.actorId}:${props.projectId}`} {...props} />;
 }
 
-function CommentsPanel({ projectId, projectName }: Props) {
+function CommentsPanel({ projectId }: Props) {
   const [list, setList] = useState<ProjectCommentListDTO | null>(null);
   const [loadError, setLoadError] = useState("");
   const [error, setError] = useState("");
@@ -91,7 +91,6 @@ function CommentsPanel({ projectId, projectName }: Props) {
     <header>
       <Link href={`/p/${projectId}`} className="text-xs text-muted-foreground hover:text-brand">← 项目概览</Link>
       <h1 className="mt-3 text-3xl font-semibold">项目评论</h1>
-      <p className="mt-2 text-sm text-muted-foreground">{projectName} · 教师和成员都可以在这里发表评论与回复。</p>
     </header>
     <section aria-labelledby={`${id}-title`} className="space-y-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
       <header className="flex items-center justify-between gap-3">

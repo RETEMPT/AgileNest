@@ -115,7 +115,6 @@ function AssetsPanel({ teamId, actorId, teamName }: Props) {
     <header>
       <Link href={`/t/${teamId}/projects`} className="text-xs text-muted-foreground hover:text-brand">← {teamName} / 团队项目</Link>
       <h1 className="mt-3 text-3xl font-semibold">资源占用与申请</h1>
-      <p className="mt-2 text-sm text-muted-foreground">{teamName} · 教师录入资源类型与数量，成员查看可用并申请，批准后计入占用。</p>
     </header>
     {loadError && <div className="space-y-2"><FormFeedback message={loadError} /><Button type="button" variant="outline" size="sm" onClick={refresh}>重新加载</Button></div>}
     {(!assets || !requests) && !loadError && <p role="status" className="text-xs text-muted-foreground">正在加载资源…</p>}
@@ -152,7 +151,6 @@ function AssetsPanel({ teamId, actorId, teamName }: Props) {
     <section aria-labelledby={`${id}-apply`} className="space-y-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
       <header>
         <h2 id={`${id}-apply`} className="flex items-center gap-2 text-sm font-semibold"><Send className="h-4 w-4 text-brand" />申请资源</h2>
-        <p className="mt-1 text-xs text-muted-foreground">选择有可用数量的资源并说明用途；教师批准后即计入占用。</p>
       </header>
       <form className="grid gap-3 sm:grid-cols-[minmax(0,1.4fr)_9rem_minmax(0,1.4fr)_auto]" onSubmit={(event) => { event.preventDefault(); if (!pending && requestAssetId && requestQuantity) void mutateRequest(null, { assetId: requestAssetId, quantity: Number(requestQuantity), purpose: requestPurpose }); }}>
         <div className="space-y-1.5">
